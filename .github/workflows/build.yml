@@ -85,12 +85,6 @@ jobs:
         continue-on-error: true
         timeout-minutes: 8
         run: make stations STATIONS=resources/stazioni-italiane.json
-      - name: Diagnostica logo Radio 105 (temporaneo)
-        continue-on-error: true
-        run: |
-          curl -sS -m 15 -o /dev/null -w "%{http_code} %{content_type} %{size_download}\n" \
-            -A "RadioTray-Mac/1.4 (https://github.com/paselsoft/radiotray-mac)" https://upload.wikimedia.org/wikipedia/it/0/01/105.png
-          curl -sS -m 15 -o /dev/null -w "%{http_code} %{content_type} %{size_download}\n" -A "RadioTray-Mac" https://upload.wikimedia.org/wikipedia/it/0/01/105.png
       - name: DMG
         run: make dmg ARCH=x86_64 VERSION=$VERSION
       - uses: actions/upload-artifact@v4
