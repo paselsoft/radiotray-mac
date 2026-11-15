@@ -36,8 +36,9 @@ int main(int argc, const char *argv[])
             NSUInteger shown = 0;
             for (RTFoundStation *s in found) {
                 if (shown++ >= 4) break;
-                printf("   %s%s | %s | %s | voti %ld | %s\n", s.playable ? "" : "[non riproducibile] ", s.name.UTF8String,
-                       s.country.UTF8String, s.formatDescription.UTF8String, (long)s.votes, s.url.UTF8String);
+                printf("   %s%s | %s | %s | voti %ld | %s | logo: %s\n", s.playable ? "" : "[non riproducibile] ", s.name.UTF8String,
+                       s.country.UTF8String, s.formatDescription.UTF8String, (long)s.votes, s.url.UTF8String,
+                       s.favicon.length ? s.favicon.UTF8String : "-");
             }
         }
         return failures ? 1 : 0;
