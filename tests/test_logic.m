@@ -549,6 +549,8 @@ static void testFavorites(void)
     CHECK([[RTFavoriteTracks searchURLForTrack:t site:RTTrackSearchAppleMusic].absoluteString hasPrefix:@"https://music.apple.com/it/search?term="]);
     NSString *sp = [RTFavoriteTracks searchURLForTrack:t site:RTTrackSearchSpotify].absoluteString;
     CHECK([sp hasPrefix:@"https://open.spotify.com/search/Mina%20"]);
+    CHECK([[RTFavoriteTracks searchURLForTrack:t site:RTTrackSearchYouTubeMusic].absoluteString
+           hasPrefix:@"https://music.youtube.com/search?q=Mina%20%26%20Celentano%20Citt%C3%A0"]);
 }
 
 int main(int argc, const char *argv[])

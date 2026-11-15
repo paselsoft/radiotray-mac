@@ -19,6 +19,7 @@ typedef NS_ENUM(NSInteger, RTTrackSearchSite) {
     RTTrackSearchYouTube,
     RTTrackSearchAppleMusic,
     RTTrackSearchSpotify,
+    RTTrackSearchYouTubeMusic,
 };
 
 @interface RTFavoriteTracks : NSObject

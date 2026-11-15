@@ -1,5 +1,6 @@
 #import "RTStationEditorController.h"
 #import "RTBookmarksDocument.h"
+#import "RTTableCell.h"
 
 static NSString *const kColName = @"name";
 static NSString *const kColURL = @"url";
@@ -445,15 +446,9 @@ static NSPasteboardType const RTDragType = @"io.github.paselsoft.radiotray-mac.i
 
 - (NSView *)outlineView:(NSOutlineView *)outlineView viewForTableColumn:(NSTableColumn *)column item:(id)item
 {
-    NSTextField *cell = [outlineView makeViewWithIdentifier:column.identifier owner:self];
-    if (!cell) {
-        cell = [NSTextField new];
-        cell.identifier = column.identifier;
-        cell.bordered = NO;
-        cell.drawsBackground = NO;
-        cell.lineBreakMode = NSLineBreakByTruncatingTail;
-        cell.delegate = self;
-    }
+    RTTableCell *view = [RTTableCell cellInTable:outlineView identifier:column.identifier owner:self];
+    NSTextField *cell = view.textField;
+    cell.delegate = self;
     BOOL isGroup = [item isKindOfClass:[RTDocGroup class]];
     BOOL nameColumn = [column.identifier isEqualToString:kColName];
     NSString *value;
@@ -466,17 +461,17 @@ static NSPasteboardType const RTDragType = @"io.github.paselsoft.radiotray-mac.i
         }
         cell.editable = nameColumn && !g.isRoot;
         cell.font = nameColumn ? [NSFont boldSystemFontOfSize:[NSFont systemFontSize]] : [NSFont systemFontOfSize:[NSFont smallSystemFontSize]];
-        cell.textColor = nameColumn ? [NSColor labelColor] : [NSColor secondaryLabelColor];
+        view.normalColor = nameColumn ? [NSColor labelColor] : [NSColor secondaryLabelColor];
     } else {
         RTDocStation *s = item;
         value = nameColumn ? s.name : s.url;
         cell.editable = YES;
         cell.font = [NSFont systemFontOfSize:[NSFont systemFontSize]];
-        cell.textColor = nameColumn ? [NSColor labelColor] : [NSColor secondaryLabelColor];
+        view.normalColor = nameColumn ? [NSColor labelColor] : [NSColor secondaryLabelColor];
     }
     cell.stringValue = value ?: @"";
-    cell.toolTip = cell.editable ? @"Doppio clic per modificare" : nil;
-    return cell;
+    view.toolTip = cell.editable ? @"Doppio clic per modificare" : nil;
+    return view;
 }
 
 - (void)controlTextDidEndEditing:(NSNotification *)note

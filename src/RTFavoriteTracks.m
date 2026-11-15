@@ -187,6 +187,7 @@ static NSISO8601DateFormatter *RTDateFormatter(void)
         case RTTrackSearchYouTube:    url = [@"https://www.youtube.com/results?search_query=" stringByAppendingString:q]; break;
         case RTTrackSearchAppleMusic: url = [@"https://music.apple.com/it/search?term=" stringByAppendingString:q]; break;
         case RTTrackSearchSpotify:    url = [@"https://open.spotify.com/search/" stringByAppendingString:q]; break;
+        case RTTrackSearchYouTubeMusic: url = [@"https://music.youtube.com/search?q=" stringByAppendingString:q]; break;
     }
     return [NSURL URLWithString:url];
 }

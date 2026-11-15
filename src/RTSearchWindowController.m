@@ -1,5 +1,6 @@
 #import "RTSearchWindowController.h"
 #import "RTRadioBrowser.h"
+#import "RTTableCell.h"
 
 static NSString *const kColName = @"name";
 static NSString *const kColCountry = @"country";
@@ -209,20 +210,15 @@ static NSString *const kColTags = @"tags";
 
 - (NSView *)tableView:(NSTableView *)tableView viewForTableColumn:(NSTableColumn *)column row:(NSInteger)row
 {
-    NSTextField *cell = [tableView makeViewWithIdentifier:column.identifier owner:self];
-    if (!cell) {
-        cell = [NSTextField labelWithString:@""];
-        cell.identifier = column.identifier;
-        cell.lineBreakMode = NSLineBreakByTruncatingTail;
-    }
+    RTTableCell *cell = [RTTableCell cellInTable:tableView identifier:column.identifier owner:self];
     RTFoundStation *s = self.results[(NSUInteger)row];
     NSString *value = @"";
     if ([column.identifier isEqualToString:kColName]) value = s.name;
     else if ([column.identifier isEqualToString:kColCountry]) value = s.country;
     else if ([column.identifier isEqualToString:kColFormat]) value = s.formatDescription;
     else if ([column.identifier isEqualToString:kColTags]) value = s.tags;
-    cell.stringValue = value ?: @"";
-    cell.textColor = s.playable ? [NSColor labelColor] : [NSColor tertiaryLabelColor];
+    cell.textField.stringValue = value ?: @"";
+    cell.normalColor = s.playable ? [NSColor labelColor] : [NSColor tertiaryLabelColor];
     cell.toolTip = s.url;
     return cell;
 }

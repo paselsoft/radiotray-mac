@@ -17,7 +17,7 @@ con **macOS High Sierra 10.13** (funziona anche sulle versioni successive).
 | 2 | titolo letto dallo stream (ICY), timer di spegnimento, stazione successiva/precedente, tasti multimediali, Apri URL…, ricarica automatica, riconnessione | fatta (provata sull'iMac) |
 | 2.5 | nome vero della stazione, Aggiungi alle stazioni…, Cerca stazioni (Radio Browser), radio italiane consigliate | fatta (ricerca provata sull'iMac) |
 | 3 | editor delle stazioni, avvio al login, versione 1.0 | fatta |
-| 1.1 | brani preferiti: aggiunta dal menu, finestra con ricerca, filtro, ordinamento, ricerca sul web, esportazione CSV | da provare sull'iMac |
+| 1.1 | brani preferiti: aggiunta dal menu, finestra con ricerca, filtro, ordinamento, ricerca sul web, esportazione CSV | fatta (provata sull'iMac) |
 
 ## Scaricare
 

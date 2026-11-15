@@ -7,7 +7,8 @@ clic destro sull'app → Apri → Apri. Istruzioni complete nel file LEGGIMI.txt
 ### Novità della 1.1
 - **Brani preferiti**: clic sul brano in ascolto ▸ ★ Aggiungi ai brani preferiti. Nella finestra
   "Brani preferiti…": ricerca istantanea, filtro per stazione, ordinamento per colonna, elimina,
-  copia, cerca su YouTube / Apple Music / Spotify, esporta in CSV.
+  copia, cerca su YouTube / YouTube Music / Apple Music / Spotify, esporta in CSV.
+- Righe selezionate leggibili (testo bianco sul blu) in tutte le finestre.
 
 ### Cosa fa
 - Stazioni a gruppi nel menu, con lo stesso `bookmarks.json` di Radiotray-NG

@@ -1,5 +1,6 @@
 #import "RTFavoritesWindowController.h"
 #import "RTFavoriteTracks.h"
+#import "RTTableCell.h"
 
 static NSString *const kColTitle = @"title";
 static NSString *const kColArtist = @"artist";
@@ -116,7 +117,8 @@ static NSString *const kColAdded = @"added";
 
     NSPopUpButton *web = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(212, y + 3, 160, 26) pullsDown:YES];
     [web addItemWithTitle:@"Cerca su…"];
-    NSArray *sites = @[@[@"YouTube", @(RTTrackSearchYouTube)], @[@"Apple Music", @(RTTrackSearchAppleMusic)],
+    NSArray *sites = @[@[@"YouTube", @(RTTrackSearchYouTube)], @[@"YouTube Music", @(RTTrackSearchYouTubeMusic)],
+                       @[@"Apple Music", @(RTTrackSearchAppleMusic)],
                        @[@"Spotify", @(RTTrackSearchSpotify)]];
     for (NSArray *site in sites) {
         [web addItemWithTitle:site[0]];
@@ -311,21 +313,16 @@ static NSString *const kColAdded = @"added";
 
 - (NSView *)tableView:(NSTableView *)tableView viewForTableColumn:(NSTableColumn *)column row:(NSInteger)row
 {
-    NSTextField *cell = [tableView makeViewWithIdentifier:column.identifier owner:self];
-    if (!cell) {
-        cell = [NSTextField labelWithString:@""];
-        cell.identifier = column.identifier;
-        cell.lineBreakMode = NSLineBreakByTruncatingTail;
-    }
+    RTTableCell *cell = [RTTableCell cellInTable:tableView identifier:column.identifier owner:self];
     RTFavoriteTrack *t = self.shown[(NSUInteger)row];
     NSString *value = @"";
     if ([column.identifier isEqualToString:kColTitle]) value = t.title;
     else if ([column.identifier isEqualToString:kColArtist]) value = t.artist;
     else if ([column.identifier isEqualToString:kColStation]) value = t.station;
     else value = [self.dateFormatter stringFromDate:t.added];
-    cell.stringValue = value ?: @"";
-    cell.textColor = [column.identifier isEqualToString:kColAdded] || [column.identifier isEqualToString:kColStation]
-                   ? [NSColor secondaryLabelColor] : [NSColor labelColor];
+    cell.textField.stringValue = value ?: @"";
+    cell.normalColor = [column.identifier isEqualToString:kColAdded] || [column.identifier isEqualToString:kColStation]
+                     ? [NSColor secondaryLabelColor] : [NSColor labelColor];
     cell.toolTip = value;
     return cell;
 }

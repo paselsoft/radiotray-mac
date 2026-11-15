@@ -15,8 +15,8 @@ Uso
   "Copia titolo e artista" e "Brani preferiti…". Una ★ prima del titolo indica che il brano
   è già tra i preferiti.
 - Brani preferiti…: finestra con ricerca istantanea, filtro per stazione, ordinamento (clic
-  sull'intestazione di una colonna), Elimina (⌘⌫), Copia, Cerca su YouTube / Apple Music /
-  Spotify (doppio clic = YouTube) ed Esporta in CSV per Numbers o Excel.
+  sull'intestazione di una colonna), Elimina (⌘⌫), Copia, Cerca su YouTube / YouTube Music /
+  Apple Music / Spotify (doppio clic = YouTube) ed Esporta in CSV per Numbers o Excel.
   I brani sono salvati in ~/Library/Application Support/RadioTray/brani-preferiti.json
 - Stazione precedente / successiva: passa alla stazione vicina nello stesso gruppo.
 - Apri URL…: ascolta un indirizzo qualsiasi (stream o playlist) senza aggiungerlo alle stazioni.
