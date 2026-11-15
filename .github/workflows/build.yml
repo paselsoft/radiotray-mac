@@ -85,14 +85,6 @@ jobs:
         continue-on-error: true
         timeout-minutes: 8
         run: make stations STATIONS=resources/stazioni-italiane.json
-      - name: Diagnostica delle copertine (temporaneo)
-        continue-on-error: true
-        timeout-minutes: 4
-        run: |
-          clang -std=gnu11 -fobjc-arc -fmodules tests/check_artwork.m src/RTArtwork.m -framework Foundation -o build/check_artwork
-          build/check_artwork "Sting|If You Love Somebody Set Them Free" "Ray Parker|Ghostbusters" "Gary's Gang|Knock Me Out" \
-            "Boddhi Satva & Erin Kimberly|Now Or Never [Gregor Salto Radio Edit]" "Spandau Ballet|Round And Round" \
-            "Karol G, Nicki Minaj|Tusa" "Fresh Moods|Moonstars"
       - name: DMG
         run: make dmg ARCH=x86_64 VERSION=$VERSION
       - uses: actions/upload-artifact@v4
