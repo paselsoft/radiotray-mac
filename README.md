@@ -22,7 +22,7 @@ con **macOS High Sierra 10.13** (funziona anche sulle versioni successive).
 | 1.3 | copertine, radiosveglia, stazioni più ascoltate, titolo nella barra dei menu | fatta (provata sull'iMac) |
 | 1.4 | finestra In riproduzione, backup e iCloud Drive, pausa automatica, qualità dello stream | fatta (provata sull'iMac) |
 | 1.4.1 | titolo e artista al contrario (105 Classics), formato "Titolo * Artista" (RDS) | fatta |
-| 1.4.2 | loghi delle stazioni, jingle ignorati, "Ignora i titoli" per stazione, radio http, volume in percentuale | da provare sull'iMac |
+| 1.4.2 | loghi delle stazioni, jingle ignorati, "Ignora i titoli" per stazione, radio http, volume in percentuale | fatta (provata sull'iMac) |
 
 ## Scaricare
 
