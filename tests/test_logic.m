@@ -5,6 +5,7 @@
 #import "../src/RTPlaylistParser.h"
 #import "../src/RTTrackInfo.h"
 #import "../src/RTIcyParser.h"
+#import "../src/RTRadioBrowser.h"
 
 static int failures = 0;
 static int checks = 0;
@@ -312,6 +313,33 @@ static void testStationName(void)
     CHECK_EQ([RTIcyParser stationNameFromHeader:@"Radio Città"], @"Radio Città");
 }
 
+static void testRadioBrowser(void)
+{
+    NSString *json = @"["
+        "{\"name\":\" Radio 24 \",\"url\":\"http://x/listen.pls\",\"url_resolved\":\"http://x/stream\",\"countrycode\":\"it\",\"codec\":\"mp3\",\"bitrate\":128,\"tags\":\"news,talk\",\"votes\":50,\"hls\":0},"
+        "{\"name\":\"Radio Ogg\",\"url\":\"http://o/\",\"url_resolved\":\"\",\"countrycode\":\"IT\",\"codec\":\"OGG\",\"bitrate\":0},"
+        "{\"name\":\"Radio HLS\",\"url\":\"https://h/master.m3u8\",\"codec\":\"UNKNOWN\",\"hls\":1},"
+        "{\"name\":\" Radio 24 \",\"url\":\"http://x/listen.pls\",\"url_resolved\":\"http://x/stream\"},"
+        "{\"name\":\"Senza URL\",\"url\":\"\"},"
+        "{\"name\":\"Altro schema\",\"url\":\"mms://m/\"},"
+        "42 ]";
+    NSArray<RTFoundStation *> *list = [RTRadioBrowser stationsFromJSON:D(json)];
+    CHECK(list.count == 3);
+    CHECK_EQ(list[0].name, @"Radio 24");
+    CHECK_EQ(list[0].url, @"http://x/stream");
+    CHECK_EQ(list[0].country, @"IT");
+    CHECK_EQ(list[0].formatDescription, @"MP3 128 kbps");
+    CHECK_EQ(list[0].tags, @"news, talk");
+    CHECK(list[0].playable);
+    CHECK_EQ(list[1].name, @"Radio HLS");          // le riproducibili prima
+    CHECK_EQ(list[1].formatDescription, @"HLS");
+    CHECK_EQ(list[2].name, @"Radio Ogg");          // non riproducibile in fondo
+    CHECK(!list[2].playable);
+    CHECK_EQ(list[2].url, @"http://o/");
+    CHECK([RTRadioBrowser stationsFromJSON:D(@"{}")] == nil);
+    CHECK([RTRadioBrowser stationsFromJSON:D(@"[]")].count == 0);
+}
+
 int main(int argc, const char *argv[])
 {
     @autoreleasepool {
@@ -326,6 +354,7 @@ int main(int argc, const char *argv[])
         testIcy();
         testAddStation();
         testStationName();
+        testRadioBrowser();
         printf("%d verifiche, %d fallite\n", checks, failures);
     }
     return failures ? 1 : 0;

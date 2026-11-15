@@ -9,7 +9,7 @@
 
 ARCH       ?= x86_64
 MACOS_MIN  ?= 10.13
-VERSION    ?= 0.2.1
+VERSION    ?= 0.3.0
 BUILD      := build
 APP        := $(BUILD)/RadioTray.app
 
@@ -19,9 +19,9 @@ CFLAGS     := -std=gnu11 -fobjc-arc -fmodules -O2 -g $(WARN) -arch $(ARCH) -mmac
 LDFLAGS    := -arch $(ARCH) -mmacosx-version-min=$(MACOS_MIN)
 FRAMEWORKS := -framework Cocoa -framework AVFoundation -framework CoreMedia -framework MediaPlayer
 
-LOGIC_SRC  := src/RTBookmarks.m src/RTPlaylistParser.m src/RTTrackInfo.m src/RTIcyParser.m
+LOGIC_SRC  := src/RTBookmarks.m src/RTPlaylistParser.m src/RTTrackInfo.m src/RTIcyParser.m src/RTRadioBrowser.m
 APP_SRC    := $(LOGIC_SRC) src/RTStreamResolver.m src/RTIcyMetadataReader.m src/RTPlayer.m src/RTSettings.m src/RTNotifier.m \
-              src/RTStatusIcon.m src/RTFileWatcher.m src/RTMediaKeys.m src/RTAppDelegate.m src/main.m
+              src/RTStatusIcon.m src/RTSearchWindowController.m src/RTFileWatcher.m src/RTMediaKeys.m src/RTAppDelegate.m src/main.m
 HEADERS    := $(wildcard src/*.h)
 
 # i test girano sull'architettura del runner (Apple Silicon o Intel)
@@ -47,8 +47,13 @@ $(BUILD)/check_stations: tests/check_stations.m $(LOGIC_SRC) src/RTStreamResolve
 	@mkdir -p $(BUILD)
 	$(CC) $(TEST_FLAGS) tests/check_stations.m $(LOGIC_SRC) src/RTStreamResolver.m src/RTIcyMetadataReader.m -framework Foundation -o $@
 
+STATIONS   ?= resources/bookmarks.json
 stations: $(BUILD)/check_stations
-	$(BUILD)/check_stations resources/bookmarks.json
+	$(BUILD)/check_stations $(STATIONS)
+
+$(BUILD)/search_stations: tests/search_stations.m $(LOGIC_SRC) $(HEADERS)
+	@mkdir -p $(BUILD)
+	$(CC) $(TEST_FLAGS) tests/search_stations.m $(LOGIC_SRC) -framework Foundation -o $@
 
 app: $(BUILD)/RadioTray
 	VERSION=$(VERSION) sh mac/make_bundle.sh $(APP) $(BUILD)/RadioTray

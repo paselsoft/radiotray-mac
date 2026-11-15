@@ -4,6 +4,7 @@
 #import "RTMediaKeys.h"
 #import "RTNotifier.h"
 #import "RTPlayer.h"
+#import "RTSearchWindowController.h"
 #import "RTSettings.h"
 #import "RTStatusIcon.h"
 #import "RTStreamResolver.h"
@@ -12,7 +13,7 @@
 static const NSUInteger RTMenuLineLength = 48;
 static const NSInteger RTMaxSleepMinutes = 24 * 60;
 
-@interface RTAppDelegate () <NSMenuDelegate, RTPlayerDelegate, RTMediaKeysDelegate>
+@interface RTAppDelegate () <NSMenuDelegate, RTPlayerDelegate, RTMediaKeysDelegate, RTSearchWindowDelegate>
 @property (nonatomic, strong) NSStatusItem *statusItem;
 @property (nonatomic, strong) NSMenu *menu;
 @property (nonatomic, strong) NSMenuItem *trackItem;
@@ -32,6 +33,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
 @property (nonatomic, strong) RTStreamResolver *resolver;
 @property (nonatomic, strong) RTFileWatcher *bookmarksWatcher;
 @property (nonatomic, strong) RTMediaKeys *mediaKeys;
+@property (nonatomic, strong, nullable) RTSearchWindowController *searchWindow;
 
 // stazione scelta (anche se spenta). currentGroup nil = indirizzo aperto con "Apri URL…"
 @property (nonatomic, copy, nullable) NSString *currentGroup;
@@ -52,6 +54,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
 - (void)applicationDidFinishLaunching:(NSNotification *)notification
 {
     self.settings = [RTSettings shared];
+    [self installMainMenu];
     self.stationItems = [NSMutableArray array];
     self.track = [RTTrackInfo infoWithTitle:nil artist:nil];
     self.resolver = [RTStreamResolver new];
@@ -103,6 +106,37 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
 {
     [self.player stop];
     [[NSUserDefaults standardUserDefaults] synchronize];
+}
+
+/// Un'app della barra dei menu non mostra un menu principale, ma serve lo stesso perché nei campi
+/// di testo (ricerca, Apri URL…) funzionino ⌘X ⌘C ⌘V ⌘A ⌘Z e perché ⌘W chiuda le finestre.
+- (void)installMainMenu
+{
+    NSMenu *main = [NSMenu new];
+    NSMenuItem *appItem = [main addItemWithTitle:@"RadioTray" action:NULL keyEquivalent:@""];
+    NSMenu *appMenu = [[NSMenu alloc] initWithTitle:@"RadioTray"];
+    [appMenu addItemWithTitle:@"Esci da RadioTray" action:@selector(terminate:) keyEquivalent:@"q"];
+    appItem.submenu = appMenu;
+
+    NSMenuItem *editItem = [main addItemWithTitle:@"Composizione" action:NULL keyEquivalent:@""];
+    NSMenu *edit = [[NSMenu alloc] initWithTitle:@"Composizione"];
+    [edit addItemWithTitle:@"Annulla" action:@selector(undo:) keyEquivalent:@"z"];
+    NSMenuItem *redo = [edit addItemWithTitle:@"Ripeti" action:@selector(redo:) keyEquivalent:@"z"];
+    redo.keyEquivalentModifierMask = NSEventModifierFlagCommand | NSEventModifierFlagShift;
+    [edit addItem:[NSMenuItem separatorItem]];
+    [edit addItemWithTitle:@"Taglia" action:@selector(cut:) keyEquivalent:@"x"];
+    [edit addItemWithTitle:@"Copia" action:@selector(copy:) keyEquivalent:@"c"];
+    [edit addItemWithTitle:@"Incolla" action:@selector(paste:) keyEquivalent:@"v"];
+    [edit addItemWithTitle:@"Seleziona tutto" action:@selector(selectAll:) keyEquivalent:@"a"];
+    editItem.submenu = edit;
+
+    NSMenuItem *windowItem = [main addItemWithTitle:@"Finestra" action:NULL keyEquivalent:@""];
+    NSMenu *window = [[NSMenu alloc] initWithTitle:@"Finestra"];
+    [window addItemWithTitle:@"Chiudi" action:@selector(performClose:) keyEquivalent:@"w"];
+    [window addItemWithTitle:@"Contrai" action:@selector(performMiniaturize:) keyEquivalent:@"m"];
+    windowItem.submenu = window;
+
+    NSApp.mainMenu = main;
 }
 
 - (void)installDefaultBookmarksIfNeeded
@@ -216,6 +250,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
 
     self.previousItem = [self addItem:@"Stazione precedente" action:@selector(previousStation:) to:self.menu];
     self.nextItem = [self addItem:@"Stazione successiva" action:@selector(nextStation:) to:self.menu];
+    [self addItem:@"Cerca stazioni…" action:@selector(searchStations:) to:self.menu];
     [self addItem:@"Apri URL…" action:@selector(openURL:) to:self.menu];
     self.addStationItem = [self addItem:@"Aggiungi alle stazioni…" action:@selector(addCurrentStation:) to:self.menu];
     self.sleepItem = [self addItem:@"Timer di spegnimento…" action:@selector(sleepTimerChosen:) to:self.menu];
@@ -618,15 +653,42 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     [self playStation:station group:nil];
 }
 
+- (void)searchStations:(id)sender
+{
+    if (!self.searchWindow) {
+        self.searchWindow = [RTSearchWindowController new];
+        self.searchWindow.delegate = self;
+    }
+    [self.searchWindow showAndFocus];
+}
+
+- (void)searchWindowPlayStation:(NSString *)name url:(NSString *)url
+{
+    RTStation *station = [RTStation new];
+    station.name = name;
+    station.url = url;
+    self.adhocNamed = YES;   // il nome dell'archivio è già quello giusto
+    [self playStation:station group:nil];
+}
+
+- (void)searchWindowAddStation:(NSString *)name url:(NSString *)url
+{
+    [self askToAddStationNamed:name url:url];
+}
+
 - (void)addCurrentStation:(id)sender
 {
     RTStation *station = self.adhocStation;
     if (self.currentGroup || !station) return;
+    [self askToAddStationNamed:station.name url:station.url];
+}
 
+- (void)askToAddStationNamed:(NSString *)stationName url:(NSString *)stationURL
+{
     [NSApp activateIgnoringOtherApps:YES];
     NSAlert *alert = [NSAlert new];
     alert.messageText = @"Aggiungi alle stazioni";
-    alert.informativeText = station.url;
+    alert.informativeText = stationURL;
     [alert addButtonWithTitle:@"Aggiungi"];
     [alert addButtonWithTitle:@"Annulla"];
 
@@ -636,7 +698,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     nameLabel.alignment = NSTextAlignmentRight;
     [view addSubview:nameLabel];
     NSTextField *nameField = [[NSTextField alloc] initWithFrame:NSMakeRect(66, 33, 274, 24)];
-    nameField.stringValue = station.name;
+    nameField.stringValue = stationName;
     [view addSubview:nameField];
 
     NSTextField *groupLabel = [NSTextField labelWithString:@"Gruppo:"];
@@ -670,7 +732,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     NSString *path = self.settings.bookmarksPath;
     NSData *data = [NSData dataWithContentsOfFile:path] ?: [@"[]" dataUsingEncoding:NSUTF8StringEncoding];
     NSString *error = nil;
-    NSData *updated = [RTBookmarks dataByAddingStation:name url:station.url toGroup:group inData:data error:&error];
+    NSData *updated = [RTBookmarks dataByAddingStation:name url:stationURL toGroup:group inData:data error:&error];
     if (!updated) {
         [self showAlert:@"Stazione non aggiunta" text:error];
         return;
@@ -686,12 +748,14 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
         self.bookmarks = b;
         [self buildMenu];
     }
-    // da ora è una stazione come le altre (spunta nel menu, ultima stazione ascoltata)
-    self.currentGroup = group;
-    self.currentStation = name;
-    self.adhocStation = nil;
-    self.settings.lastGroup = group;
-    self.settings.lastStation = name;
+    // se è quella in ascolto, da ora è una stazione come le altre (spunta nel menu, ultima stazione ascoltata)
+    if (!self.currentGroup && [self.adhocStation.url isEqualToString:stationURL]) {
+        self.currentGroup = group;
+        self.currentStation = name;
+        self.adhocStation = nil;
+        self.settings.lastGroup = group;
+        self.settings.lastStation = name;
+    }
     if (self.settings.notifications) {
         NSString *where = [group isEqualToString:RTRootGroupName] ? @"senza gruppo" : [NSString stringWithFormat:@"nel gruppo «%@»", group];
         [[RTNotifier shared] notifyTitle:@"Stazione aggiunta" message:[NSString stringWithFormat:@"%@, %@", name, where]];

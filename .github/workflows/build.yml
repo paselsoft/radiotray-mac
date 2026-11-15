@@ -41,6 +41,17 @@ jobs:
         continue-on-error: true
         timeout-minutes: 5
         run: make stations
+      - name: Stazioni candidate (facoltativo, temporaneo)
+        continue-on-error: true
+        timeout-minutes: 8
+        run: make stations STATIONS=tests/stazioni-candidate.json
+      - name: Ricerca nell'archivio Radio Browser (facoltativo)
+        continue-on-error: true
+        timeout-minutes: 5
+        run: |
+          make build/search_stations
+          build/search_stations IT "Radio Deejay" "Radio Capital" "m2o" "RTL 102.5" "RDS" "Radio 24" "Radio Monte Carlo" \
+            "Kiss Kiss" "Radiofreccia" "Subasio" "R101" "Virgin Radio" "Radio 105" "Isoradio"
       - name: DMG
         run: make dmg ARCH=x86_64
       - uses: actions/upload-artifact@v4
