@@ -1,0 +1,57 @@
+name: build
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: write   # release "anteprima" con il .dmg
+
+jobs:
+  macos:
+    # Runner Apple Silicon: l'app si compila per x86_64 (iMac 2009) con target 10.13.
+    runs-on: macos-15
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "10.13"
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Versioni
+        run: sw_vers && xcodebuild -version && clang --version
+      - name: Test della logica (preferiti, playlist, titoli)
+        run: make test
+      - name: Compilazione (x86_64, macOS 10.13)
+        run: make app ARCH=x86_64
+      - name: Verifica del binario (architettura, versione minima, firma)
+        run: make check-mac ARCH=x86_64
+      - name: Prova di avvio sotto Rosetta (facoltativa)
+        continue-on-error: true
+        timeout-minutes: 2
+        run: |
+          if arch -x86_64 /usr/bin/true 2>/dev/null; then
+            arch -x86_64 build/RadioTray.app/Contents/MacOS/RadioTray & pid=$!
+            sleep 8
+            if kill -0 $pid 2>/dev/null; then echo "L'app è partita ed è ancora attiva dopo 8 s"; kill $pid; else wait $pid; echo "L'app è terminata subito (codice $?)"; exit 1; fi
+          else
+            echo "Rosetta non disponibile su questo runner: prova saltata"
+          fi
+      - name: Stazioni predefinite raggiungibili (facoltativo)
+        continue-on-error: true
+        timeout-minutes: 5
+        run: make stations
+      - name: DMG
+        run: make dmg ARCH=x86_64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RadioTray-macOS-10.13-x86_64
+          path: build/RadioTray.dmg
+          compression-level: 0
+          retention-days: 14
+      - name: Release "anteprima" con il .dmg
+        run: |
+          gh release delete anteprima --cleanup-tag -y 2>/dev/null || true
+          gh release create anteprima build/RadioTray.dmg --prerelease --target "${{ github.sha }}" \
+            --title "Anteprima (build ${{ github.run_number }}, ${{ github.ref_name }})" \
+            --notes "Build automatica per macOS 10.13 (x86_64). Commit ${{ github.sha }}. Istruzioni nel file LEGGIMI.txt dentro il .dmg."

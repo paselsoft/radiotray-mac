@@ -1,0 +1,26 @@
+RadioTray per macOS 10.13 e successivi
+=====================================
+
+Installazione
+1. Trascina RadioTray nella cartella Applicazioni.
+2. Al primo avvio: clic destro (o ctrl-clic) su RadioTray > Apri > Apri.
+   (L'app non è firmata da uno sviluppatore registrato: macOS lo chiede una volta sola.)
+3. Compare l'icona di una radio nella barra dei menu, in alto a destra. Non c'è icona nel Dock.
+
+Uso
+- Clic sull'icona: scegli una stazione da un gruppo. La radio parte.
+- "Spegni" / "Accendi": ferma o riprende l'ultima stazione.
+- Il cursore Volume regola il volume dell'app.
+- Clic su titolo e artista: li copia negli appunti.
+
+Stazioni
+- Preferenze > Modifica stazioni… apre il file bookmarks.json in TextEdit.
+  Si trova in ~/Library/Application Support/RadioTray/bookmarks.json
+- Il formato è lo stesso di Radiotray-NG per Linux: puoi copiare lì il tuo
+  ~/.config/radiotray-ng/bookmarks.json.
+- Dopo averlo modificato: Preferenze > Ricarica stazioni.
+- Formati supportati: MP3, AAC, HLS (.m3u8), playlist PLS, M3U, ASX, XSPF.
+  Ogg/Opus e WMA non sono supportati da macOS: usa il flusso MP3 o AAC della stazione.
+
+Avvio automatico
+- Preferenze di Sistema > Utenti e gruppi > Elementi login > + > RadioTray.

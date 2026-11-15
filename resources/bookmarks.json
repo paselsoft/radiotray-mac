@@ -1,0 +1,31 @@
+[
+   {
+      "group" : "Rai",
+      "stations" : [
+         { "name" : "Rai Radio 1", "url" : "https://icestreaming.rai.it/1.mp3" },
+         { "name" : "Rai Radio 2", "url" : "https://icestreaming.rai.it/2.mp3" },
+         { "name" : "Rai Radio 3", "url" : "https://icestreaming.rai.it/3.mp3" }
+      ]
+   },
+   {
+      "group" : "Jazz e lounge",
+      "stations" : [
+         { "name" : "Radio Swiss Jazz", "url" : "https://stream.srg-ssr.ch/m/rsj/mp3_128" },
+         { "name" : "SomaFM Groove Salad", "url" : "https://somafm.com/groovesalad.pls" },
+         { "name" : "SomaFM Secret Agent", "url" : "https://ice1.somafm.com/secretagent-128-mp3" },
+         { "name" : "SomaFM Sonic Universe", "url" : "https://somafm.com/sonicuniverse.pls" }
+      ]
+   },
+   {
+      "group" : "Classica",
+      "stations" : [
+         { "name" : "Radio Swiss Classic", "url" : "https://stream.srg-ssr.ch/m/rsc_de/mp3_128" }
+      ]
+   },
+   {
+      "group" : "root",
+      "stations" : [
+         { "name" : "Radio Paradise", "url" : "https://stream.radioparadise.com/aac-128" }
+      ]
+   }
+]
