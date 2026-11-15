@@ -1,7 +1,10 @@
 #import "RTFavoritesWindowController.h"
 #import "RTFavoriteTracks.h"
 #import "RTTableCell.h"
+#import "RTArtwork.h"
+#import "RTSettings.h"
 
+static NSString *const kColArt = @"art";
 static NSString *const kColTitle = @"title";
 static NSString *const kColArtist = @"artist";
 static NSString *const kColStation = @"station";
@@ -85,6 +88,15 @@ static NSString *const kColAdded = @"added";
     table.usesAlternatingRowBackgroundColors = YES;
     table.allowsMultipleSelection = YES;
     table.columnAutoresizingStyle = NSTableViewUniformColumnAutoresizingStyle;
+    table.rowHeight = 34;
+    NSTableColumn *artCol = [[NSTableColumn alloc] initWithIdentifier:kColArt];
+    artCol.title = @"";
+    artCol.width = 34;
+    artCol.minWidth = 34;
+    artCol.maxWidth = 34;
+    artCol.editable = NO;
+    artCol.headerToolTip = @"Copertina";
+    [table addTableColumn:artCol];
     NSArray *cols = @[@[kColTitle, @"Titolo", @230, @YES], @[kColArtist, @"Artista", @190, @YES],
                       @[kColStation, @"Stazione", @170, @YES], @[kColAdded, @"Aggiunto il", @140, @NO]];
     for (NSArray *c in cols) {
@@ -311,8 +323,37 @@ static NSString *const kColAdded = @"added";
     return (NSInteger)self.shown.count;
 }
 
+- (NSView *)artworkCellFor:(RTFavoriteTrack *)t table:(NSTableView *)tableView
+{
+    NSImageView *view = [tableView makeViewWithIdentifier:kColArt owner:self];
+    if (!view) {
+        view = [[NSImageView alloc] initWithFrame:NSMakeRect(0, 0, 32, 32)];
+        view.identifier = kColArt;
+        view.imageScaling = NSImageScaleProportionallyUpOrDown;
+    }
+    view.image = nil;
+    if (![RTSettings shared].artwork || t.artist.length == 0) return view;
+    NSData *data = [[RTArtwork shared] cachedArtworkForTitle:t.title artist:t.artist];
+    if (data) {
+        view.image = [[NSImage alloc] initWithData:data];
+    } else {
+        // si scarica in sottofondo e si ridisegna solo quella riga
+        __weak typeof(self) weakSelf = self;
+        [[RTArtwork shared] artworkForTitle:t.title artist:t.artist completion:^(NSData *image) {
+            typeof(self) strongSelf = weakSelf;
+            if (!image || !strongSelf) return;
+            NSUInteger row = [strongSelf.shown indexOfObjectIdenticalTo:t];
+            if (row == NSNotFound) return;
+            [strongSelf.table reloadDataForRowIndexes:[NSIndexSet indexSetWithIndex:row]
+                                        columnIndexes:[NSIndexSet indexSetWithIndex:0]];
+        }];
+    }
+    return view;
+}
+
 - (NSView *)tableView:(NSTableView *)tableView viewForTableColumn:(NSTableColumn *)column row:(NSInteger)row
 {
+    if ([column.identifier isEqualToString:kColArt]) return [self artworkCellFor:self.shown[(NSUInteger)row] table:tableView];
     RTTableCell *cell = [RTTableCell cellInTable:tableView identifier:column.identifier owner:self];
     RTFavoriteTrack *t = self.shown[(NSUInteger)row];
     NSString *value = @"";

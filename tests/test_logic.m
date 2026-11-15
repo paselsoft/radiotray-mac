@@ -10,6 +10,8 @@
 #import "../src/RTLoginItem.h"
 #import "../src/RTFavoriteTracks.h"
 #import "../src/RTUpdateChecker.h"
+#import "../src/RTArtwork.h"
+#import "../src/RTAlarm.h"
 
 static int failures = 0;
 static int checks = 0;
@@ -586,6 +588,55 @@ static void testHistoryAndUpdates(void)
     CHECK([RTUpdateChecker releaseFromJSON:D(@"[]")] == nil);
 }
 
+static NSDate *Day(NSInteger y, NSInteger m, NSInteger d, NSInteger h, NSInteger min, NSCalendar *cal)
+{
+    NSDateComponents *c = [NSDateComponents new];
+    c.year = y; c.month = m; c.day = d; c.hour = h; c.minute = min;
+    return [cal dateFromComponents:c];
+}
+
+static void testAlarmAndArtwork(void)
+{
+    NSCalendar *cal = [[NSCalendar alloc] initWithCalendarIdentifier:NSCalendarIdentifierGregorian];
+    cal.timeZone = [NSTimeZone timeZoneWithName:@"Europe/Rome"];
+    // lunedì 16 novembre 2026
+    NSDate *mon0729 = Day(2026, 11, 16, 7, 29, cal), *mon0730 = Day(2026, 11, 16, 7, 30, cal);
+    NSDate *mon0740 = Day(2026, 11, 16, 7, 40, cal), *mon0741 = Day(2026, 11, 16, 7, 41, cal);
+    NSDate *sat0730 = Day(2026, 11, 21, 7, 30, cal);
+    NSInteger t = 7 * 60 + 30;
+    CHECK(![RTAlarm shouldFireAt:mon0729 minutes:t days:RTAlarmWeekdays lastFired:nil calendar:cal]);
+    CHECK([RTAlarm shouldFireAt:mon0730 minutes:t days:RTAlarmWeekdays lastFired:nil calendar:cal]);
+    CHECK([RTAlarm shouldFireAt:mon0740 minutes:t days:RTAlarmWeekdays lastFired:nil calendar:cal]);    // Mac appena sveglio
+    CHECK(![RTAlarm shouldFireAt:mon0741 minutes:t days:RTAlarmWeekdays lastFired:nil calendar:cal]);   // troppo tardi
+    CHECK(![RTAlarm shouldFireAt:mon0740 minutes:t days:RTAlarmWeekdays lastFired:mon0730 calendar:cal]); // già suonata oggi
+    CHECK([RTAlarm shouldFireAt:mon0730 minutes:t days:RTAlarmWeekdays lastFired:Day(2026, 11, 13, 7, 30, cal) calendar:cal]);
+    CHECK(![RTAlarm shouldFireAt:sat0730 minutes:t days:RTAlarmWeekdays lastFired:nil calendar:cal]);   // sabato escluso
+    CHECK([RTAlarm shouldFireAt:sat0730 minutes:t days:RTAlarmSaturday | RTAlarmSunday lastFired:nil calendar:cal]);
+    CHECK_EQ([RTAlarm nextFireAfter:mon0730 minutes:t days:RTAlarmWeekdays calendar:cal], Day(2026, 11, 17, 7, 30, cal));
+    CHECK_EQ([RTAlarm nextFireAfter:mon0729 minutes:t days:RTAlarmWeekdays calendar:cal], mon0730);
+    CHECK_EQ([RTAlarm nextFireAfter:Day(2026, 11, 20, 8, 0, cal) minutes:t days:RTAlarmWeekdays calendar:cal], Day(2026, 11, 23, 7, 30, cal));
+    CHECK([RTAlarm nextFireAfter:mon0729 minutes:t days:0 calendar:cal] == nil);
+    CHECK_EQ([RTAlarm describeDays:RTAlarmWeekdays], @"Lu–Ve");
+    CHECK_EQ([RTAlarm describeDays:RTAlarmEveryDay], @"Tutti i giorni");
+    CHECK_EQ([RTAlarm describeDays:RTAlarmMonday | RTAlarmWednesday | RTAlarmFriday], @"Lu, Me, Ve");
+    CHECK_EQ([RTAlarm describeMinutes:7 * 60 + 5], @"07:05");
+
+    CHECK_EQ([RTArtwork normalized:@"Città & Mina!"], @"cittamina");
+    NSString *json = @"{\"results\":["
+        "{\"artistName\":\"Altro\",\"trackName\":\"Fresh Moods\",\"artworkUrl100\":\"https://a/1/100x100bb.jpg\"},"
+        "{\"artistName\":\"Divent\",\"trackName\":\"Altro brano\",\"artworkUrl100\":\"https://a/2/100x100bb.jpg\"},"
+        "{\"artistName\":\"Divent\",\"trackName\":\"Fresh Moods (Radio Edit)\",\"artworkUrl100\":\"https://a/3/100x100bb.jpg\"}]}";
+    CHECK_EQ([RTArtwork artworkURLFromJSON:D(json) title:@"Fresh Moods" artist:@"Divent"], @"https://a/3/600x600bb.jpg");
+    // solo l'artista giusto, anche se il titolo non corrisponde
+    CHECK_EQ([RTArtwork artworkURLFromJSON:D(json) title:@"Sconosciuto" artist:@"DIVENT"], @"https://a/2/600x600bb.jpg");
+    // artista diverso: nessuna copertina (meglio niente che sbagliata)
+    CHECK([RTArtwork artworkURLFromJSON:D(json) title:@"Fresh Moods" artist:@"Nessuno"] == nil);
+    // "Mina & Celentano" accetta "Mina"
+    NSString *mina = @"{\"results\":[{\"artistName\":\"Mina\",\"trackName\":\"Acqua e sale\",\"artworkUrl100\":\"https://m/100x100bb.jpg\"}]}";
+    CHECK_EQ([RTArtwork artworkURLFromJSON:D(mina) title:@"Acqua e sale" artist:@"Mina & Celentano"], @"https://m/600x600bb.jpg");
+    CHECK([RTArtwork artworkURLFromJSON:D(@"{}") title:@"a" artist:@"b"] == nil);
+}
+
 int main(int argc, const char *argv[])
 {
     @autoreleasepool {
@@ -606,6 +657,7 @@ int main(int argc, const char *argv[])
         testLoginItem();
         testFavorites();
         testHistoryAndUpdates();
+        testAlarmAndArtwork();
         if (argc > 2) testBundledList([NSString stringWithUTF8String:argv[2]]);
         printf("%d verifiche, %d fallite\n", checks, failures);
     }

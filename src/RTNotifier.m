@@ -44,12 +44,21 @@ static NSString *const kKindURL = @"url";
 
 - (void)notifyTrackTitle:(NSString *)title message:(NSString *)message track:(NSDictionary<NSString *, NSString *> *)track
 {
+    [self notifyTrackTitle:title message:message track:track image:nil withButton:YES];
+}
+
+- (void)notifyTrackTitle:(NSString *)title message:(NSString *)message track:(NSDictionary<NSString *, NSString *> *)track
+                   image:(NSImage *)image withButton:(BOOL)withButton
+{
     NSUserNotification *n = [NSUserNotification new];
     n.title = title;
     n.informativeText = message;
-    n.hasActionButton = YES;
-    n.actionButtonTitle = @"★ Preferito";
-    n.otherButtonTitle = @"Chiudi";
+    n.contentImage = image;
+    n.hasActionButton = withButton;
+    if (withButton) {
+        n.actionButtonTitle = @"★ Preferito";
+        n.otherButtonTitle = @"Chiudi";
+    }
     NSMutableDictionary *info = [track mutableCopy];
     info[kKindKey] = kKindTrack;
     n.userInfo = info;

@@ -1,5 +1,5 @@
 // Notifiche di sistema (NSUserNotificationCenter, disponibile su 10.13).
-#import <Foundation/Foundation.h>
+#import <Cocoa/Cocoa.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -14,6 +14,9 @@ NS_ASSUME_NONNULL_BEGIN
 /// sono di tipo "Avvisi", oppure passando sopra il banner con il puntatore).
 - (void)notifyTrackTitle:(NSString *)title message:(nullable NSString *)message
                    track:(NSDictionary<NSString *, NSString *> *)track;
+/// Come sopra, con la copertina dell'album a destra (image nil: nessuna); withButton NO = senza "★ Preferito".
+- (void)notifyTrackTitle:(NSString *)title message:(nullable NSString *)message
+                   track:(NSDictionary<NSString *, NSString *> *)track image:(nullable NSImage *)image withButton:(BOOL)withButton;
 /// Notifica che apre un indirizzo quando ci si fa clic.
 - (void)notifyTitle:(NSString *)title message:(nullable NSString *)message openURL:(NSURL *)url;
 @end

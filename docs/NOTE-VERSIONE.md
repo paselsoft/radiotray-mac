@@ -4,6 +4,12 @@ Lettore di radio via Internet nella barra dei menu per **macOS 10.13 High Sierra
 **Installazione:** apri `RadioTray-….dmg`, trascina RadioTray in Applicazioni, poi la prima volta
 clic destro sull'app → Apri → Apri. Istruzioni complete nel file LEGGIMI.txt dentro il .dmg.
 
+### Novità della 1.3
+- **Copertine degli album** nella notifica, nel menu e nei brani preferiti (catalogo pubblico di Apple)
+- **Radiosveglia**: ora, giorni della settimana, stazione, volume crescente
+- **Più ascoltate**: le 5 stazioni che ascolti di più in cima al menu
+- **Titolo nella barra dei menu** accanto all'icona (facoltativo, da Preferenze)
+
 ### Novità della 1.2
 - **★ Preferito nelle notifiche** del cambio di brano (sempre visibile con lo stile "Avvisi")
 - **Ascoltati di recente**: gli ultimi brani nel menu, un clic per aggiungerli ai preferiti

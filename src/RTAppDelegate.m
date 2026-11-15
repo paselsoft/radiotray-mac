@@ -11,6 +11,8 @@
 #import "RTFavoritesWindowController.h"
 #import "RTHotKeys.h"
 #import "RTUpdateChecker.h"
+#import "RTArtwork.h"
+#import "RTAlarm.h"
 #import "RTSettings.h"
 #import "RTStatusIcon.h"
 #import "RTStreamResolver.h"
@@ -51,6 +53,11 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
 @property (nonatomic, strong, nullable) NSURL *availableUpdateURL;
 @property (nonatomic, strong, nullable) id scrollMonitor;
 @property (nonatomic) CGFloat scrollAccumulator;
+@property (nonatomic, strong, nullable) NSImage *trackArtwork;     // copertina del brano in ascolto
+@property (nonatomic, strong) NSTimer *ticker;                     // ogni 30 s: sveglia e tempo di ascolto
+@property (nonatomic, strong, nullable) NSDate *lastTick;
+@property (nonatomic, strong, nullable) NSTimer *fadeTimer;        // volume crescente della sveglia
+@property (nonatomic, strong) NSMenuItem *alarmItem;
 
 // stazione scelta (anche se spenta). currentGroup nil = indirizzo aperto con "Apri URL…"
 @property (nonatomic, copy, nullable) NSString *currentGroup;
@@ -135,6 +142,12 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     [self applyHotKeys];
     [self installScrollWheelVolume];
     [self checkForUpdatesManually:NO];
+
+    // ogni 30 secondi: radiosveglia e tempo di ascolto delle stazioni
+    self.lastTick = [NSDate date];
+    self.ticker = [NSTimer scheduledTimerWithTimeInterval:30 target:self selector:@selector(tick:) userInfo:nil repeats:YES];
+    self.ticker.tolerance = 5;
+    [self tick:nil];
 
     // se l'app è stata spostata, l'avvio al login deve puntare al nuovo percorso
     [RTLoginItem refreshAppPath:[NSBundle mainBundle].bundlePath];
@@ -275,6 +288,25 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     [self.menu addItem:self.volumeItem];
     [self.menu addItem:[NSMenuItem separatorItem]];
 
+    // le stazioni più ascoltate, sempre a portata di mano
+    NSArray<NSArray<NSString *> *> *top = [self mostPlayedStations:5];
+    if (top.count) {
+        NSMenuItem *header = [self addItem:@"Più ascoltate" action:NULL to:self.menu];
+        header.enabled = NO;
+        for (NSArray<NSString *> *key in top) {
+            RTGroup *g = [self.bookmarks groupNamed:key[0]];
+            RTStation *st = [self.bookmarks stationNamed:key[1] inGroup:key[0]];
+            NSMenuItem *item = [self stationItem:st group:g];
+            item.indentationLevel = 1;
+            double hours = [self.settings.listeningSeconds[[self listeningKeyForGroup:key[0] station:key[1]]] doubleValue] / 3600.0;
+            item.toolTip = [NSString stringWithFormat:@"%@ · ascoltata per %@", g.isRoot ? @"senza gruppo" : g.name,
+                            hours >= 1 ? [NSString stringWithFormat:@"%.0f ore", hours]
+                                       : [NSString stringWithFormat:@"%.0f minuti", hours * 60]];
+            [self.menu addItem:item];
+        }
+        [self.menu addItem:[NSMenuItem separatorItem]];
+    }
+
     BOOL rootBottom = self.settings.rootGroupAtBottom;
     if (!rootBottom) [self addRootStationsTo:self.menu];
     for (RTGroup *group in self.bookmarks.groups) {
@@ -306,6 +338,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     [self addItem:@"Apri URL…" action:@selector(openURL:) to:self.menu];
     self.addStationItem = [self addItem:@"Aggiungi alle stazioni…" action:@selector(addCurrentStation:) to:self.menu];
     self.sleepItem = [self addItem:@"Timer di spegnimento…" action:@selector(sleepTimerChosen:) to:self.menu];
+    self.alarmItem = [self addItem:@"Radiosveglia…" action:@selector(configureAlarm:) to:self.menu];
     [self.menu addItem:[NSMenuItem separatorItem]];
 
     NSMenuItem *prefs = [[NSMenuItem alloc] initWithTitle:@"Preferenze" action:NULL keyEquivalent:@""];
@@ -338,6 +371,10 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     keysInfo.tag = 7;
     [prefsMenu addItem:keysInfo];
     [self addItem:@"Controlla gli aggiornamenti automaticamente" action:@selector(toggleUpdateCheck:) to:prefsMenu].tag = 8;
+    [prefsMenu addItem:[NSMenuItem separatorItem]];
+    [self addItem:@"Titolo del brano nella barra dei menu" action:@selector(toggleTitleInBar:) to:prefsMenu].tag = 9;
+    [self addItem:@"Copertine degli album" action:@selector(toggleArtwork:) to:prefsMenu].tag = 10;
+    [self addItem:@"Azzera le stazioni più ascoltate" action:@selector(resetListening:) to:prefsMenu];
     [self addItem:@"Controlla gli aggiornamenti ora" action:@selector(checkUpdatesNow:) to:prefsMenu];
     prefs.submenu = prefsMenu;
     [self.menu addItem:prefs];
@@ -389,6 +426,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     RTStatusIconStyle style = state == RTPlayerStatePlaying ? RTStatusIconOn
                             : (active ? RTStatusIconConnecting : RTStatusIconOff);
     self.statusItem.button.image = RTStatusIconImage(style);
+    [self updateMenuBarTitle];
     NSMutableString *tip = [NSMutableString stringWithString:@"RadioTray"];
     if (active && self.currentStation) [tip appendFormat:@"\n%@", self.currentStation];
     if (active && !self.track.isEmpty) [tip appendFormat:@"\n%@", self.track.clipboardText];
@@ -421,6 +459,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
                 attributes:@{ NSFontAttributeName: [NSFont menuFontOfSize:0] }]];
     }
     self.trackItem.attributedTitle = status;
+    self.trackItem.image = (state == RTPlayerStatePlaying && !self.track.isEmpty) ? self.trackArtwork : nil;
     self.trackItem.enabled = state == RTPlayerStatePlaying && !self.track.isEmpty;
     self.trackItem.toolTip = nil;
     if (self.trackItem.enabled) {
@@ -501,6 +540,20 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     [prefs itemWithTag:6].toolTip = self.hotKeyFailures.count
         ? [NSString stringWithFormat:@"Già usate da un'altra app:\n%@", [self.hotKeyFailures componentsJoinedByString:@"\n"]] : nil;
     [prefs itemWithTag:8].state = self.settings.checkForUpdates ? NSControlStateValueOn : NSControlStateValueOff;
+    [prefs itemWithTag:9].state = self.settings.titleInMenuBar ? NSControlStateValueOn : NSControlStateValueOff;
+    [prefs itemWithTag:10].state = self.settings.artwork ? NSControlStateValueOn : NSControlStateValueOff;
+
+    // radiosveglia
+    if (self.settings.alarmEnabled && self.settings.alarmStation) {
+        self.alarmItem.title = [NSString stringWithFormat:@"Radiosveglia: %@ %@…", [RTAlarm describeMinutes:self.settings.alarmMinutes],
+                                [RTAlarm describeDays:self.settings.alarmDays]];
+        self.alarmItem.state = NSControlStateValueOn;
+        self.alarmItem.toolTip = [NSString stringWithFormat:@"Stazione: %@", self.settings.alarmStation];
+    } else {
+        self.alarmItem.title = @"Radiosveglia…";
+        self.alarmItem.state = NSControlStateValueOff;
+        self.alarmItem.toolTip = nil;
+    }
 
     [self rebuildHistoryMenu];
 
@@ -614,25 +667,60 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     RTTrackInfo *info = [RTTrackInfo infoWithStreamTitle:title split:self.settings.splitTitle];
     if (info.isEmpty || [info isEqualToInfo:self.track]) return;
     self.track = info;
+    self.trackArtwork = nil;
     NSString *station = self.currentStation ?: @"";
     if ([self.history recordTitle:info.title artist:info.artist station:station date:[NSDate date] limit:50]) {
         [[self.history dataRepresentation] writeToFile:[self historyPath] atomically:YES];
     }
-    if (self.settings.notifications && [self stationWantsNotifications]) {
-        NSDictionary *trackInfo = @{ @"title": info.title, @"artist": info.artist, @"station": station };
-        if ([self currentTrackIsFavorite]) {
-            // già tra i preferiti: niente pulsante, una ★ nel titolo
-            NSString *t = info.title.length ? info.title : info.artist;
-            [[RTNotifier shared] notifyTitle:[@"★ " stringByAppendingString:t]
-                                     message:info.title.length && info.artist.length ? info.artist : self.currentStation];
-        } else if (info.title.length && info.artist.length) {
-            [[RTNotifier shared] notifyTrackTitle:info.title message:info.artist track:trackInfo];
-        } else {
-            [[RTNotifier shared] notifyTrackTitle:info.title.length ? info.title : info.artist message:self.currentStation
-                                            track:trackInfo];
-        }
+    BOOL notify = self.settings.notifications && [self stationWantsNotifications];
+    if (!self.settings.artwork || !info.title.length || !info.artist.length) {
+        if (notify) [self notifyTrack:info station:station image:nil];
+        [self refresh];
+        return;
     }
+    // si aspetta la copertina al massimo 2 secondi, poi la notifica parte comunque
+    __block BOOL notified = NO;
+    __weak typeof(self) weakSelf = self;
+    void (^deliver)(NSImage *) = ^(NSImage *image) {
+        if (notified || !notify) return;
+        notified = YES;
+        [weakSelf notifyTrack:info station:station image:image];
+    };
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ deliver(nil); });
+    [[RTArtwork shared] artworkForTitle:info.title artist:info.artist completion:^(NSData *data) {
+        typeof(self) strongSelf = weakSelf;
+        if (!strongSelf || ![strongSelf.track isEqualToInfo:info]) return;   // nel frattempo è cambiato brano
+        NSImage *image = data ? [[NSImage alloc] initWithData:data] : nil;
+        if (image) {
+            strongSelf.trackArtwork = [strongSelf menuThumbnail:image];
+            [strongSelf refresh];
+        }
+        deliver(image);
+    }];
     [self refresh];
+}
+
+- (void)notifyTrack:(RTTrackInfo *)info station:(NSString *)station image:(NSImage *)image
+{
+    NSDictionary *trackInfo = @{ @"title": info.title, @"artist": info.artist, @"station": station };
+    BOOL favorite = [self.favorites trackWithTitle:info.title.length ? info.title : info.artist
+                                            artist:info.title.length ? info.artist : @""] != nil;
+    NSString *t = info.title.length ? info.title : info.artist;
+    NSString *message = info.title.length && info.artist.length ? info.artist : station;
+    // già tra i preferiti: una ★ nel titolo e niente pulsante
+    [[RTNotifier shared] notifyTrackTitle:favorite ? [@"★ " stringByAppendingString:t] : t message:message
+                                    track:trackInfo image:image withButton:!favorite];
+}
+
+/// Copertina piccola con gli angoli arrotondati, per il menu.
+- (NSImage *)menuThumbnail:(NSImage *)image
+{
+    NSSize size = NSMakeSize(40, 40);
+    return [NSImage imageWithSize:size flipped:NO drawingHandler:^BOOL(NSRect rect) {
+        [[NSBezierPath bezierPathWithRoundedRect:rect xRadius:4 yRadius:4] addClip];
+        [image drawInRect:rect fromRect:NSZeroRect operation:NSCompositingOperationSourceOver fraction:1.0];
+        return YES;
+    }];
 }
 
 - (void)player:(RTPlayer *)player didReceiveStationName:(NSString *)name
@@ -1101,6 +1189,237 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     if (self.settings.notifications) {
         NSString *where = [group isEqualToString:RTRootGroupName] ? @"senza gruppo" : [NSString stringWithFormat:@"nel gruppo «%@»", group];
         [[RTNotifier shared] notifyTitle:@"Stazione aggiunta" message:[NSString stringWithFormat:@"%@, %@", name, where]];
+    }
+    [self refresh];
+}
+
+#pragma mark - Titolo nella barra, copertine
+
+- (void)updateMenuBarTitle
+{
+    NSStatusBarButton *button = self.statusItem.button;
+    BOOL show = self.settings.titleInMenuBar && self.player.state == RTPlayerStatePlaying && !self.track.isEmpty;
+    if (show) {
+        NSString *text = self.track.artist.length && self.track.title.length
+            ? [NSString stringWithFormat:@"%@ – %@", self.track.artist, self.track.title]
+            : (self.track.title.length ? self.track.title : self.track.artist);
+        button.title = [@" " stringByAppendingString:RTTruncate(text, 40)];
+        button.imagePosition = NSImageLeft;
+        self.statusItem.length = NSVariableStatusItemLength;
+    } else {
+        button.title = @"";
+        button.imagePosition = NSImageOnly;
+        self.statusItem.length = NSSquareStatusItemLength;
+    }
+}
+
+- (void)toggleTitleInBar:(id)sender
+{
+    self.settings.titleInMenuBar = !self.settings.titleInMenuBar;
+    [self refresh];
+}
+
+- (void)toggleArtwork:(id)sender
+{
+    self.settings.artwork = !self.settings.artwork;
+    if (!self.settings.artwork) self.trackArtwork = nil;
+    [self refresh];
+}
+
+#pragma mark - Tempo di ascolto e stazioni più ascoltate
+
+- (NSString *)listeningKeyForGroup:(NSString *)group station:(NSString *)station
+{
+    return [NSString stringWithFormat:@"%@\n%@", group, station];
+}
+
+/// Fino a n stazioni (ancora tra i preferiti) ascoltate almeno 10 minuti, dalla più ascoltata: [gruppo, nome].
+- (NSArray<NSArray<NSString *> *> *)mostPlayedStations:(NSUInteger)n
+{
+    NSDictionary<NSString *, NSNumber *> *seconds = self.settings.listeningSeconds;
+    NSArray *keys = [seconds keysSortedByValueUsingComparator:^NSComparisonResult(NSNumber *a, NSNumber *b) { return [b compare:a]; }];
+    NSMutableArray *out = [NSMutableArray array];
+    for (NSString *key in keys) {
+        if (out.count >= n) break;
+        if (seconds[key].doubleValue < 600) break;
+        NSArray *parts = [key componentsSeparatedByString:@"\n"];
+        if (parts.count != 2 || ![self.bookmarks stationNamed:parts[1] inGroup:parts[0]]) continue;
+        [out addObject:parts];
+    }
+    return out;
+}
+
+- (void)tick:(NSTimer *)timer
+{
+    NSDate *now = [NSDate date];
+    NSTimeInterval elapsed = self.lastTick ? [now timeIntervalSinceDate:self.lastTick] : 0;
+    self.lastTick = now;
+
+    // tempo di ascolto (solo stazioni dei preferiti; salti lunghi = Mac in stop, non contano)
+    if (self.player.state == RTPlayerStatePlaying && self.currentGroup && self.currentStation && elapsed > 0 && elapsed < 120) {
+        NSMutableDictionary *seconds = [self.settings.listeningSeconds mutableCopy];
+        NSString *key = [self listeningKeyForGroup:self.currentGroup station:self.currentStation];
+        NSArray *before = [self mostPlayedStations:5];
+        seconds[key] = @([seconds[key] doubleValue] + elapsed);
+        self.settings.listeningSeconds = seconds;
+        if (![[self mostPlayedStations:5] isEqualToArray:before]) [self buildMenu];
+    }
+
+    // radiosveglia
+    if (self.settings.alarmEnabled && self.settings.alarmStation &&
+        [RTAlarm shouldFireAt:now minutes:self.settings.alarmMinutes days:self.settings.alarmDays
+                    lastFired:self.settings.alarmLastFired calendar:[NSCalendar currentCalendar]]) {
+        self.settings.alarmLastFired = now;
+        [self fireAlarm];
+    }
+}
+
+- (void)resetListening:(id)sender
+{
+    self.settings.listeningSeconds = @{};
+    [self buildMenu];
+    [self refresh];
+}
+
+#pragma mark - Radiosveglia
+
+- (void)fireAlarm
+{
+    NSString *group = self.settings.alarmGroup, *name = self.settings.alarmStation;
+    if (!group || !name || ![self.bookmarks stationNamed:name inGroup:group]) {
+        [[RTNotifier shared] notifyTitle:@"Radiosveglia" message:@"La stazione scelta non è più nell'elenco"];
+        return;
+    }
+    NSLog(@"RadioTray: radiosveglia, %@", name);
+    [self.fadeTimer invalidate];
+    self.fadeTimer = nil;
+    NSInteger target = self.settings.volume;
+    if (self.settings.alarmFadeIn && target > 5) {
+        // da 5% al volume abituale in 2 minuti (40 passi da 3 secondi)
+        self.player.volume = 5;
+        __block NSInteger steps = 0;
+        __block NSInteger lastSet = 5;
+        __weak typeof(self) weakSelf = self;
+        self.fadeTimer = [NSTimer scheduledTimerWithTimeInterval:3 repeats:YES block:^(NSTimer *t) {
+            typeof(self) strongSelf = weakSelf;
+            // ci si ferma se la radio è stata spenta o se il volume è stato cambiato a mano
+            if (!strongSelf || strongSelf.player.volume != lastSet) {
+                [t invalidate];
+                return;
+            }
+            if (strongSelf.player.state == RTPlayerStateStopped) {
+                strongSelf.player.volume = strongSelf.settings.volume;   // si torna al volume abituale
+                [t invalidate];
+                return;
+            }
+            steps++;
+            lastSet = steps >= 40 ? target : 5 + (target - 5) * steps / 40;
+            strongSelf.player.volume = lastSet;
+            [strongSelf refresh];
+            if (steps >= 40) [t invalidate];
+        }];
+    }
+    [self playStationNamed:name inGroup:group];
+    [[RTNotifier shared] notifyTitle:@"⏰ Radiosveglia" message:[NSString stringWithFormat:@"Buongiorno! %@", name]];
+}
+
+- (void)configureAlarm:(id)sender
+{
+    [NSApp activateIgnoringOtherApps:YES];
+    NSAlert *alert = [NSAlert new];
+    alert.messageText = @"Radiosveglia";
+    alert.informativeText = @"La radio si accende all'ora scelta. Il Mac deve essere acceso (lo stop dello schermo va bene, lo stop del computer no).";
+    [alert addButtonWithTitle:@"Salva"];
+    [alert addButtonWithTitle:@"Annulla"];
+
+    NSView *view = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 380, 150)];
+    NSButton *enabled = [NSButton checkboxWithTitle:@"Attiva la radiosveglia" target:nil action:NULL];
+    enabled.frame = NSMakeRect(0, 126, 300, 20);
+    enabled.state = self.settings.alarmEnabled ? NSControlStateValueOn : NSControlStateValueOff;
+    [view addSubview:enabled];
+
+    NSTextField *timeLabel = [NSTextField labelWithString:@"Ora:"];
+    timeLabel.frame = NSMakeRect(0, 96, 70, 20);
+    [view addSubview:timeLabel];
+    NSDatePicker *picker = [[NSDatePicker alloc] initWithFrame:NSMakeRect(76, 93, 90, 26)];
+    picker.datePickerStyle = NSTextFieldAndStepperDatePickerStyle;
+    picker.datePickerElements = NSHourMinuteDatePickerElementFlag;
+    picker.locale = [NSLocale localeWithLocaleIdentifier:@"it_IT"];
+    NSCalendar *cal = [NSCalendar currentCalendar];
+    picker.dateValue = [cal dateBySettingHour:self.settings.alarmMinutes / 60 minute:self.settings.alarmMinutes % 60 second:0
+                                       ofDate:[NSDate date] options:0];
+    [view addSubview:picker];
+
+    NSTextField *daysLabel = [NSTextField labelWithString:@"Giorni:"];
+    daysLabel.frame = NSMakeRect(0, 64, 70, 20);
+    [view addSubview:daysLabel];
+    NSArray *dayNames = @[@"Lu", @"Ma", @"Me", @"Gi", @"Ve", @"Sa", @"Do"];
+    NSMutableArray<NSButton *> *dayBoxes = [NSMutableArray array];
+    for (NSUInteger i = 0; i < 7; i++) {
+        NSButton *b = [NSButton checkboxWithTitle:dayNames[i] target:nil action:NULL];
+        b.frame = NSMakeRect(76 + i * 43, 64, 43, 20);
+        b.state = (self.settings.alarmDays & (1u << i)) ? NSControlStateValueOn : NSControlStateValueOff;
+        [view addSubview:b];
+        [dayBoxes addObject:b];
+    }
+
+    NSTextField *stationLabel = [NSTextField labelWithString:@"Stazione:"];
+    stationLabel.frame = NSMakeRect(0, 33, 70, 20);
+    [view addSubview:stationLabel];
+    NSPopUpButton *stations = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(72, 28, 308, 26) pullsDown:NO];
+    for (RTGroup *g in self.bookmarks.groups) {
+        for (RTStation *st in g.stations) {
+            NSString *title = g.isRoot ? st.name : [NSString stringWithFormat:@"%@ ▸ %@", g.name, st.name];
+            [stations addItemWithTitle:title];
+            stations.lastItem.representedObject = @[g.name, st.name];
+        }
+    }
+    NSString *wantGroup = self.settings.alarmGroup ?: self.currentGroup, *wantName = self.settings.alarmStation ?: self.currentStation;
+    for (NSMenuItem *item in stations.itemArray) {
+        NSArray *key = item.representedObject;
+        if ([key[0] isEqualToString:wantGroup ?: @""] && [key[1] isEqualToString:wantName ?: @""]) [stations selectItem:item];
+    }
+    [view addSubview:stations];
+
+    NSButton *fade = [NSButton checkboxWithTitle:@"Volume crescente (da basso al volume abituale in 2 minuti)" target:nil action:NULL];
+    fade.frame = NSMakeRect(0, 2, 380, 20);
+    fade.state = self.settings.alarmFadeIn ? NSControlStateValueOn : NSControlStateValueOff;
+    [view addSubview:fade];
+
+    alert.accessoryView = view;
+    if (stations.numberOfItems == 0) {
+        [self showAlert:@"Nessuna stazione" text:@"Aggiungi prima almeno una stazione."];
+        return;
+    }
+    if ([alert runModal] != NSAlertFirstButtonReturn) return;
+
+    NSUInteger days = 0;
+    for (NSUInteger i = 0; i < 7; i++) if (dayBoxes[i].state == NSControlStateValueOn) days |= (1u << i);
+    NSDateComponents *c = [cal components:NSCalendarUnitHour | NSCalendarUnitMinute fromDate:picker.dateValue];
+    NSArray *key = stations.selectedItem.representedObject;
+    BOOL on = enabled.state == NSControlStateValueOn;
+    if (on && days == 0) {
+        [self showAlert:@"Radiosveglia non attivata" text:@"Scegli almeno un giorno della settimana."];
+        return;
+    }
+    self.settings.alarmEnabled = on;
+    self.settings.alarmMinutes = c.hour * 60 + c.minute;
+    self.settings.alarmDays = days;
+    self.settings.alarmGroup = key[0];
+    self.settings.alarmStation = key[1];
+    self.settings.alarmFadeIn = fade.state == NSControlStateValueOn;
+    // se si imposta per un'ora appena passata, non deve suonare subito
+    NSDate *now = [NSDate date];
+    if ([RTAlarm shouldFireAt:now minutes:self.settings.alarmMinutes days:days lastFired:nil calendar:cal]) {
+        self.settings.alarmLastFired = now;
+    }
+    if (on && self.settings.notifications) {
+        NSDate *next = [RTAlarm nextFireAfter:now minutes:self.settings.alarmMinutes days:days calendar:cal];
+        NSDateFormatter *df = [NSDateFormatter new];
+        df.locale = [NSLocale localeWithLocaleIdentifier:@"it_IT"];
+        df.dateFormat = @"EEEE d MMMM 'alle' HH:mm";
+        [[RTNotifier shared] notifyTitle:@"⏰ Radiosveglia attivata"
+                                 message:next ? [NSString stringWithFormat:@"Prossima: %@", [df stringFromDate:next]] : nil];
     }
     [self refresh];
 }

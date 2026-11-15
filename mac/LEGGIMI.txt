@@ -25,6 +25,13 @@ Uso
 - Scorciatoie da tastiera, in qualsiasi app: ⌃⌥P accendi/spegni, ⌃⌥F aggiungi ai preferiti,
   ⌃⌥→ / ⌃⌥← stazione successiva/precedente, ⌃⌥↑ / ⌃⌥↓ volume. Si disattivano da Preferenze.
 - Rotella del mouse (o due dita sul trackpad) sopra l'icona: volume.
+- Copertine degli album: nella notifica, accanto al titolo nel menu e nei brani preferiti
+  (dal catalogo pubblico di Apple; si possono disattivare da Preferenze).
+- Radiosveglia…: ora, giorni, stazione e volume crescente. Il Mac deve essere acceso
+  (lo stop dello schermo va bene, lo stop del computer no).
+- Più ascoltate: in cima alle stazioni compaiono le 5 che ascolti di più (dopo 10 minuti);
+  si azzerano da Preferenze.
+- Preferenze > Titolo del brano nella barra dei menu: "Artista – Titolo" accanto all'icona.
 - Aggiornamenti: una volta al giorno RadioTray controlla se c'è una versione nuova e, se c'è,
   lo dice con una notifica e una voce in cima al menu.
 - Stazione precedente / successiva: passa alla stazione vicina nello stesso gruppo.

@@ -17,6 +17,20 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) BOOL hotKeys;                           // scorciatoie ⌃⌥, predefinito YES
 @property (nonatomic) BOOL checkForUpdates;                   // predefinito YES
 @property (nonatomic, strong, nullable) NSDate *lastUpdateCheck;
+@property (nonatomic) BOOL titleInMenuBar;                    // "Artista – Titolo" accanto all'icona, predefinito NO
+@property (nonatomic) BOOL artwork;                           // copertine degli album, predefinito YES
+
+// radiosveglia
+@property (nonatomic) BOOL alarmEnabled;
+@property (nonatomic) NSInteger alarmMinutes;                 // minuti dalla mezzanotte, predefinito 7:00
+@property (nonatomic) NSUInteger alarmDays;                   // RTAlarmDays, predefinito lunedì–venerdì
+@property (nonatomic, copy, nullable) NSString *alarmGroup;
+@property (nonatomic, copy, nullable) NSString *alarmStation;
+@property (nonatomic) BOOL alarmFadeIn;                       // volume crescente, predefinito YES
+@property (nonatomic, strong, nullable) NSDate *alarmLastFired;
+
+/// Secondi di ascolto per stazione (chiave "gruppo\nstazione").
+@property (nonatomic, copy) NSDictionary<NSString *, NSNumber *> *listeningSeconds;
 
 /// ~/Library/Application Support/RadioTray (creata se manca)
 - (NSString *)supportDirectory;

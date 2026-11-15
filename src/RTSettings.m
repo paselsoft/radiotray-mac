@@ -12,6 +12,16 @@ static NSString *const kLastURL = @"last-opened-url";
 static NSString *const kHotKeys = @"hot-keys";
 static NSString *const kCheckUpdates = @"check-for-updates";
 static NSString *const kLastUpdateCheck = @"last-update-check";
+static NSString *const kTitleInBar = @"tag-info-in-label";
+static NSString *const kArtwork = @"artwork";
+static NSString *const kAlarmEnabled = @"alarm-enabled";
+static NSString *const kAlarmMinutes = @"alarm-minutes";
+static NSString *const kAlarmDays = @"alarm-days";
+static NSString *const kAlarmGroup = @"alarm-group";
+static NSString *const kAlarmStation = @"alarm-station";
+static NSString *const kAlarmFadeIn = @"alarm-fade-in";
+static NSString *const kAlarmLastFired = @"alarm-last-fired";
+static NSString *const kListening = @"listening-seconds";
 
 @implementation RTSettings
 
@@ -30,6 +40,12 @@ static NSString *const kLastUpdateCheck = @"last-update-check";
             kSleepTimer: @30,
             kHotKeys: @YES,
             kCheckUpdates: @YES,
+            kTitleInBar: @NO,
+            kArtwork: @YES,
+            kAlarmEnabled: @NO,
+            kAlarmMinutes: @(7 * 60),
+            kAlarmDays: @(0x1F),
+            kAlarmFadeIn: @YES,
         }];
     });
     return shared;
@@ -75,6 +91,33 @@ static NSString *const kLastUpdateCheck = @"last-update-check";
 
 - (NSDate *)lastUpdateCheck { return [self.d objectForKey:kLastUpdateCheck]; }
 - (void)setLastUpdateCheck:(NSDate *)v { [self.d setObject:v forKey:kLastUpdateCheck]; }
+
+- (BOOL)titleInMenuBar { return [self.d boolForKey:kTitleInBar]; }
+- (void)setTitleInMenuBar:(BOOL)v { [self.d setBool:v forKey:kTitleInBar]; }
+- (BOOL)artwork { return [self.d boolForKey:kArtwork]; }
+- (void)setArtwork:(BOOL)v { [self.d setBool:v forKey:kArtwork]; }
+
+- (BOOL)alarmEnabled { return [self.d boolForKey:kAlarmEnabled]; }
+- (void)setAlarmEnabled:(BOOL)v { [self.d setBool:v forKey:kAlarmEnabled]; }
+- (NSInteger)alarmMinutes { return MAX(0, MIN(24 * 60 - 1, [self.d integerForKey:kAlarmMinutes])); }
+- (void)setAlarmMinutes:(NSInteger)v { [self.d setInteger:v forKey:kAlarmMinutes]; }
+- (NSUInteger)alarmDays { return (NSUInteger)[self.d integerForKey:kAlarmDays] & 0x7F; }
+- (void)setAlarmDays:(NSUInteger)v { [self.d setInteger:(NSInteger)(v & 0x7F) forKey:kAlarmDays]; }
+- (NSString *)alarmGroup { return [self.d stringForKey:kAlarmGroup]; }
+- (void)setAlarmGroup:(NSString *)v { [self.d setObject:v forKey:kAlarmGroup]; }
+- (NSString *)alarmStation { return [self.d stringForKey:kAlarmStation]; }
+- (void)setAlarmStation:(NSString *)v { [self.d setObject:v forKey:kAlarmStation]; }
+- (BOOL)alarmFadeIn { return [self.d boolForKey:kAlarmFadeIn]; }
+- (void)setAlarmFadeIn:(BOOL)v { [self.d setBool:v forKey:kAlarmFadeIn]; }
+- (NSDate *)alarmLastFired { return [self.d objectForKey:kAlarmLastFired]; }
+- (void)setAlarmLastFired:(NSDate *)v { [self.d setObject:v forKey:kAlarmLastFired]; }
+
+- (NSDictionary<NSString *, NSNumber *> *)listeningSeconds
+{
+    NSDictionary *d = [self.d dictionaryForKey:kListening];
+    return d ?: @{};
+}
+- (void)setListeningSeconds:(NSDictionary<NSString *, NSNumber *> *)v { [self.d setObject:v forKey:kListening]; }
 
 - (NSString *)supportDirectory
 {
