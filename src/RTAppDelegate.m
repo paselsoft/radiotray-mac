@@ -1559,11 +1559,8 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     NSAlert *alert = [NSAlert new];
     alert.messageText = @"Importa il backup";
     alert.informativeText = [NSString stringWithFormat:
-        @"Backup del %@: %lu stazioni, %lu brani preferiti.
-
-"
-        @"«Unisci» aggiunge stazioni e preferiti che mancano e lascia il resto com'è.
-"
+        @"Backup del %@: %lu stazioni, %lu brani preferiti.\n\n"
+        @"«Unisci» aggiunge stazioni e preferiti che mancano e lascia il resto com'è.\n"
         @"«Sostituisci tutto» rimette stazioni, preferiti, cronologia e impostazioni come nel backup "
         @"(prima viene salvata una copia dello stato attuale).",
         c.created ? [df stringFromDate:c.created] : @"data sconosciuta",
@@ -1616,8 +1613,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     [self applyHotKeys];
     [self reloadAfterImport];
     [self showAlert:@"Backup importato"
-               text:[NSString stringWithFormat:@"Tutto è stato ripristinato. Lo stato precedente è salvato in
-%@", safety]];
+               text:[NSString stringWithFormat:@"Tutto è stato ripristinato. Lo stato precedente è salvato in\n%@", safety]];
 }
 
 - (void)reloadAfterImport
