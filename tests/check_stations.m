@@ -54,9 +54,11 @@ static NSString *probe(NSString *url)
 /// Primo titolo ICY letto con lo stesso codice dell'app (al massimo 20 s).
 @interface RTTitleCatcher : NSObject <RTIcyMetadataReaderDelegate>
 @property (nonatomic, copy) NSString *title;
+@property (nonatomic, copy) NSString *name;
 @end
 @implementation RTTitleCatcher
 - (void)metadataReader:(RTIcyMetadataReader *)reader didReadStreamTitle:(NSString *)title { self.title = title; }
+- (void)metadataReader:(RTIcyMetadataReader *)reader didReadStationName:(NSString *)name { self.name = name; }
 @end
 
 static NSString *readTitle(NSString *url)
@@ -70,8 +72,9 @@ static NSString *readTitle(NSString *url)
         [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.05]];
     }
     [reader stop];
-    if (catcher.title) return [NSString stringWithFormat:@"titolo «%@»", catcher.title];
-    return reader.unsupported ? @"nessun metadato ICY" : @"nessun titolo in 20 s";
+    NSString *name = catcher.name ? [NSString stringWithFormat:@"nome «%@», ", catcher.name] : @"nessun nome, ";
+    if (catcher.title) return [NSString stringWithFormat:@"%@titolo «%@»", name, catcher.title];
+    return [name stringByAppendingString:reader.unsupported ? @"nessun metadato ICY" : @"nessun titolo in 20 s"];
 }
 
 int main(int argc, const char *argv[])

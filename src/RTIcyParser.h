@@ -14,6 +14,10 @@ NS_ASSUME_NONNULL_BEGIN
 /// Elabora un blocco di dati; restituisce i titoli trovati (anche ripetuti) in ordine.
 - (NSArray<NSString *> *)feed:(NSData *)data;
 
+/// Nome della stazione dall'intestazione "icy-name": ripulito, con la codifica corretta
+/// (UTF-8 letto come Latin-1); nil se vuoto o generico ("no name", "Unspecified"…).
++ (nullable NSString *)stationNameFromHeader:(nullable NSString *)value;
+
 /// Valore di StreamTitle in un blocco di metadati (UTF-8 o Latin-1); nil se manca.
 + (nullable NSString *)streamTitleFromMetadata:(NSData *)metadata;
 

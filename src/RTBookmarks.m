@@ -145,6 +145,60 @@ static BOOL RTBool(id value, BOOL fallback)
     return bookmarks;
 }
 
++ (NSData *)dataByAddingStation:(NSString *)name url:(NSString *)url toGroup:(NSString *)group
+                         inData:(NSData *)data error:(NSString **)error
+{
+    name = RTString(name);
+    url = RTString(url);
+    group = RTString(group);
+    if (!name || !url || !group) {
+        if (error) *error = @"Servono un nome, un indirizzo e un gruppo";
+        return nil;
+    }
+    // il file dev'essere già valido: non si rischia di peggiorarlo
+    NSString *parseError = nil;
+    if (![self bookmarksWithData:data error:&parseError]) {
+        if (error) *error = parseError;
+        return nil;
+    }
+    NSMutableArray *root = [NSJSONSerialization JSONObjectWithData:data options:NSJSONReadingMutableContainers error:NULL];
+
+    NSMutableDictionary *target = nil;
+    for (NSMutableDictionary *g in root) {
+        if ([RTString(g[@"group"]) isEqualToString:group]) {
+            target = g;
+            break;
+        }
+    }
+    if (!target) {
+        target = [@{ @"group": group, @"stations": [NSMutableArray array] } mutableCopy];
+        [root addObject:target];
+    }
+    NSMutableArray *stations = target[@"stations"];
+    if (![stations isKindOfClass:[NSMutableArray class]]) {
+        stations = [NSMutableArray array];
+        target[@"stations"] = stations;
+    }
+    for (NSDictionary *s in stations) {
+        if ([s isKindOfClass:[NSDictionary class]] && [RTString(s[@"name"]) isEqualToString:name]) {
+            if (error) *error = [NSString stringWithFormat:@"Nel gruppo \"%@\" c'è già una stazione chiamata \"%@\"",
+                                 [group isEqualToString:RTRootGroupName] ? @"senza gruppo" : group, name];
+            return nil;
+        }
+    }
+    [stations addObject:@{ @"name": name, @"url": url }];
+
+    NSData *out = [NSJSONSerialization dataWithJSONObject:root options:NSJSONWritingPrettyPrinted | NSJSONWritingSortedKeys error:NULL];
+    if (!out) {
+        if (error) *error = @"Impossibile scrivere il file delle stazioni";
+        return nil;
+    }
+    // NSJSONSerialization scrive "\/" al posto di "/" (su 10.13 non si può evitare): si torna alla forma leggibile
+    NSString *text = [[NSString alloc] initWithData:out encoding:NSUTF8StringEncoding];
+    text = [[text stringByReplacingOccurrencesOfString:@"\\/" withString:@"/"] stringByAppendingString:@"\n"];
+    return [text dataUsingEncoding:NSUTF8StringEncoding];
+}
+
 - (instancetype)init
 {
     if ((self = [super init])) {

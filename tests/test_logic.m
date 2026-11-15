@@ -253,6 +253,65 @@ static void testIcy(void)
     CHECK_EQ([RTIcyParser streamTitleFromMetadata:D(@"streamtitle=\"A - B\";")], @"A - B");
 }
 
+static void testAddStation(void)
+{
+    NSString *json = @"[ {\"group\":\"Jazz\",\"image\":\"x.png\",\"extra\":7,\"stations\":[{\"name\":\"A\",\"url\":\"http://a/\",\"notifications\":false}]} ]";
+    NSString *error = nil;
+
+    // gruppo esistente: la stazione va in fondo, gli altri campi restano
+    NSData *out = [RTBookmarks dataByAddingStation:@"Radio 105" url:@"http://icecast.unitedradio.it/Radio105.mp3"
+                                           toGroup:@"Jazz" inData:D(json) error:&error];
+    CHECK(out != nil);
+    NSString *text = [[NSString alloc] initWithData:out encoding:NSUTF8StringEncoding];
+    CHECK([text containsString:@"http://icecast.unitedradio.it/Radio105.mp3"]);   // niente "\/"
+    CHECK(![text containsString:@"\\/"]);
+    RTBookmarks *b = [RTBookmarks bookmarksWithData:out error:NULL];
+    CHECK(b.groups.count == 1);
+    CHECK([b groupNamed:@"Jazz"].stations.count == 2);
+    CHECK_EQ([b groupNamed:@"Jazz"].stations.lastObject.name, @"Radio 105");
+    CHECK(![b stationNamed:@"A" inGroup:@"Jazz"].notifications);
+    CHECK_EQ([b groupNamed:@"Jazz"].image, @"x.png");
+    NSArray *raw = [NSJSONSerialization JSONObjectWithData:out options:0 error:NULL];
+    CHECK_EQ(raw[0][@"extra"], @7);
+
+    // gruppo nuovo e gruppo root
+    out = [RTBookmarks dataByAddingStation:@"Nuova" url:@"https://n/x" toGroup:@"Notizie" inData:out error:&error];
+    out = [RTBookmarks dataByAddingStation:@"Sciolta" url:@"https://s/x" toGroup:@"root" inData:out error:&error];
+    b = [RTBookmarks bookmarksWithData:out error:NULL];
+    CHECK(b.groups.count == 3);
+    CHECK_EQ([b stationNamed:@"Nuova" inGroup:@"Notizie"].url, @"https://n/x");
+    CHECK([b groupNamed:@"root"].isRoot);
+
+    // nome già presente nel gruppo
+    error = nil;
+    CHECK([RTBookmarks dataByAddingStation:@"A" url:@"http://b/" toGroup:@"Jazz" inData:out error:&error] == nil);
+    CHECK([error containsString:@"già"]);
+    // file non valido: non si tocca
+    error = nil;
+    CHECK([RTBookmarks dataByAddingStation:@"X" url:@"http://x/" toGroup:@"G" inData:D(@"[ {") error:&error] == nil);
+    CHECK(error.length > 0);
+    // campi vuoti
+    CHECK([RTBookmarks dataByAddingStation:@"  " url:@"http://x/" toGroup:@"G" inData:D(@"[]") error:NULL] == nil);
+    // file vuoto valido
+    b = [RTBookmarks bookmarksWithData:[RTBookmarks dataByAddingStation:@"X" url:@"http://x/" toGroup:@"G" inData:D(@"[]") error:NULL] error:NULL];
+    CHECK([b stationCount] == 1);
+}
+
+static void testStationName(void)
+{
+    CHECK_EQ([RTIcyParser stationNameFromHeader:@" Radio 105 "], @"Radio 105");
+    CHECK_EQ([RTIcyParser stationNameFromHeader:@"no name"], nil);
+    CHECK_EQ([RTIcyParser stationNameFromHeader:@"Unspecified"], nil);
+    CHECK_EQ([RTIcyParser stationNameFromHeader:@""], nil);
+    CHECK_EQ([RTIcyParser stationNameFromHeader:nil], nil);
+    // UTF-8 letto come Latin-1
+    NSString *mangled = [[NSString alloc] initWithData:[@"Radio Città" dataUsingEncoding:NSUTF8StringEncoding]
+                                              encoding:NSISOLatin1StringEncoding];
+    CHECK_EQ([RTIcyParser stationNameFromHeader:mangled], @"Radio Città");
+    // Latin-1 vero: resta com'è
+    CHECK_EQ([RTIcyParser stationNameFromHeader:@"Radio Città"], @"Radio Città");
+}
+
 int main(int argc, const char *argv[])
 {
     @autoreleasepool {
@@ -265,6 +324,8 @@ int main(int argc, const char *argv[])
         testXSPF();
         testTrackInfo();
         testIcy();
+        testAddStation();
+        testStationName();
         printf("%d verifiche, %d fallite\n", checks, failures);
     }
     return failures ? 1 : 0;

@@ -16,6 +16,8 @@ typedef NS_ENUM(NSInteger, RTPlayerState) {
 @protocol RTPlayerDelegate <NSObject>
 - (void)player:(RTPlayer *)player didChangeState:(RTPlayerState)state;
 - (void)player:(RTPlayer *)player didReceiveStreamTitle:(NSString *)title;
+/// Nome della stazione dichiarato dal server (icy-name).
+- (void)player:(RTPlayer *)player didReceiveStationName:(NSString *)name;
 /// La connessione è caduta: nuovo tentativo n. attempt tra poco (stato "in connessione").
 - (void)player:(RTPlayer *)player willReconnect:(NSUInteger)attempt error:(NSString *)error;
 /// Chiamato quando nessun URL funziona: il lettore è già fermo.

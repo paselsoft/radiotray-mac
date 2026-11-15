@@ -14,6 +14,9 @@ Uso
 - Clic su titolo e artista: li copia negli appunti.
 - Stazione precedente / successiva: passa alla stazione vicina nello stesso gruppo.
 - Apri URL…: ascolta un indirizzo qualsiasi (stream o playlist) senza aggiungerlo alle stazioni.
+  Se il server lo dichiara, al posto dell'indirizzo compare il nome vero della stazione.
+- Aggiungi alle stazioni…: compare mentre ascolti un indirizzo aperto con Apri URL…;
+  chiede nome e gruppo (esistente o nuovo) e lo salva in bookmarks.json.
 - Timer di spegnimento…: spegne la radio dopo i minuti scelti; un altro clic lo annulla.
 - Tasti multimediali (play/pausa, avanti, indietro): comandano la radio quando
   RadioTray è l'ultima app che ha suonato.

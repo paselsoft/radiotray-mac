@@ -21,6 +21,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
 @property (nonatomic, strong) NSMenuItem *previousItem;
 @property (nonatomic, strong) NSMenuItem *nextItem;
 @property (nonatomic, strong) NSMenuItem *sleepItem;
+@property (nonatomic, strong) NSMenuItem *addStationItem;
 @property (nonatomic, strong) NSSlider *volumeSlider;
 @property (nonatomic, strong) NSTextField *volumeValue;
 @property (nonatomic, strong) NSMutableArray<NSMenuItem *> *stationItems;
@@ -36,6 +37,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
 @property (nonatomic, copy, nullable) NSString *currentGroup;
 @property (nonatomic, copy, nullable) NSString *currentStation;
 @property (nonatomic, strong, nullable) RTStation *adhocStation;
+@property (nonatomic) BOOL adhocNamed;   // il nome viene dal server (icy-name), non dall'indirizzo
 @property (nonatomic, strong) RTTrackInfo *track;
 @property (nonatomic) BOOL playingNotified;
 @property (nonatomic) BOOL userStopped;
@@ -215,6 +217,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     self.previousItem = [self addItem:@"Stazione precedente" action:@selector(previousStation:) to:self.menu];
     self.nextItem = [self addItem:@"Stazione successiva" action:@selector(nextStation:) to:self.menu];
     [self addItem:@"Apri URL…" action:@selector(openURL:) to:self.menu];
+    self.addStationItem = [self addItem:@"Aggiungi alle stazioni…" action:@selector(addCurrentStation:) to:self.menu];
     self.sleepItem = [self addItem:@"Timer di spegnimento…" action:@selector(sleepTimerChosen:) to:self.menu];
     [self.menu addItem:[NSMenuItem separatorItem]];
 
@@ -346,6 +349,13 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     self.nextItem.title = self.nextItem.enabled
         ? [NSString stringWithFormat:@"Stazione successiva: %@", RTTruncate(stations[index + 1].name, 32)] : @"Stazione successiva";
 
+    // stazione aperta con "Apri URL…": si può aggiungere ai preferiti
+    BOOL adhoc = !self.currentGroup && self.adhocStation && self.currentStation;
+    self.addStationItem.hidden = !adhoc;
+    if (adhoc) {
+        self.addStationItem.title = [NSString stringWithFormat:@"Aggiungi %@ alle stazioni…", [self currentStationLabel]];
+    }
+
     // timer di spegnimento
     if (self.sleepTimer) {
         NSInteger minutes = (NSInteger)ceil(self.sleepTimer.fireDate.timeIntervalSinceNow / 60.0);
@@ -454,7 +464,14 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     if (state == RTPlayerStatePlaying && !self.playingNotified) {
         self.playingNotified = YES;
         if (self.settings.notifications) {
-            [[RTNotifier shared] notifyTitle:self.currentStation ?: @"RadioTray" message:@"RadioTray"];
+            // per un indirizzo aperto a mano si aspetta un attimo il nome vero mandato dal server
+            BOOL waitForName = !self.currentGroup && !self.adhocNamed;
+            dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)((waitForName ? 1.5 : 0) * NSEC_PER_SEC)),
+                           dispatch_get_main_queue(), ^{
+                if (self.player.state == RTPlayerStatePlaying) {
+                    [[RTNotifier shared] notifyTitle:self.currentStation ?: @"RadioTray" message:@"RadioTray"];
+                }
+            });
         }
     } else if (state == RTPlayerStateBuffering) {
         [self notifyVerbose:@"Caricamento…" message:self.currentStation];
@@ -474,6 +491,15 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
             [[RTNotifier shared] notifyTitle:info.title.length ? info.title : info.artist message:self.currentStation];
         }
     }
+    [self refresh];
+}
+
+- (void)player:(RTPlayer *)player didReceiveStationName:(NSString *)name
+{
+    if (self.currentGroup || !self.adhocStation || self.adhocNamed) return;
+    self.adhocNamed = YES;
+    self.adhocStation.name = name;
+    self.currentStation = name;
     [self refresh];
 }
 
@@ -585,10 +611,92 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
         return;
     }
     self.settings.lastOpenedURL = text;
+    self.adhocNamed = NO;
     RTStation *station = [RTStation new];
     station.name = url.host;
     station.url = text;
     [self playStation:station group:nil];
+}
+
+- (void)addCurrentStation:(id)sender
+{
+    RTStation *station = self.adhocStation;
+    if (self.currentGroup || !station) return;
+
+    [NSApp activateIgnoringOtherApps:YES];
+    NSAlert *alert = [NSAlert new];
+    alert.messageText = @"Aggiungi alle stazioni";
+    alert.informativeText = station.url;
+    [alert addButtonWithTitle:@"Aggiungi"];
+    [alert addButtonWithTitle:@"Annulla"];
+
+    NSView *view = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 340, 58)];
+    NSTextField *nameLabel = [NSTextField labelWithString:@"Nome:"];
+    nameLabel.frame = NSMakeRect(0, 36, 60, 18);
+    nameLabel.alignment = NSTextAlignmentRight;
+    [view addSubview:nameLabel];
+    NSTextField *nameField = [[NSTextField alloc] initWithFrame:NSMakeRect(66, 33, 274, 24)];
+    nameField.stringValue = station.name;
+    [view addSubview:nameField];
+
+    NSTextField *groupLabel = [NSTextField labelWithString:@"Gruppo:"];
+    groupLabel.frame = NSMakeRect(0, 5, 60, 18);
+    groupLabel.alignment = NSTextAlignmentRight;
+    [view addSubview:groupLabel];
+    // si può scegliere un gruppo esistente o scriverne uno nuovo
+    NSString *noGroup = @"(nessun gruppo)";
+    NSComboBox *groupBox = [[NSComboBox alloc] initWithFrame:NSMakeRect(66, 0, 274, 26)];
+    for (RTGroup *g in self.bookmarks.groups) {
+        if (!g.isRoot) [groupBox addItemWithObjectValue:g.name];
+    }
+    [groupBox addItemWithObjectValue:noGroup];
+    groupBox.completes = YES;
+    groupBox.stringValue = self.settings.lastGroup.length && ![self.settings.lastGroup isEqualToString:RTRootGroupName]
+                         ? self.settings.lastGroup : (self.bookmarks.groups.firstObject.isRoot ? noGroup : self.bookmarks.groups.firstObject.name ?: noGroup);
+    [view addSubview:groupBox];
+
+    alert.accessoryView = view;
+    alert.window.initialFirstResponder = nameField;
+    if ([alert runModal] != NSAlertFirstButtonReturn) return;
+
+    NSString *name = [nameField.stringValue stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    NSString *group = [groupBox.stringValue stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    if (group.length == 0 || [group isEqualToString:noGroup]) group = RTRootGroupName;
+    if (name.length == 0) {
+        [self showAlert:@"Stazione non aggiunta" text:@"Serve un nome per la stazione."];
+        return;
+    }
+
+    NSString *path = self.settings.bookmarksPath;
+    NSData *data = [NSData dataWithContentsOfFile:path] ?: [@"[]" dataUsingEncoding:NSUTF8StringEncoding];
+    NSString *error = nil;
+    NSData *updated = [RTBookmarks dataByAddingStation:name url:station.url toGroup:group inData:data error:&error];
+    if (!updated) {
+        [self showAlert:@"Stazione non aggiunta" text:error];
+        return;
+    }
+    NSError *writeError = nil;
+    if (![updated writeToFile:path options:NSDataWritingAtomic error:&writeError]) {
+        [self showAlert:@"Stazione non aggiunta" text:writeError.localizedDescription];
+        return;
+    }
+    RTBookmarks *b = [RTBookmarks bookmarksWithData:updated error:NULL];
+    [self.bookmarksWatcher rememberCurrentContents];
+    if (b) {
+        self.bookmarks = b;
+        [self buildMenu];
+    }
+    // da ora è una stazione come le altre (spunta nel menu, ultima stazione ascoltata)
+    self.currentGroup = group;
+    self.currentStation = name;
+    self.adhocStation = nil;
+    self.settings.lastGroup = group;
+    self.settings.lastStation = name;
+    if (self.settings.notifications) {
+        NSString *where = [group isEqualToString:RTRootGroupName] ? @"senza gruppo" : [NSString stringWithFormat:@"nel gruppo «%@»", group];
+        [[RTNotifier shared] notifyTitle:@"Stazione aggiunta" message:[NSString stringWithFormat:@"%@, %@", name, where]];
+    }
+    [self refresh];
 }
 
 - (void)sleepTimerChosen:(id)sender

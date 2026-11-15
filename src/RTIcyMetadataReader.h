@@ -9,6 +9,9 @@ NS_ASSUME_NONNULL_BEGIN
 @protocol RTIcyMetadataReaderDelegate <NSObject>
 /// Chiamato sul thread principale solo quando il titolo cambia.
 - (void)metadataReader:(RTIcyMetadataReader *)reader didReadStreamTitle:(NSString *)title;
+@optional
+/// Nome della stazione dichiarato dal server (intestazione icy-name), se c'è.
+- (void)metadataReader:(RTIcyMetadataReader *)reader didReadStationName:(NSString *)name;
 @end
 
 @interface RTIcyMetadataReader : NSObject

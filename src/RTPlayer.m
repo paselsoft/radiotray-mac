@@ -293,6 +293,12 @@ static const NSUInteger RTMaxReconnects = sizeof(RTReconnectDelays) / sizeof(RTR
     [self.icyReader startWithURL:self.currentURL];
 }
 
+- (void)metadataReader:(RTIcyMetadataReader *)reader didReadStationName:(NSString *)name
+{
+    if (!self.item) return;
+    [self.delegate player:self didReceiveStationName:name];
+}
+
 - (void)metadataReader:(RTIcyMetadataReader *)reader didReadStreamTitle:(NSString *)title
 {
     if (self.avMetadataSeen || !self.item) return;

@@ -84,13 +84,19 @@ didReceiveResponse:(NSURLResponse *)response completionHandler:(void (^)(NSURLSe
         return;
     }
     NSInteger metaint = 0;
+    NSString *stationName = nil;
     if ([response isKindOfClass:[NSHTTPURLResponse class]]) {
         NSDictionary *headers = [(NSHTTPURLResponse *)response allHeaderFields];
         for (NSString *key in headers) {
             if ([key caseInsensitiveCompare:@"icy-metaint"] == NSOrderedSame) {
                 metaint = [[headers[key] description] integerValue];
+            } else if ([key caseInsensitiveCompare:@"icy-name"] == NSOrderedSame) {
+                stationName = [RTIcyParser stationNameFromHeader:[headers[key] description]];
             }
         }
+    }
+    if (stationName && [self.delegate respondsToSelector:@selector(metadataReader:didReadStationName:)]) {
+        [self.delegate metadataReader:self didReadStationName:stationName];
     }
     if (metaint <= 0) {
         NSLog(@"RadioTray: lo stream non invia metadati ICY (%@)", self.url);

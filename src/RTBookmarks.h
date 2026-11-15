@@ -33,6 +33,12 @@ extern NSString *const RTRootGroupName;
 - (nullable RTGroup *)groupNamed:(NSString *)name;
 - (nullable RTStation *)stationNamed:(NSString *)name inGroup:(NSString *)group;
 - (NSUInteger)stationCount;
+
+/// Aggiunge una stazione al JSON dei preferiti e restituisce il nuovo contenuto del file.
+/// Il gruppo viene creato in fondo se non esiste; le altre voci (anche i campi sconosciuti)
+/// restano come sono. Errore (in italiano) se il JSON non è valido o il nome esiste già nel gruppo.
++ (nullable NSData *)dataByAddingStation:(NSString *)name url:(NSString *)url toGroup:(NSString *)group
+                                  inData:(NSData *)data error:(NSString *_Nullable *_Nullable)error;
 @end
 
 NS_ASSUME_NONNULL_END

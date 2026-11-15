@@ -68,6 +68,27 @@ typedef NS_ENUM(NSInteger, RTIcyPhase) {
     return titles;
 }
 
++ (NSString *)stationNameFromHeader:(NSString *)value
+{
+    if (value.length == 0) return nil;
+    NSString *name = value;
+    // le intestazioni HTTP arrivano come Latin-1: se in realtà erano UTF-8 ("Radio CittÃ "), si ricodifica
+    // (prima di togliere gli spazi: l'ultimo byte di "à" diventa uno spazio non separabile)
+    NSData *latin = [name dataUsingEncoding:NSISOLatin1StringEncoding];
+    if (latin) {
+        NSString *utf8 = [[NSString alloc] initWithData:latin encoding:NSUTF8StringEncoding];
+        if (utf8.length && ![utf8 isEqualToString:name]) name = utf8;
+    }
+    name = [name stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    if (name.length == 0) return nil;
+    NSString *lower = name.lowercaseString;
+    for (NSString *generic in @[@"no name", @"noname", @"unspecified", @"unknown", @"-", @"stream", @"icecast", @"shoutcast",
+                                @"this is my server name", @"default"]) {
+        if ([lower isEqualToString:generic]) return nil;
+    }
+    return name;
+}
+
 + (NSString *)streamTitleFromMetadata:(NSData *)metadata
 {
     // il blocco è riempito di zeri fino a un multiplo di 16

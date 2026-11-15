@@ -9,7 +9,7 @@
 
 ARCH       ?= x86_64
 MACOS_MIN  ?= 10.13
-VERSION    ?= 0.2.0
+VERSION    ?= 0.2.1
 BUILD      := build
 APP        := $(BUILD)/RadioTray.app
 
