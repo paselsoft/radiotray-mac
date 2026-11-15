@@ -91,6 +91,7 @@ static NSString *RTStr(id v)
         s.tags = [RTStr(item[@"tags"]) stringByReplacingOccurrencesOfString:@"," withString:@", "];
         s.votes = [RTStr(item[@"votes"]) integerValue];
         s.hls = [RTStr(item[@"hls"]) integerValue] != 0;
+        s.favicon = RTStr(item[@"favicon"]);
         [(s.playable ? playable : other) addObject:s];
     }
     [playable addObjectsFromArray:other];

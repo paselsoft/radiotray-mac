@@ -13,6 +13,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, copy) NSString *tags;
 @property (nonatomic) NSInteger votes;
 @property (nonatomic) BOOL hls;
+@property (nonatomic, copy) NSString *favicon;      // logo della stazione (indirizzo), può essere vuoto
 /// NO per i formati che macOS non sa riprodurre (Ogg, Opus, FLAC, WMA).
 @property (nonatomic, readonly) BOOL playable;
 /// "MP3 128 kbps"
