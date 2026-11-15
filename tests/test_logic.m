@@ -9,6 +9,7 @@
 #import "../src/RTBookmarksDocument.h"
 #import "../src/RTLoginItem.h"
 #import "../src/RTFavoriteTracks.h"
+#import "../src/RTUpdateChecker.h"
 
 static int failures = 0;
 static int checks = 0;
@@ -553,6 +554,38 @@ static void testFavorites(void)
            hasPrefix:@"https://music.youtube.com/search?q=Mina%20%26%20Celentano%20Citt%C3%A0"]);
 }
 
+static void testHistoryAndUpdates(void)
+{
+    RTFavoriteTracks *h = [RTFavoriteTracks new];
+    NSDate *d = [NSDate date];
+    CHECK([h recordTitle:@"A" artist:@"X" station:@"S1" date:d limit:3]);
+    CHECK(![h recordTitle:@"a" artist:@"x" station:@"S1" date:d limit:3]);   // uguale all'ultimo: niente
+    CHECK([h recordTitle:@"B" artist:@"Y" station:@"S1" date:d limit:3]);
+    CHECK([h recordTitle:@"A" artist:@"X" station:@"S2" date:d limit:3]);    // torna: spostato in fondo
+    CHECK(h.tracks.count == 2);
+    CHECK_EQ(h.tracks.lastObject.station, @"S2");
+    [h recordTitle:@"C" artist:@"" station:@"S" date:d limit:3];
+    [h recordTitle:@"D" artist:@"" station:@"S" date:d limit:3];
+    CHECK(h.tracks.count == 3);                                              // limite
+    CHECK_EQ(h.tracks.firstObject.title, @"A");
+    CHECK(![h recordTitle:@"" artist:@"" station:@"S" date:d limit:3]);
+    [h removeAllTracks];
+    CHECK(h.tracks.count == 0);
+
+    CHECK([RTUpdateChecker version:@"1.2.0" isNewerThan:@"1.1.0"]);
+    CHECK([RTUpdateChecker version:@"v1.10.0" isNewerThan:@"1.9.2"]);
+    CHECK([RTUpdateChecker version:@"1.1.1" isNewerThan:@"1.1"]);
+    CHECK(![RTUpdateChecker version:@"1.1.0" isNewerThan:@"1.1.0"]);
+    CHECK(![RTUpdateChecker version:@"1.0.9" isNewerThan:@"1.1.0"]);
+    CHECK(![RTUpdateChecker version:@"1.1" isNewerThan:@"1.1.0"]);
+    NSDictionary *r = [RTUpdateChecker releaseFromJSON:D(@"{\"tag_name\":\"v1.3.0\",\"html_url\":\"https://github.com/x/y/releases/tag/v1.3.0\",\"draft\":false,\"prerelease\":false}")];
+    CHECK_EQ(r[@"version"], @"1.3.0");
+    CHECK_EQ(r[@"url"], @"https://github.com/x/y/releases/tag/v1.3.0");
+    CHECK([RTUpdateChecker releaseFromJSON:D(@"{\"tag_name\":\"v2\",\"html_url\":\"u\",\"prerelease\":true}")] == nil);
+    CHECK([RTUpdateChecker releaseFromJSON:D(@"{\"message\":\"Not Found\"}")] == nil);
+    CHECK([RTUpdateChecker releaseFromJSON:D(@"[]")] == nil);
+}
+
 int main(int argc, const char *argv[])
 {
     @autoreleasepool {
@@ -572,6 +605,7 @@ int main(int argc, const char *argv[])
         testDocument();
         testLoginItem();
         testFavorites();
+        testHistoryAndUpdates();
         if (argc > 2) testBundledList([NSString stringWithUTF8String:argv[2]]);
         printf("%d verifiche, %d fallite\n", checks, failures);
     }

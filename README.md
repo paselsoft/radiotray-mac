@@ -18,6 +18,7 @@ con **macOS High Sierra 10.13** (funziona anche sulle versioni successive).
 | 2.5 | nome vero della stazione, Aggiungi alle stazioni…, Cerca stazioni (Radio Browser), radio italiane consigliate | fatta (ricerca provata sull'iMac) |
 | 3 | editor delle stazioni, avvio al login, versione 1.0 | fatta |
 | 1.1 | brani preferiti: aggiunta dal menu, finestra con ricerca, filtro, ordinamento, ricerca sul web, esportazione CSV | fatta (provata sull'iMac) |
+| 1.2 | ★ nelle notifiche, ascoltati di recente, scorciatoie ⌃⌥, rotella per il volume, avviso di nuova versione | da provare sull'iMac |
 
 ## Scaricare
 

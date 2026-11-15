@@ -18,6 +18,15 @@ Uso
   sull'intestazione di una colonna), Elimina (⌘⌫), Copia, Cerca su YouTube / YouTube Music /
   Apple Music / Spotify (doppio clic = YouTube) ed Esporta in CSV per Numbers o Excel.
   I brani sono salvati in ~/Library/Application Support/RadioTray/brani-preferiti.json
+- ★ Preferito nella notifica del cambio di brano: aggiunge il brano senza aprire il menu.
+  Il pulsante si vede sempre se in Preferenze di Sistema > Notifiche > RadioTray scegli
+  "Avvisi"; con "Banner" compare solo passando sopra la notifica con il puntatore.
+- Ascoltati di recente: gli ultimi 20 brani (ne ricorda 50); un clic lo aggiunge ai preferiti.
+- Scorciatoie da tastiera, in qualsiasi app: ⌃⌥P accendi/spegni, ⌃⌥F aggiungi ai preferiti,
+  ⌃⌥→ / ⌃⌥← stazione successiva/precedente, ⌃⌥↑ / ⌃⌥↓ volume. Si disattivano da Preferenze.
+- Rotella del mouse (o due dita sul trackpad) sopra l'icona: volume.
+- Aggiornamenti: una volta al giorno RadioTray controlla se c'è una versione nuova e, se c'è,
+  lo dice con una notifica e una voce in cima al menu.
 - Stazione precedente / successiva: passa alla stazione vicina nello stesso gruppo.
 - Apri URL…: ascolta un indirizzo qualsiasi (stream o playlist) senza aggiungerlo alle stazioni.
   Se il server lo dichiara, al posto dell'indirizzo compare il nome vero della stazione.

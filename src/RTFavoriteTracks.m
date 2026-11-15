@@ -129,6 +129,34 @@ static NSISO8601DateFormatter *RTDateFormatter(void)
     [self.list removeObjectsInArray:tracks];
 }
 
+- (void)removeAllTracks
+{
+    [self.list removeAllObjects];
+}
+
+- (BOOL)recordTitle:(NSString *)title artist:(NSString *)artist station:(NSString *)station
+               date:(NSDate *)date limit:(NSUInteger)limit
+{
+    title = RTTrimmed(title);
+    artist = RTTrimmed(artist);
+    if (title.length == 0) {
+        title = artist;
+        artist = @"";
+    }
+    if (title.length == 0) return NO;
+    RTFavoriteTrack *existing = [self trackWithTitle:title artist:artist];
+    if (existing && existing == self.list.lastObject) return NO;
+    if (existing) [self.list removeObject:existing];
+    RTFavoriteTrack *t = [RTFavoriteTrack new];
+    t.title = title;
+    t.artist = artist;
+    t.station = RTTrimmed(station);
+    t.added = date;
+    [self.list addObject:t];
+    while (limit > 0 && self.list.count > limit) [self.list removeObjectAtIndex:0];
+    return YES;
+}
+
 - (NSArray<NSString *> *)stations
 {
     NSMutableSet *set = [NSMutableSet set];

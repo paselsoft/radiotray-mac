@@ -14,6 +14,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) BOOL rootGroupAtBottom;                 // predefinito YES
 @property (nonatomic) NSInteger sleepTimerMinutes;            // predefinito 30
 @property (nonatomic, copy, nullable) NSString *lastOpenedURL; // ultimo indirizzo di "Apri URL…"
+@property (nonatomic) BOOL hotKeys;                           // scorciatoie ⌃⌥, predefinito YES
+@property (nonatomic) BOOL checkForUpdates;                   // predefinito YES
+@property (nonatomic, strong, nullable) NSDate *lastUpdateCheck;
 
 /// ~/Library/Application Support/RadioTray (creata se manca)
 - (NSString *)supportDirectory;

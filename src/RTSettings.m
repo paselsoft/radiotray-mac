@@ -9,6 +9,9 @@ static NSString *const kSplitTitle = @"split-title";
 static NSString *const kRootBottom = @"root-group-bottom-pos";
 static NSString *const kSleepTimer = @"sleep-timer";
 static NSString *const kLastURL = @"last-opened-url";
+static NSString *const kHotKeys = @"hot-keys";
+static NSString *const kCheckUpdates = @"check-for-updates";
+static NSString *const kLastUpdateCheck = @"last-update-check";
 
 @implementation RTSettings
 
@@ -25,6 +28,8 @@ static NSString *const kLastURL = @"last-opened-url";
             kSplitTitle: @YES,
             kRootBottom: @YES,
             kSleepTimer: @30,
+            kHotKeys: @YES,
+            kCheckUpdates: @YES,
         }];
     });
     return shared;
@@ -61,6 +66,15 @@ static NSString *const kLastURL = @"last-opened-url";
 
 - (NSString *)lastOpenedURL { return [self.d stringForKey:kLastURL]; }
 - (void)setLastOpenedURL:(NSString *)v { [self.d setObject:v forKey:kLastURL]; }
+
+- (BOOL)hotKeys { return [self.d boolForKey:kHotKeys]; }
+- (void)setHotKeys:(BOOL)v { [self.d setBool:v forKey:kHotKeys]; }
+
+- (BOOL)checkForUpdates { return [self.d boolForKey:kCheckUpdates]; }
+- (void)setCheckForUpdates:(BOOL)v { [self.d setBool:v forKey:kCheckUpdates]; }
+
+- (NSDate *)lastUpdateCheck { return [self.d objectForKey:kLastUpdateCheck]; }
+- (void)setLastUpdateCheck:(NSDate *)v { [self.d setObject:v forKey:kLastUpdateCheck]; }
 
 - (NSString *)supportDirectory
 {

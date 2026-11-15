@@ -9,6 +9,8 @@
 #import "RTLoginItem.h"
 #import "RTFavoriteTracks.h"
 #import "RTFavoritesWindowController.h"
+#import "RTHotKeys.h"
+#import "RTUpdateChecker.h"
 #import "RTSettings.h"
 #import "RTStatusIcon.h"
 #import "RTStreamResolver.h"
@@ -41,6 +43,14 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
 @property (nonatomic, strong, nullable) RTStationEditorController *stationEditor;
 @property (nonatomic, strong) RTFavoriteTracks *favorites;
 @property (nonatomic, strong, nullable) RTFavoritesWindowController *favoritesWindow;
+@property (nonatomic, strong) RTFavoriteTracks *history;          // brani ascoltati di recente
+@property (nonatomic, strong) NSMenuItem *historyItem;
+@property (nonatomic, strong) RTHotKeys *hotKeys;
+@property (nonatomic, copy) NSArray<NSString *> *hotKeyFailures;
+@property (nonatomic, copy, nullable) NSString *availableUpdate;   // versione più recente trovata su GitHub
+@property (nonatomic, strong, nullable) NSURL *availableUpdateURL;
+@property (nonatomic, strong, nullable) id scrollMonitor;
+@property (nonatomic) CGFloat scrollAccumulator;
 
 // stazione scelta (anche se spenta). currentGroup nil = indirizzo aperto con "Apri URL…"
 @property (nonatomic, copy, nullable) NSString *currentGroup;
@@ -111,6 +121,20 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
         NSLog(@"RadioTray: %@", favoritesError);
         self.favorites = [RTFavoriteTracks new];
     }
+
+    self.history = [RTFavoriteTracks tracksWithContentsOfFile:[self historyPath] error:NULL] ?: [RTFavoriteTracks new];
+
+    // pulsante "★ Preferito" nelle notifiche dei brani
+    __weak typeof(self) weakSelf2 = self;
+    [RTNotifier shared].favoriteHandler = ^(NSDictionary<NSString *, NSString *> *track) {
+        [weakSelf2 addFavoriteTitle:track[@"title"] ?: @"" artist:track[@"artist"] ?: @"" station:track[@"station"] ?: @""];
+    };
+
+    self.hotKeys = [RTHotKeys new];
+    self.hotKeyFailures = @[];
+    [self applyHotKeys];
+    [self installScrollWheelVolume];
+    [self checkForUpdatesManually:NO];
 
     // se l'app è stata spostata, l'avvio al login deve puntare al nuovo percorso
     [RTLoginItem refreshAppPath:[NSBundle mainBundle].bundlePath];
@@ -239,6 +263,12 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     [self.menu removeAllItems];
     [self.stationItems removeAllObjects];
 
+    if (self.availableUpdate) {
+        NSMenuItem *update = [self addItem:[NSString stringWithFormat:@"⬆︎ Scarica RadioTray %@…", self.availableUpdate]
+                                    action:@selector(openUpdatePage:) to:self.menu];
+        update.toolTip = @"È disponibile una versione più recente";
+        [self.menu addItem:[NSMenuItem separatorItem]];
+    }
     self.trackItem = [self addItem:@"Fermo" action:@selector(copyTrack:) to:self.menu];
     self.actionItem = [self addItem:@"Accendi" action:@selector(togglePlay:) to:self.menu];
     self.volumeItem = [self buildVolumeItem];
@@ -271,6 +301,8 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     self.nextItem = [self addItem:@"Stazione successiva" action:@selector(nextStation:) to:self.menu];
     [self addItem:@"Cerca stazioni…" action:@selector(searchStations:) to:self.menu];
     [self addItem:@"Brani preferiti…" action:@selector(openFavorites:) to:self.menu];
+    self.historyItem = [[NSMenuItem alloc] initWithTitle:@"Ascoltati di recente" action:NULL keyEquivalent:@""];
+    [self.menu addItem:self.historyItem];
     [self addItem:@"Apri URL…" action:@selector(openURL:) to:self.menu];
     self.addStationItem = [self addItem:@"Aggiungi alle stazioni…" action:@selector(addCurrentStation:) to:self.menu];
     self.sleepItem = [self addItem:@"Timer di spegnimento…" action:@selector(sleepTimerChosen:) to:self.menu];
@@ -291,6 +323,22 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     [self addItem:@"Stazioni senza gruppo in fondo al menu" action:@selector(toggleRootBottom:) to:prefsMenu].tag = 4;
     [prefsMenu addItem:[NSMenuItem separatorItem]];
     [self addItem:@"Avvia RadioTray al login" action:@selector(toggleLoginItem:) to:prefsMenu].tag = 5;
+    [self addItem:@"Scorciatoie da tastiera (⌃⌥)" action:@selector(toggleHotKeys:) to:prefsMenu].tag = 6;
+    NSMenuItem *keysInfo = [[NSMenuItem alloc] initWithTitle:@"Elenco delle scorciatoie" action:NULL keyEquivalent:@""];
+    NSMenu *keysMenu = [[NSMenu alloc] initWithTitle:@"Scorciatoie"];
+    keysMenu.autoenablesItems = NO;
+    for (NSString *d in [RTHotKeys descriptions]) {
+        NSMenuItem *k = [keysMenu addItemWithTitle:d action:NULL keyEquivalent:@""];
+        k.enabled = NO;
+        k.tag = 1;
+    }
+    NSMenuItem *wheel = [keysMenu addItemWithTitle:@"Rotella sull'icona   Volume" action:NULL keyEquivalent:@""];
+    wheel.enabled = NO;
+    keysInfo.submenu = keysMenu;
+    keysInfo.tag = 7;
+    [prefsMenu addItem:keysInfo];
+    [self addItem:@"Controlla gli aggiornamenti automaticamente" action:@selector(toggleUpdateCheck:) to:prefsMenu].tag = 8;
+    [self addItem:@"Controlla gli aggiornamenti ora" action:@selector(checkUpdatesNow:) to:prefsMenu];
     prefs.submenu = prefsMenu;
     [self.menu addItem:prefs];
 
@@ -449,6 +497,12 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     [prefs itemWithTag:3].state = self.settings.splitTitle ? NSControlStateValueOn : NSControlStateValueOff;
     [prefs itemWithTag:4].state = self.settings.rootGroupAtBottom ? NSControlStateValueOn : NSControlStateValueOff;
     [prefs itemWithTag:5].state = [RTLoginItem isEnabled] ? NSControlStateValueOn : NSControlStateValueOff;
+    [prefs itemWithTag:6].state = self.settings.hotKeys ? NSControlStateValueOn : NSControlStateValueOff;
+    [prefs itemWithTag:6].toolTip = self.hotKeyFailures.count
+        ? [NSString stringWithFormat:@"Già usate da un'altra app:\n%@", [self.hotKeyFailures componentsJoinedByString:@"\n"]] : nil;
+    [prefs itemWithTag:8].state = self.settings.checkForUpdates ? NSControlStateValueOn : NSControlStateValueOff;
+
+    [self rebuildHistoryMenu];
 
     // "In riproduzione" di sistema (tasti multimediali)
     [self.mediaKeys updateWithStation:self.currentStation title:self.track.title artist:self.track.artist
@@ -560,11 +614,22 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     RTTrackInfo *info = [RTTrackInfo infoWithStreamTitle:title split:self.settings.splitTitle];
     if (info.isEmpty || [info isEqualToInfo:self.track]) return;
     self.track = info;
+    NSString *station = self.currentStation ?: @"";
+    if ([self.history recordTitle:info.title artist:info.artist station:station date:[NSDate date] limit:50]) {
+        [[self.history dataRepresentation] writeToFile:[self historyPath] atomically:YES];
+    }
     if (self.settings.notifications && [self stationWantsNotifications]) {
-        if (info.title.length && info.artist.length) {
-            [[RTNotifier shared] notifyTitle:info.title message:info.artist];
+        NSDictionary *trackInfo = @{ @"title": info.title, @"artist": info.artist, @"station": station };
+        if ([self currentTrackIsFavorite]) {
+            // già tra i preferiti: niente pulsante, una ★ nel titolo
+            NSString *t = info.title.length ? info.title : info.artist;
+            [[RTNotifier shared] notifyTitle:[@"★ " stringByAppendingString:t]
+                                     message:info.title.length && info.artist.length ? info.artist : self.currentStation];
+        } else if (info.title.length && info.artist.length) {
+            [[RTNotifier shared] notifyTrackTitle:info.title message:info.artist track:trackInfo];
         } else {
-            [[RTNotifier shared] notifyTitle:info.title.length ? info.title : info.artist message:self.currentStation];
+            [[RTNotifier shared] notifyTrackTitle:info.title.length ? info.title : info.artist message:self.currentStation
+                                            track:trackInfo];
         }
     }
     [self refresh];
@@ -659,10 +724,18 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
 - (void)addCurrentTrackToFavorites:(id)sender
 {
     if (self.track.isEmpty) return;
+    [self addFavoriteTitle:self.track.title artist:self.track.artist station:self.currentStation ?: @""];
+}
+
+/// Aggiunge un brano ai preferiti (dal menu, dalla cronologia, dalla notifica o da ⌃⌥F).
+- (void)addFavoriteTitle:(NSString *)title artist:(NSString *)artist station:(NSString *)station
+{
+    if (title.length == 0 && artist.length == 0) return;
     BOOL already = NO;
-    RTFavoriteTrack *t = [self.favorites addTitle:self.track.title artist:self.track.artist
-                                          station:self.currentStation ?: @"" date:[NSDate date] alreadyPresent:&already];
-    if (!already) {
+    RTFavoriteTrack *t = [self.favorites addTitle:title artist:artist station:station date:[NSDate date] alreadyPresent:&already];
+    if (already) {
+        if (self.settings.notifications) [[RTNotifier shared] notifyTitle:@"★ Già nei brani preferiti" message:t.displayText];
+    } else {
         NSError *error = nil;
         if (![[self.favorites dataRepresentation] writeToFile:[self favoritesPath] options:NSDataWritingAtomic error:&error]) {
             [self.favorites removeTracks:@[t]];
@@ -686,6 +759,184 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
         [self.favoritesWindow reload];
     }
     [self.favoritesWindow showAndFocus];
+}
+
+#pragma mark - Ascoltati di recente
+
+- (NSString *)historyPath
+{
+    return [[self.settings supportDirectory] stringByAppendingPathComponent:@"ascoltati-di-recente.json"];
+}
+
+- (void)rebuildHistoryMenu
+{
+    NSMenu *sub = [[NSMenu alloc] initWithTitle:@"Ascoltati di recente"];
+    sub.autoenablesItems = NO;
+    NSArray<RTFavoriteTrack *> *recent = self.history.tracks;
+    if (recent.count == 0) {
+        [self addItem:@"Nessun brano ancora" action:NULL to:sub].enabled = NO;
+    } else {
+        NSMenuItem *hint = [self addItem:@"Clic su un brano per aggiungerlo ai preferiti" action:NULL to:sub];
+        hint.enabled = NO;
+        NSDateFormatter *df = [NSDateFormatter new];
+        df.dateFormat = @"HH:mm";
+        NSUInteger shown = 0;
+        for (RTFavoriteTrack *t in recent.reverseObjectEnumerator) {   // prima i più recenti
+            if (shown++ >= 20) break;
+            BOOL favorite = [self.favorites trackWithTitle:t.title artist:t.artist] != nil;
+            NSString *title = [NSString stringWithFormat:@"%@%@", favorite ? @"★ " : @"", RTTruncate(t.displayText, 60)];
+            NSMenuItem *item = [self addItem:title action:@selector(historyTrackChosen:) to:sub];
+            item.representedObject = t;
+            item.toolTip = [NSString stringWithFormat:@"%@, %@", t.station, [df stringFromDate:t.added]];
+            item.enabled = !favorite;
+        }
+        [sub addItem:[NSMenuItem separatorItem]];
+        [self addItem:@"Cancella la cronologia" action:@selector(clearHistory:) to:sub];
+    }
+    self.historyItem.submenu = sub;
+}
+
+- (void)historyTrackChosen:(NSMenuItem *)sender
+{
+    RTFavoriteTrack *t = sender.representedObject;
+    if (t) [self addFavoriteTitle:t.title artist:t.artist station:t.station];
+}
+
+- (void)clearHistory:(id)sender
+{
+    [self.history removeAllTracks];
+    [[NSFileManager defaultManager] removeItemAtPath:[self historyPath] error:NULL];
+    [self refresh];
+}
+
+#pragma mark - Scorciatoie e rotella
+
+- (void)applyHotKeys
+{
+    [self.hotKeys unregister];
+    self.hotKeyFailures = @[];
+    if (!self.settings.hotKeys) return;
+    __weak typeof(self) weakSelf = self;
+    self.hotKeyFailures = [self.hotKeys registerWithHandler:^(RTHotKey key) {
+        [weakSelf hotKeyPressed:key];
+    }];
+    if (self.hotKeyFailures.count) {
+        NSLog(@"RadioTray: scorciatoie già usate da un'altra app: %@", self.hotKeyFailures);
+    }
+}
+
+- (void)hotKeyPressed:(RTHotKey)key
+{
+    switch (key) {
+        case RTHotKeyTogglePlay:      [self togglePlay:nil]; break;
+        case RTHotKeyNextStation:     [self nextStation:nil]; break;
+        case RTHotKeyPreviousStation: [self previousStation:nil]; break;
+        case RTHotKeyVolumeUp:        [self changeVolumeBy:+5 notify:YES]; break;
+        case RTHotKeyVolumeDown:      [self changeVolumeBy:-5 notify:YES]; break;
+        case RTHotKeyFavorite:
+            if (self.player.state == RTPlayerStatePlaying && !self.track.isEmpty) {
+                [self addCurrentTrackToFavorites:nil];
+            } else {
+                NSBeep();
+            }
+            break;
+    }
+}
+
+- (void)changeVolumeBy:(NSInteger)delta notify:(BOOL)notify
+{
+    NSInteger before = self.player.volume;
+    self.player.volume = before + delta;
+    self.settings.volume = self.player.volume;
+    if (notify && self.player.volume != before) {
+        [[RTNotifier shared] notifyTitle:[NSString stringWithFormat:@"Volume %ld%%", (long)self.player.volume] message:nil];
+    }
+    [self refresh];
+}
+
+- (void)toggleHotKeys:(id)sender
+{
+    self.settings.hotKeys = !self.settings.hotKeys;
+    [self applyHotKeys];
+    if (self.settings.hotKeys && self.hotKeyFailures.count) {
+        [self showAlert:@"Alcune scorciatoie non sono disponibili"
+                   text:[NSString stringWithFormat:@"Sono già usate da un'altra app:\n\n%@",
+                         [self.hotKeyFailures componentsJoinedByString:@"\n"]]];
+    }
+    [self refresh];
+}
+
+/// Rotella del mouse (o due dita sul trackpad) sopra l'icona nella barra dei menu: volume.
+- (void)installScrollWheelVolume
+{
+    __weak typeof(self) weakSelf = self;
+    self.scrollMonitor = [NSEvent addLocalMonitorForEventsMatchingMask:NSEventMaskScrollWheel handler:^NSEvent *(NSEvent *event) {
+        typeof(self) strongSelf = weakSelf;
+        if (!strongSelf || event.window != strongSelf.statusItem.button.window) return event;
+        CGFloat dy = event.scrollingDeltaY != 0 ? event.scrollingDeltaY : event.scrollingDeltaX;
+        if (event.isDirectionInvertedFromDevice) dy = -dy;   // "scorrimento naturale": su = più volume
+        if (event.hasPreciseScrollingDeltas) {
+            // trackpad: si accumula, 1% ogni 4 punti
+            strongSelf.scrollAccumulator += dy;
+            NSInteger steps = (NSInteger)(strongSelf.scrollAccumulator / 4.0);
+            if (steps != 0) {
+                strongSelf.scrollAccumulator -= steps * 4.0;
+                [strongSelf changeVolumeBy:steps notify:NO];
+            }
+        } else if (dy != 0) {
+            [strongSelf changeVolumeBy:dy > 0 ? 2 : -2 notify:NO];   // rotella: 2% per scatto
+        }
+        strongSelf.statusItem.button.toolTip = [NSString stringWithFormat:@"Volume %ld%%", (long)strongSelf.player.volume];
+        return nil;
+    }];
+}
+
+#pragma mark - Aggiornamenti
+
+- (void)checkForUpdatesManually:(BOOL)manual
+{
+    if (!manual) {
+        if (!self.settings.checkForUpdates) return;
+        NSDate *last = self.settings.lastUpdateCheck;
+        if (last && -last.timeIntervalSinceNow < 24 * 60 * 60) return;   // al massimo una volta al giorno
+    }
+    NSString *current = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleShortVersionString"] ?: @"0";
+    [RTUpdateChecker checkWithCurrentVersion:current completion:^(NSString *newVersion, NSURL *pageURL, NSString *error) {
+        if (!error) self.settings.lastUpdateCheck = [NSDate date];
+        if (newVersion) {
+            BOOL isNew = ![newVersion isEqualToString:self.availableUpdate ?: @""];
+            self.availableUpdate = newVersion;
+            self.availableUpdateURL = pageURL;
+            [self buildMenu];
+            [self refresh];
+            if (isNew || manual) {
+                [[RTNotifier shared] notifyTitle:[NSString stringWithFormat:@"È disponibile RadioTray %@", newVersion]
+                                         message:[NSString stringWithFormat:@"Stai usando la %@. Clic per scaricarla.", current]
+                                         openURL:pageURL];
+            }
+        } else if (manual) {
+            if (error) {
+                [self showAlert:@"Controllo non riuscito" text:error];
+            } else {
+                [[RTNotifier shared] notifyTitle:@"RadioTray è aggiornato"
+                                         message:[NSString stringWithFormat:@"La %@ è la versione più recente.", current]];
+            }
+        }
+    }];
+}
+
+- (void)checkUpdatesNow:(id)sender { [self checkForUpdatesManually:YES]; }
+
+- (void)toggleUpdateCheck:(id)sender
+{
+    self.settings.checkForUpdates = !self.settings.checkForUpdates;
+    if (self.settings.checkForUpdates) [self checkForUpdatesManually:NO];
+    [self refresh];
+}
+
+- (void)openUpdatePage:(id)sender
+{
+    if (self.availableUpdateURL) [[NSWorkspace sharedWorkspace] openURL:self.availableUpdateURL];
 }
 
 - (void)favoritesWindowDidChangeTracks

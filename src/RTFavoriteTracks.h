@@ -36,6 +36,12 @@ typedef NS_ENUM(NSInteger, RTTrackSearchSite) {
 - (RTFavoriteTrack *)addTitle:(NSString *)title artist:(NSString *)artist station:(NSString *)station
                          date:(NSDate *)date alreadyPresent:(BOOL *_Nullable)alreadyPresent;
 - (void)removeTracks:(NSArray<RTFavoriteTrack *> *)tracks;
+- (void)removeAllTracks;
+
+/// Per la cronologia: il brano va in fondo (se c'era già viene spostato, con stazione e ora nuove)
+/// e si tengono solo gli ultimi limit. Restituisce NO se era già l'ultimo (niente da salvare).
+- (BOOL)recordTitle:(NSString *)title artist:(NSString *)artist station:(NSString *)station
+               date:(NSDate *)date limit:(NSUInteger)limit;
 
 /// Stazioni presenti, in ordine alfabetico.
 - (NSArray<NSString *> *)stations;
