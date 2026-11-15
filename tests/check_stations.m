@@ -15,31 +15,39 @@ static BOOL waitFor(BOOL *done, NSTimeInterval seconds)
     return *done;
 }
 
-/// Content-Type del primo blocco dello stream (richiesta interrotta subito dopo la risposta).
+/// Legge solo la risposta (stato e Content-Type) e interrompe subito: gli stream sono infiniti.
+@interface RTProbe : NSObject <NSURLSessionDataDelegate>
+@property (nonatomic, copy) NSString *result;
+@end
+
+@implementation RTProbe
+- (void)URLSession:(NSURLSession *)session dataTask:(NSURLSessionDataTask *)dataTask
+didReceiveResponse:(NSURLResponse *)response completionHandler:(void (^)(NSURLSessionResponseDisposition))completionHandler
+{
+    NSInteger code = [response isKindOfClass:[NSHTTPURLResponse class]] ? [(NSHTTPURLResponse *)response statusCode] : 0;
+    self.result = [NSString stringWithFormat:@"HTTP %ld %@", (long)code, response.MIMEType ?: @"?"];
+    completionHandler(NSURLSessionResponseCancel);
+}
+- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error
+{
+    if (!self.result) self.result = [NSString stringWithFormat:@"errore: %@", error.localizedDescription ?: @"?"];
+}
+@end
+
 static NSString *probe(NSString *url)
 {
-    __block NSString *result = nil;
-    __block BOOL done = NO;
-    NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:url]];
-    req.timeoutInterval = 10;
-    [req setValue:@"RadioTray-Mac/1.0" forHTTPHeaderField:@"User-Agent"];
-    [req setValue:@"bytes=0-1023" forHTTPHeaderField:@"Range"];
-    NSURLSessionDataTask *task = [[NSURLSession sharedSession] dataTaskWithRequest:req
-        completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
-            if (error) {
-                result = [NSString stringWithFormat:@"errore: %@", error.localizedDescription];
-            } else {
-                NSInteger code = [response isKindOfClass:[NSHTTPURLResponse class]] ? [(NSHTTPURLResponse *)response statusCode] : 0;
-                result = [NSString stringWithFormat:@"HTTP %ld %@", (long)code, response.MIMEType ?: @"?"];
-            }
-            done = YES;
-        }];
-    [task resume];
-    if (!waitFor(&done, 15)) {
-        [task cancel];
-        return @"errore: nessuna risposta";
+    RTProbe *p = [RTProbe new];
+    NSURLSessionConfiguration *cfg = [NSURLSessionConfiguration ephemeralSessionConfiguration];
+    cfg.timeoutIntervalForRequest = 10;
+    cfg.HTTPAdditionalHeaders = @{ @"User-Agent": @"RadioTray-Mac/1.0" };
+    NSURLSession *session = [NSURLSession sessionWithConfiguration:cfg delegate:p delegateQueue:[NSOperationQueue mainQueue]];
+    [[session dataTaskWithURL:[NSURL URLWithString:url]] resume];
+    NSDate *limit = [NSDate dateWithTimeIntervalSinceNow:15];
+    while (!p.result && [limit timeIntervalSinceNow] > 0) {
+        [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.05]];
     }
-    return result;
+    [session invalidateAndCancel];
+    return p.result ?: @"errore: nessuna risposta";
 }
 
 int main(int argc, const char *argv[])
