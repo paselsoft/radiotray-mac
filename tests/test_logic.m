@@ -530,8 +530,13 @@ static void testFavorites(void)
     // CSV: intestazione, virgolette raddoppiate, separatore ";"
     RTFavoriteTracks *h = [RTFavoriteTracks new];
     [h addTitle:@"Il \"mio\" brano" artist:@"A; B" station:@"S" date:d1 alreadyPresent:NULL];
-    NSString *csv = [[NSString alloc] initWithData:[RTFavoriteTracks csvForTracks:h.tracks] encoding:NSUTF8StringEncoding];
-    CHECK([csv hasPrefix:@"\uFEFFTitolo;Artista;Stazione;Aggiunto il\r\n"]);
+    NSData *csvData = [RTFavoriteTracks csvForTracks:h.tracks];
+    // BOM UTF-8 (EF BB BF) all'inizio del file: la lettura come testo lo toglie, quindi si controllano i byte
+    const unsigned char *bom = csvData.bytes;
+    CHECK(csvData.length > 3 && bom[0] == 0xEF && bom[1] == 0xBB && bom[2] == 0xBF);
+    NSString *csv = [[NSString alloc] initWithData:[csvData subdataWithRange:NSMakeRange(3, csvData.length - 3)]
+                                          encoding:NSUTF8StringEncoding];
+    CHECK([csv hasPrefix:@"Titolo;Artista;Stazione;Aggiunto il\r\n"]);
     CHECK([csv containsString:@"\"Il \"\"mio\"\" brano\";\"A; B\";\"S\";"]);
 
     // ricerche sul web
