@@ -14,7 +14,7 @@ con **macOS High Sierra 10.13** (funziona anche sulle versioni successive).
 | Fase | Contenuto | Stato |
 |---|---|---|
 | 1 | icona e menu, stazioni a gruppi (stesso `bookmarks.json` di Radiotray-NG), playlist PLS/M3U/ASX/XSPF, AVPlayer, titolo e artista, volume, ultima stazione, notifiche, `.dmg` dalla CI | fatta (provata sull'iMac) |
-| 2 | timer di spegnimento, stazione successiva/precedente, tasti multimediali, Apri URL…, ricarica automatica, riconnessione | — |
+| 2 | titolo letto dallo stream (ICY), timer di spegnimento, stazione successiva/precedente, tasti multimediali, Apri URL…, ricarica automatica, riconnessione | da provare sull'iMac |
 | 3 | editor delle stazioni, importazione, avvio al login | — |
 
 ## Scaricare

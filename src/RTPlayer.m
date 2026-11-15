@@ -7,6 +7,10 @@ static void *RTItemMetadataContext = &RTItemMetadataContext;
 static void *RTPlayerTimeControlContext = &RTPlayerTimeControlContext;
 
 static const NSTimeInterval RTConnectTimeout = 20.0;
+static const NSTimeInterval RTStallTimeout = 20.0;
+/// attese prima di ogni tentativo di riconnessione (secondi)
+static const NSTimeInterval RTReconnectDelays[] = { 2, 5, 10, 15, 20, 30, 30, 30, 60, 60 };
+static const NSUInteger RTMaxReconnects = sizeof(RTReconnectDelays) / sizeof(RTReconnectDelays[0]);
 
 @interface RTPlayer () <RTIcyMetadataReaderDelegate>
 @property (nonatomic, strong) AVPlayer *player;
@@ -17,7 +21,11 @@ static const NSTimeInterval RTConnectTimeout = 20.0;
 @property (nonatomic, copy, readwrite, nullable) NSString *currentURL;
 @property (nonatomic, copy, nullable) NSString *lastError;
 @property (nonatomic, strong, nullable) NSTimer *connectTimer;
-@property (nonatomic) BOOL hasPlayed;
+@property (nonatomic) BOOL hasPlayed;          // l'URL corrente ha suonato
+@property (nonatomic) BOOL everPlayed;         // la stazione ha suonato almeno una volta: se cade si riconnette
+@property (nonatomic) NSUInteger reconnectAttempt;
+@property (nonatomic, strong, nullable) NSTimer *reconnectTimer;
+@property (nonatomic, strong, nullable) NSTimer *stallTimer;
 @property (nonatomic) BOOL avMetadataSeen;   // AVPlayer consegna i metadati: il lettore ICY non serve
 @property (nonatomic, strong) RTIcyMetadataReader *icyReader;
 @end
@@ -60,6 +68,8 @@ static const NSTimeInterval RTConnectTimeout = 20.0;
 
 - (void)markConnecting
 {
+    [self cancelReconnect];
+    self.everPlayed = NO;
     [self detachItem];
     [self.player pause];
     self.hasPlayed = NO;
@@ -68,14 +78,25 @@ static const NSTimeInterval RTConnectTimeout = 20.0;
 
 - (void)playStreams:(NSArray<NSString *> *)urls
 {
+    [self cancelReconnect];
     self.urls = urls;
     self.urlIndex = 0;
     self.lastError = nil;
+    self.everPlayed = NO;
+    self.reconnectAttempt = 0;
     [self startCurrent];
+}
+
+- (void)cancelReconnect
+{
+    [self.reconnectTimer invalidate];
+    self.reconnectTimer = nil;
 }
 
 - (void)stop
 {
+    [self cancelReconnect];
+    self.everPlayed = NO;
     [self detachItem];
     [self.player pause];
     self.urls = @[];
@@ -129,6 +150,8 @@ static const NSTimeInterval RTConnectTimeout = 20.0;
 {
     [self.connectTimer invalidate];
     self.connectTimer = nil;
+    [self.stallTimer invalidate];
+    self.stallTimer = nil;
     [self.icyReader stop];
     self.avMetadataSeen = NO;
     AVPlayerItem *item = self.item;
@@ -143,9 +166,64 @@ static const NSTimeInterval RTConnectTimeout = 20.0;
 - (void)tryNextWithError:(NSString *)error
 {
     NSLog(@"RadioTray: %@ (%@)", error, self.currentURL ?: @"?");
+    if (self.everPlayed) {
+        // la stazione funzionava: è caduta la connessione, si riprova invece di arrendersi
+        [self scheduleReconnectAfterError:error];
+        return;
+    }
     self.lastError = error;
     self.urlIndex++;
     [self startCurrent];
+}
+
+- (void)scheduleReconnectAfterError:(NSString *)error
+{
+    [self detachItem];
+    [self.player pause];
+    [self cancelReconnect];
+    if (self.reconnectAttempt >= RTMaxReconnects) {
+        NSString *message = [NSString stringWithFormat:@"%@ (riconnessione non riuscita)", error];
+        [self stop];
+        [self.delegate player:self didFailWithError:message];
+        return;
+    }
+    NSTimeInterval delay = RTReconnectDelays[self.reconnectAttempt];
+    self.reconnectAttempt++;
+    self.hasPlayed = NO;
+    self.state = RTPlayerStateConnecting;
+    NSLog(@"RadioTray: riconnessione n. %lu tra %.0f s", (unsigned long)self.reconnectAttempt, delay);
+    [self.delegate player:self willReconnect:self.reconnectAttempt error:error];
+    self.reconnectTimer = [NSTimer scheduledTimerWithTimeInterval:delay target:self
+                                                         selector:@selector(reconnectTimerFired:) userInfo:nil repeats:NO];
+}
+
+- (void)reconnectTimerFired:(NSTimer *)timer
+{
+    if (timer != self.reconnectTimer) return;
+    self.reconnectTimer = nil;
+    self.urlIndex = 0;
+    self.lastError = nil;
+    [self startCurrent];
+}
+
+- (void)reconnectNow
+{
+    if (self.state == RTPlayerStateStopped || self.urls.count == 0) return;
+    NSLog(@"RadioTray: riavvio dello stream");
+    [self cancelReconnect];
+    self.reconnectAttempt = 0;
+    self.urlIndex = 0;
+    self.lastError = nil;
+    [self startCurrent];
+}
+
+- (void)stallTimedOut:(NSTimer *)timer
+{
+    if (timer != self.stallTimer) return;
+    self.stallTimer = nil;
+    if (self.state == RTPlayerStateBuffering) {
+        [self tryNextWithError:@"Lo stream si è bloccato"];
+    }
 }
 
 - (void)connectTimedOut:(NSTimer *)timer
@@ -245,12 +323,20 @@ static const NSTimeInterval RTConnectTimeout = 20.0;
             case AVPlayerTimeControlStatusPlaying:
                 if (!self.hasPlayed) [self startIcyReaderIfNeeded];
                 self.hasPlayed = YES;
+                self.everPlayed = YES;
+                self.reconnectAttempt = 0;
                 [self.connectTimer invalidate];
                 self.connectTimer = nil;
+                [self.stallTimer invalidate];
+                self.stallTimer = nil;
                 self.state = RTPlayerStatePlaying;
                 break;
             case AVPlayerTimeControlStatusWaitingToPlayAtSpecifiedRate:
                 self.state = self.hasPlayed ? RTPlayerStateBuffering : RTPlayerStateConnecting;
+                if (self.hasPlayed && !self.stallTimer) {
+                    self.stallTimer = [NSTimer scheduledTimerWithTimeInterval:RTStallTimeout target:self
+                                                                     selector:@selector(stallTimedOut:) userInfo:nil repeats:NO];
+                }
                 break;
             case AVPlayerTimeControlStatusPaused:
                 break;

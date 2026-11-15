@@ -1,5 +1,7 @@
 #import "RTAppDelegate.h"
 #import "RTBookmarks.h"
+#import "RTFileWatcher.h"
+#import "RTMediaKeys.h"
 #import "RTNotifier.h"
 #import "RTPlayer.h"
 #import "RTSettings.h"
@@ -8,13 +10,17 @@
 #import "RTTrackInfo.h"
 
 static const NSUInteger RTMenuLineLength = 48;
+static const NSInteger RTMaxSleepMinutes = 24 * 60;
 
-@interface RTAppDelegate () <NSMenuDelegate, RTPlayerDelegate>
+@interface RTAppDelegate () <NSMenuDelegate, RTPlayerDelegate, RTMediaKeysDelegate>
 @property (nonatomic, strong) NSStatusItem *statusItem;
 @property (nonatomic, strong) NSMenu *menu;
 @property (nonatomic, strong) NSMenuItem *trackItem;
 @property (nonatomic, strong) NSMenuItem *actionItem;
 @property (nonatomic, strong) NSMenuItem *volumeItem;
+@property (nonatomic, strong) NSMenuItem *previousItem;
+@property (nonatomic, strong) NSMenuItem *nextItem;
+@property (nonatomic, strong) NSMenuItem *sleepItem;
 @property (nonatomic, strong) NSSlider *volumeSlider;
 @property (nonatomic, strong) NSTextField *volumeValue;
 @property (nonatomic, strong) NSMutableArray<NSMenuItem *> *stationItems;
@@ -23,12 +29,18 @@ static const NSUInteger RTMenuLineLength = 48;
 @property (nonatomic, strong) RTBookmarks *bookmarks;
 @property (nonatomic, strong) RTPlayer *player;
 @property (nonatomic, strong) RTStreamResolver *resolver;
+@property (nonatomic, strong) RTFileWatcher *bookmarksWatcher;
+@property (nonatomic, strong) RTMediaKeys *mediaKeys;
 
-@property (nonatomic, copy) NSString *currentGroup;     // stazione scelta (anche se spenta)
-@property (nonatomic, copy) NSString *currentStation;
+// stazione scelta (anche se spenta). currentGroup nil = indirizzo aperto con "Apri URL…"
+@property (nonatomic, copy, nullable) NSString *currentGroup;
+@property (nonatomic, copy, nullable) NSString *currentStation;
+@property (nonatomic, strong, nullable) RTStation *adhocStation;
 @property (nonatomic, strong) RTTrackInfo *track;
 @property (nonatomic) BOOL playingNotified;
 @property (nonatomic) BOOL userStopped;
+
+@property (nonatomic, strong, nullable) NSTimer *sleepTimer;
 @end
 
 @implementation RTAppDelegate
@@ -67,6 +79,21 @@ static const NSUInteger RTMenuLineLength = 48;
     self.menu.autoenablesItems = NO;
     self.statusItem.menu = self.menu;
     [self buildMenu];
+
+    // ricarica automatica quando il file delle stazioni viene salvato
+    __weak typeof(self) weakSelf = self;
+    self.bookmarksWatcher = [[RTFileWatcher alloc] initWithPath:self.settings.bookmarksPath changeHandler:^{
+        [weakSelf reloadBookmarksInteractive:NO];
+    }];
+    [self.bookmarksWatcher start];
+
+    self.mediaKeys = [RTMediaKeys new];
+    self.mediaKeys.delegate = self;
+    [self.mediaKeys start];
+
+    // al risveglio dallo stop la connessione è quasi sempre morta: si ricollega
+    [[NSWorkspace sharedWorkspace].notificationCenter addObserver:self selector:@selector(systemDidWake:)
+                                                             name:NSWorkspaceDidWakeNotification object:nil];
     [self refresh];
 }
 
@@ -86,6 +113,15 @@ static const NSUInteger RTMenuLineLength = 48;
     } else {
         [@"[]\n" writeToFile:path atomically:YES encoding:NSUTF8StringEncoding error:NULL];
     }
+}
+
+- (void)systemDidWake:(NSNotification *)note
+{
+    if (self.player.state == RTPlayerStateStopped) return;
+    // si lascia alla rete qualche secondo per tornare su
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(4 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+        if (self.player.state != RTPlayerStateStopped) [self.player reconnectNow];
+    });
 }
 
 #pragma mark - Menu
@@ -176,6 +212,12 @@ static const NSUInteger RTMenuLineLength = 48;
     }
     [self.menu addItem:[NSMenuItem separatorItem]];
 
+    self.previousItem = [self addItem:@"Stazione precedente" action:@selector(previousStation:) to:self.menu];
+    self.nextItem = [self addItem:@"Stazione successiva" action:@selector(nextStation:) to:self.menu];
+    [self addItem:@"Apri URL…" action:@selector(openURL:) to:self.menu];
+    self.sleepItem = [self addItem:@"Timer di spegnimento…" action:@selector(sleepTimerChosen:) to:self.menu];
+    [self.menu addItem:[NSMenuItem separatorItem]];
+
     NSMenuItem *prefs = [[NSMenuItem alloc] initWithTitle:@"Preferenze" action:NULL keyEquivalent:@""];
     NSMenu *prefsMenu = [[NSMenu alloc] initWithTitle:@"Preferenze"];
     prefsMenu.autoenablesItems = NO;
@@ -203,6 +245,29 @@ static const NSUInteger RTMenuLineLength = 48;
 - (NSString *)currentStationLabel
 {
     return self.currentStation ? [NSString stringWithFormat:@"«%@»", RTTruncate(self.currentStation, 36)] : nil;
+}
+
+/// La stazione scelta: dai preferiti, oppure quella aperta con "Apri URL…".
+- (RTStation *)currentStationObject
+{
+    if (!self.currentStation) return nil;
+    if (!self.currentGroup) return self.adhocStation;
+    return [self.bookmarks stationNamed:self.currentStation inGroup:self.currentGroup];
+}
+
+/// Stazioni del gruppo corrente e posizione di quella scelta (NSNotFound se non c'è).
+- (NSArray<RTStation *> *)currentGroupStations:(NSUInteger *)index
+{
+    *index = NSNotFound;
+    if (!self.currentGroup || !self.currentStation) return @[];
+    NSArray<RTStation *> *stations = [self.bookmarks groupNamed:self.currentGroup].stations ?: @[];
+    for (NSUInteger i = 0; i < stations.count; i++) {
+        if ([stations[i].name isEqualToString:self.currentStation]) {
+            *index = i;
+            break;
+        }
+    }
+    return stations;
 }
 
 - (void)refresh
@@ -255,8 +320,7 @@ static const NSUInteger RTMenuLineLength = 48;
         self.actionItem.enabled = YES;
     } else {
         self.actionItem.title = label ? [NSString stringWithFormat:@"Accendi %@", label] : @"Accendi";
-        self.actionItem.enabled = self.currentStation &&
-            [self.bookmarks stationNamed:self.currentStation inGroup:self.currentGroup] != nil;
+        self.actionItem.enabled = [self currentStationObject] != nil;
     }
 
     // volume
@@ -266,9 +330,30 @@ static const NSUInteger RTMenuLineLength = 48;
     // spunta sulla stazione corrente
     for (NSMenuItem *item in self.stationItems) {
         NSArray *key = item.representedObject;
-        BOOL current = active && [key[0] isEqualToString:self.currentGroup ?: @""] &&
+        BOOL current = active && self.currentGroup && [key[0] isEqualToString:self.currentGroup] &&
                        [key[1] isEqualToString:self.currentStation ?: @""];
         item.state = current ? NSControlStateValueOn : NSControlStateValueOff;
+    }
+
+    // precedente / successiva nel gruppo
+    NSUInteger index;
+    NSArray<RTStation *> *stations = [self currentGroupStations:&index];
+    BOOL found = index != NSNotFound;
+    self.previousItem.enabled = found && index > 0;
+    self.nextItem.enabled = found && index + 1 < stations.count;
+    self.previousItem.title = self.previousItem.enabled
+        ? [NSString stringWithFormat:@"Stazione precedente: %@", RTTruncate(stations[index - 1].name, 32)] : @"Stazione precedente";
+    self.nextItem.title = self.nextItem.enabled
+        ? [NSString stringWithFormat:@"Stazione successiva: %@", RTTruncate(stations[index + 1].name, 32)] : @"Stazione successiva";
+
+    // timer di spegnimento
+    if (self.sleepTimer) {
+        NSInteger minutes = (NSInteger)ceil(self.sleepTimer.fireDate.timeIntervalSinceNow / 60.0);
+        self.sleepItem.title = [NSString stringWithFormat:@"Timer di spegnimento: %ld min (clic per annullare)", (long)MAX(1, minutes)];
+        self.sleepItem.state = NSControlStateValueOn;
+    } else {
+        self.sleepItem.title = @"Timer di spegnimento…";
+        self.sleepItem.state = NSControlStateValueOff;
     }
 
     // preferenze
@@ -278,6 +363,10 @@ static const NSUInteger RTMenuLineLength = 48;
     [prefs itemWithTag:2].enabled = self.settings.notifications;
     [prefs itemWithTag:3].state = self.settings.splitTitle ? NSControlStateValueOn : NSControlStateValueOff;
     [prefs itemWithTag:4].state = self.settings.rootGroupAtBottom ? NSControlStateValueOn : NSControlStateValueOff;
+
+    // "In riproduzione" di sistema (tasti multimediali)
+    [self.mediaKeys updateWithStation:self.currentStation title:self.track.title artist:self.track.artist
+                              playing:state == RTPlayerStatePlaying];
 }
 
 #pragma mark - Riproduzione
@@ -289,10 +378,18 @@ static const NSUInteger RTMenuLineLength = 48;
         [[RTNotifier shared] notifyTitle:@"Errore" message:@"La stazione non è più nell'elenco"];
         return;
     }
-    self.currentGroup = groupName;
-    self.currentStation = name;
     self.settings.lastGroup = groupName;
     self.settings.lastStation = name;
+    [self playStation:station group:groupName];
+}
+
+/// group nil = indirizzo aperto con "Apri URL…" (non diventa l'ultima stazione ascoltata).
+- (void)playStation:(RTStation *)station group:(NSString *)groupName
+{
+    NSString *name = station.name;
+    self.currentGroup = groupName;
+    self.currentStation = name;
+    if (!groupName) self.adhocStation = station;
     self.track = [RTTrackInfo infoWithTitle:nil artist:nil];
     self.playingNotified = NO;
     self.userStopped = NO;
@@ -316,6 +413,17 @@ static const NSUInteger RTMenuLineLength = 48;
     }];
 }
 
+- (void)startCurrentStation
+{
+    RTStation *station = [self currentStationObject];
+    if (!station) return;
+    if (self.currentGroup) {
+        [self playStationNamed:station.name inGroup:self.currentGroup];
+    } else {
+        [self playStation:station group:nil];
+    }
+}
+
 - (void)stopPlayback
 {
     self.userStopped = YES;
@@ -335,7 +443,7 @@ static const NSUInteger RTMenuLineLength = 48;
 
 - (BOOL)stationWantsNotifications
 {
-    RTStation *s = [self.bookmarks stationNamed:self.currentStation ?: @"" inGroup:self.currentGroup ?: @""];
+    RTStation *s = [self currentStationObject];
     return s ? s.notifications : YES;
 }
 
@@ -369,6 +477,16 @@ static const NSUInteger RTMenuLineLength = 48;
     [self refresh];
 }
 
+- (void)player:(RTPlayer *)player willReconnect:(NSUInteger)attempt error:(NSString *)error
+{
+    if (attempt == 1 && self.settings.notifications) {
+        [[RTNotifier shared] notifyTitle:@"Connessione persa"
+                                 message:[NSString stringWithFormat:@"%@: nuovo tentativo in corso…", self.currentStation ?: @"RadioTray"]];
+    }
+    self.playingNotified = YES;   // alla ripresa non si ripete la notifica della stazione
+    [self refresh];
+}
+
 - (void)player:(RTPlayer *)player didFailWithError:(NSString *)error
 {
     // gli errori si mostrano sempre, anche con le notifiche spente (come Radiotray-NG)
@@ -377,6 +495,14 @@ static const NSUInteger RTMenuLineLength = 48;
     self.track = [RTTrackInfo infoWithTitle:nil artist:nil];
     [self refresh];
 }
+
+#pragma mark - RTMediaKeysDelegate
+
+- (void)mediaKeysTogglePlay { [self togglePlay:nil]; }
+- (void)mediaKeysPlay { if (self.player.state == RTPlayerStateStopped) [self startCurrentStation]; }
+- (void)mediaKeysPause { if (self.player.state != RTPlayerStateStopped) [self stopPlayback]; }
+- (void)mediaKeysNext { [self nextStation:nil]; }
+- (void)mediaKeysPrevious { [self previousStation:nil]; }
 
 #pragma mark - Azioni del menu
 
@@ -390,10 +516,23 @@ static const NSUInteger RTMenuLineLength = 48;
 {
     if (self.player.state != RTPlayerStateStopped) {
         [self stopPlayback];
-    } else if (self.currentStation && self.currentGroup) {
-        [self playStationNamed:self.currentStation inGroup:self.currentGroup];
+    } else {
+        [self startCurrentStation];
     }
 }
+
+- (void)stepStation:(NSInteger)delta
+{
+    NSUInteger index;
+    NSArray<RTStation *> *stations = [self currentGroupStations:&index];
+    if (index == NSNotFound) return;
+    NSInteger target = (NSInteger)index + delta;
+    if (target < 0 || target >= (NSInteger)stations.count) return;
+    [self playStationNamed:stations[(NSUInteger)target].name inGroup:self.currentGroup];
+}
+
+- (void)previousStation:(id)sender { [self stepStation:-1]; }
+- (void)nextStation:(id)sender { [self stepStation:+1]; }
 
 - (void)volumeChanged:(NSSlider *)sender
 {
@@ -410,6 +549,85 @@ static const NSUInteger RTMenuLineLength = 48;
     [pb setString:self.track.clipboardText forType:NSPasteboardTypeString];
 }
 
+/// Finestra con un campo di testo; restituisce il testo inserito o nil se annullata.
+- (NSString *)askText:(NSString *)title info:(NSString *)info value:(NSString *)value width:(CGFloat)width
+{
+    [NSApp activateIgnoringOtherApps:YES];
+    NSAlert *alert = [NSAlert new];
+    alert.messageText = title;
+    alert.informativeText = info;
+    [alert addButtonWithTitle:@"OK"];
+    [alert addButtonWithTitle:@"Annulla"];
+    NSTextField *field = [[NSTextField alloc] initWithFrame:NSMakeRect(0, 0, width, 24)];
+    field.stringValue = value ?: @"";
+    alert.accessoryView = field;
+    alert.window.initialFirstResponder = field;
+    if ([alert runModal] != NSAlertFirstButtonReturn) return nil;
+    return [field.stringValue stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+}
+
+- (void)openURL:(id)sender
+{
+    // proposta: l'URL negli appunti, se c'è, altrimenti l'ultimo aperto
+    NSString *proposal = self.settings.lastOpenedURL;
+    NSString *clip = [[NSPasteboard generalPasteboard] stringForType:NSPasteboardTypeString];
+    clip = [clip stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    if ([clip.lowercaseString hasPrefix:@"http://"] || [clip.lowercaseString hasPrefix:@"https://"]) proposal = clip;
+
+    NSString *text = [self askText:@"Apri URL"
+                              info:@"Indirizzo di uno stream o di una playlist (PLS, M3U, ASX, XSPF):"
+                             value:proposal width:380];
+    if (!text.length) return;
+    NSURL *url = [NSURL URLWithString:text];
+    NSString *scheme = url.scheme.lowercaseString;
+    if (!url || !url.host.length || !([scheme isEqualToString:@"http"] || [scheme isEqualToString:@"https"])) {
+        [self showAlert:@"Indirizzo non valido" text:@"Serve un indirizzo che inizi con http:// o https://"];
+        return;
+    }
+    self.settings.lastOpenedURL = text;
+    RTStation *station = [RTStation new];
+    station.name = url.host;
+    station.url = text;
+    [self playStation:station group:nil];
+}
+
+- (void)sleepTimerChosen:(id)sender
+{
+    if (self.sleepTimer) {
+        [self.sleepTimer invalidate];
+        self.sleepTimer = nil;
+        if (self.settings.notifications) [[RTNotifier shared] notifyTitle:@"Timer di spegnimento annullato" message:nil];
+        [self refresh];
+        return;
+    }
+    NSString *text = [self askText:@"Timer di spegnimento"
+                              info:@"Dopo quanti minuti spegnere la radio?"
+                             value:[NSString stringWithFormat:@"%ld", (long)self.settings.sleepTimerMinutes] width:80];
+    if (!text) return;
+    NSInteger minutes = text.integerValue;
+    if (minutes < 1 || minutes > RTMaxSleepMinutes) {
+        [self showAlert:@"Valore non valido" text:[NSString stringWithFormat:@"Inserisci un numero di minuti tra 1 e %ld.", (long)RTMaxSleepMinutes]];
+        return;
+    }
+    self.settings.sleepTimerMinutes = minutes;
+    self.sleepTimer = [NSTimer scheduledTimerWithTimeInterval:minutes * 60.0 target:self
+                                                     selector:@selector(sleepTimerFired:) userInfo:nil repeats:NO];
+    self.sleepTimer.tolerance = 5;
+    if (self.settings.notifications) {
+        [[RTNotifier shared] notifyTitle:@"Timer di spegnimento"
+                                 message:[NSString stringWithFormat:@"La radio si spegnerà tra %ld minuti", (long)minutes]];
+    }
+    [self refresh];
+}
+
+- (void)sleepTimerFired:(NSTimer *)timer
+{
+    self.sleepTimer = nil;
+    if (self.player.state != RTPlayerStateStopped) [self stopPlayback];
+    if (self.settings.notifications) [[RTNotifier shared] notifyTitle:@"Timer di spegnimento" message:@"La radio è stata spenta"];
+    [self refresh];
+}
+
 - (void)editBookmarks:(id)sender
 {
     [self installDefaultBookmarksIfNeeded];
@@ -417,8 +635,11 @@ static const NSUInteger RTMenuLineLength = 48;
     NSURL *textEdit = [[NSWorkspace sharedWorkspace] URLForApplicationWithBundleIdentifier:@"com.apple.TextEdit"];
     BOOL opened = NO;
     if (textEdit) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
         opened = [[NSWorkspace sharedWorkspace] openURLs:@[file] withApplicationAtURL:textEdit
                                                  options:NSWorkspaceLaunchDefault configuration:@{} error:NULL] != nil;
+#pragma clang diagnostic pop
     }
     if (!opened) [[NSWorkspace sharedWorkspace] openURL:file];
 }
@@ -431,10 +652,21 @@ static const NSUInteger RTMenuLineLength = 48;
 
 - (void)reloadBookmarks:(id)sender
 {
+    [self reloadBookmarksInteractive:YES];
+}
+
+/// interactive: richiesta dal menu (errori in una finestra); altrimenti dopo un salvataggio (errori in una notifica).
+- (void)reloadBookmarksInteractive:(BOOL)interactive
+{
     NSString *error = nil;
     RTBookmarks *b = [RTBookmarks bookmarksWithContentsOfFile:self.settings.bookmarksPath error:&error];
+    if (interactive) [self.bookmarksWatcher rememberCurrentContents];
     if (!b) {
-        [self showAlert:@"Stazioni non ricaricate" text:[error stringByAppendingString:@"\n\nRimane in uso l'elenco precedente."]];
+        if (interactive) {
+            [self showAlert:@"Stazioni non ricaricate" text:[error stringByAppendingString:@"\n\nRimane in uso l'elenco precedente."]];
+        } else {
+            [[RTNotifier shared] notifyTitle:@"Errore nel file delle stazioni" message:error];
+        }
         return;
     }
     self.bookmarks = b;

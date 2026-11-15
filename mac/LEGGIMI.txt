@@ -12,13 +12,19 @@ Uso
 - "Spegni" / "Accendi": ferma o riprende l'ultima stazione.
 - Il cursore Volume regola il volume dell'app.
 - Clic su titolo e artista: li copia negli appunti.
+- Stazione precedente / successiva: passa alla stazione vicina nello stesso gruppo.
+- Apri URL…: ascolta un indirizzo qualsiasi (stream o playlist) senza aggiungerlo alle stazioni.
+- Timer di spegnimento…: spegne la radio dopo i minuti scelti; un altro clic lo annulla.
+- Tasti multimediali (play/pausa, avanti, indietro): comandano la radio quando
+  RadioTray è l'ultima app che ha suonato.
+- Se la connessione cade, o il Mac esce dallo stop, la radio si ricollega da sola.
 
 Stazioni
 - Preferenze > Modifica stazioni… apre il file bookmarks.json in TextEdit.
   Si trova in ~/Library/Application Support/RadioTray/bookmarks.json
 - Il formato è lo stesso di Radiotray-NG per Linux: puoi copiare lì il tuo
   ~/.config/radiotray-ng/bookmarks.json.
-- Dopo averlo modificato: Preferenze > Ricarica stazioni.
+- Appena salvi il file, il menu si aggiorna da solo (se il file ha un errore arriva una notifica).
 - Formati supportati: MP3, AAC, HLS (.m3u8), playlist PLS, M3U, ASX, XSPF.
   Ogg/Opus e WMA non sono supportati da macOS: usa il flusso MP3 o AAC della stazione.
 

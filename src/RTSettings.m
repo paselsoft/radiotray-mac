@@ -7,6 +7,8 @@ static NSString *const kNotifications = @"notifications";
 static NSString *const kVerbose = @"notification-verbose";
 static NSString *const kSplitTitle = @"split-title";
 static NSString *const kRootBottom = @"root-group-bottom-pos";
+static NSString *const kSleepTimer = @"sleep-timer";
+static NSString *const kLastURL = @"last-opened-url";
 
 @implementation RTSettings
 
@@ -22,6 +24,7 @@ static NSString *const kRootBottom = @"root-group-bottom-pos";
             kVerbose: @NO,
             kSplitTitle: @YES,
             kRootBottom: @YES,
+            kSleepTimer: @30,
         }];
     });
     return shared;
@@ -52,6 +55,12 @@ static NSString *const kRootBottom = @"root-group-bottom-pos";
 
 - (BOOL)rootGroupAtBottom { return [self.d boolForKey:kRootBottom]; }
 - (void)setRootGroupAtBottom:(BOOL)v { [self.d setBool:v forKey:kRootBottom]; }
+
+- (NSInteger)sleepTimerMinutes { return MAX(1, [self.d integerForKey:kSleepTimer]); }
+- (void)setSleepTimerMinutes:(NSInteger)v { [self.d setInteger:MAX(1, v) forKey:kSleepTimer]; }
+
+- (NSString *)lastOpenedURL { return [self.d stringForKey:kLastURL]; }
+- (void)setLastOpenedURL:(NSString *)v { [self.d setObject:v forKey:kLastURL]; }
 
 - (NSString *)supportDirectory
 {

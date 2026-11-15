@@ -9,7 +9,7 @@
 
 ARCH       ?= x86_64
 MACOS_MIN  ?= 10.13
-VERSION    ?= 0.1.0
+VERSION    ?= 0.2.0
 BUILD      := build
 APP        := $(BUILD)/RadioTray.app
 
@@ -17,11 +17,11 @@ CC         := clang
 WARN       := -Wall -Wextra -Wno-unused-parameter -Werror=unguarded-availability-new
 CFLAGS     := -std=gnu11 -fobjc-arc -fmodules -O2 -g $(WARN) -arch $(ARCH) -mmacosx-version-min=$(MACOS_MIN)
 LDFLAGS    := -arch $(ARCH) -mmacosx-version-min=$(MACOS_MIN)
-FRAMEWORKS := -framework Cocoa -framework AVFoundation -framework CoreMedia
+FRAMEWORKS := -framework Cocoa -framework AVFoundation -framework CoreMedia -framework MediaPlayer
 
 LOGIC_SRC  := src/RTBookmarks.m src/RTPlaylistParser.m src/RTTrackInfo.m src/RTIcyParser.m
 APP_SRC    := $(LOGIC_SRC) src/RTStreamResolver.m src/RTIcyMetadataReader.m src/RTPlayer.m src/RTSettings.m src/RTNotifier.m \
-              src/RTStatusIcon.m src/RTAppDelegate.m src/main.m
+              src/RTStatusIcon.m src/RTFileWatcher.m src/RTMediaKeys.m src/RTAppDelegate.m src/main.m
 HEADERS    := $(wildcard src/*.h)
 
 # i test girano sull'architettura del runner (Apple Silicon o Intel)

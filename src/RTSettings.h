@@ -12,6 +12,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) BOOL verboseNotifications;              // predefinito NO
 @property (nonatomic) BOOL splitTitle;                        // predefinito YES
 @property (nonatomic) BOOL rootGroupAtBottom;                 // predefinito YES
+@property (nonatomic) NSInteger sleepTimerMinutes;            // predefinito 30
+@property (nonatomic, copy, nullable) NSString *lastOpenedURL; // ultimo indirizzo di "Apri URL…"
 
 /// ~/Library/Application Support/RadioTray (creata se manca)
 - (NSString *)supportDirectory;
