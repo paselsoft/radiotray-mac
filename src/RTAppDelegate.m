@@ -7,6 +7,8 @@
 #import "RTSearchWindowController.h"
 #import "RTStationEditorController.h"
 #import "RTLoginItem.h"
+#import "RTFavoriteTracks.h"
+#import "RTFavoritesWindowController.h"
 #import "RTSettings.h"
 #import "RTStatusIcon.h"
 #import "RTStreamResolver.h"
@@ -15,7 +17,7 @@
 static const NSUInteger RTMenuLineLength = 48;
 static const NSInteger RTMaxSleepMinutes = 24 * 60;
 
-@interface RTAppDelegate () <NSMenuDelegate, RTPlayerDelegate, RTMediaKeysDelegate, RTSearchWindowDelegate, RTStationEditorDelegate>
+@interface RTAppDelegate () <NSMenuDelegate, RTPlayerDelegate, RTMediaKeysDelegate, RTSearchWindowDelegate, RTStationEditorDelegate, RTFavoritesWindowDelegate>
 @property (nonatomic, strong) NSStatusItem *statusItem;
 @property (nonatomic, strong) NSMenu *menu;
 @property (nonatomic, strong) NSMenuItem *trackItem;
@@ -37,6 +39,8 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
 @property (nonatomic, strong) RTMediaKeys *mediaKeys;
 @property (nonatomic, strong, nullable) RTSearchWindowController *searchWindow;
 @property (nonatomic, strong, nullable) RTStationEditorController *stationEditor;
+@property (nonatomic, strong) RTFavoriteTracks *favorites;
+@property (nonatomic, strong, nullable) RTFavoritesWindowController *favoritesWindow;
 
 // stazione scelta (anche se spenta). currentGroup nil = indirizzo aperto con "Apri URL…"
 @property (nonatomic, copy, nullable) NSString *currentGroup;
@@ -99,6 +103,14 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     self.mediaKeys = [RTMediaKeys new];
     self.mediaKeys.delegate = self;
     [self.mediaKeys start];
+
+    NSString *favoritesError = nil;
+    self.favorites = [RTFavoriteTracks tracksWithContentsOfFile:[self favoritesPath] error:&favoritesError];
+    if (!self.favorites) {
+        // file illeggibile: si riparte con un elenco vuoto (il file viene riscritto al primo brano aggiunto)
+        NSLog(@"RadioTray: %@", favoritesError);
+        self.favorites = [RTFavoriteTracks new];
+    }
 
     // se l'app è stata spostata, l'avvio al login deve puntare al nuovo percorso
     [RTLoginItem refreshAppPath:[NSBundle mainBundle].bundlePath];
@@ -258,6 +270,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     self.previousItem = [self addItem:@"Stazione precedente" action:@selector(previousStation:) to:self.menu];
     self.nextItem = [self addItem:@"Stazione successiva" action:@selector(nextStation:) to:self.menu];
     [self addItem:@"Cerca stazioni…" action:@selector(searchStations:) to:self.menu];
+    [self addItem:@"Brani preferiti…" action:@selector(openFavorites:) to:self.menu];
     [self addItem:@"Apri URL…" action:@selector(openURL:) to:self.menu];
     self.addStationItem = [self addItem:@"Aggiungi alle stazioni…" action:@selector(addCurrentStation:) to:self.menu];
     self.sleepItem = [self addItem:@"Timer di spegnimento…" action:@selector(sleepTimerChosen:) to:self.menu];
@@ -344,6 +357,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
                 line1 = @"In riproduzione";
             } else if (self.track.title.length) {
                 line1 = self.track.title;
+                if ([self currentTrackIsFavorite]) line1 = [@"★ " stringByAppendingString:line1];
                 line2 = self.track.artist.length ? self.track.artist : nil;
             } else {
                 line1 = self.track.artist;
@@ -360,7 +374,22 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     }
     self.trackItem.attributedTitle = status;
     self.trackItem.enabled = state == RTPlayerStatePlaying && !self.track.isEmpty;
-    self.trackItem.toolTip = self.trackItem.enabled ? @"Clic per copiare titolo e artista" : nil;
+    self.trackItem.toolTip = nil;
+    if (self.trackItem.enabled) {
+        // sottomenu del brano: preferiti e appunti
+        NSMenu *sub = [[NSMenu alloc] initWithTitle:@"Brano"];
+        sub.autoenablesItems = NO;
+        BOOL favorite = [self currentTrackIsFavorite];
+        NSMenuItem *add = [self addItem:favorite ? @"★ Già nei brani preferiti" : @"★ Aggiungi ai brani preferiti"
+                                 action:@selector(addCurrentTrackToFavorites:) to:sub];
+        add.enabled = !favorite;
+        [self addItem:@"Copia titolo e artista" action:@selector(copyTrack:) to:sub];
+        [sub addItem:[NSMenuItem separatorItem]];
+        [self addItem:@"Brani preferiti…" action:@selector(openFavorites:) to:sub];
+        self.trackItem.submenu = sub;
+    } else {
+        self.trackItem.submenu = nil;
+    }
 
     // accendi/spegni
     NSString *label = [self currentStationLabel];
@@ -612,6 +641,56 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     self.player.volume = sender.integerValue;
     self.settings.volume = self.player.volume;
     self.volumeValue.stringValue = [NSString stringWithFormat:@"%ld%%", (long)self.player.volume];
+}
+
+- (NSString *)favoritesPath
+{
+    return [[self.settings supportDirectory] stringByAppendingPathComponent:@"brani-preferiti.json"];
+}
+
+- (BOOL)currentTrackIsFavorite
+{
+    if (self.track.isEmpty) return NO;
+    NSString *title = self.track.title.length ? self.track.title : self.track.artist;
+    NSString *artist = self.track.title.length ? self.track.artist : @"";
+    return [self.favorites trackWithTitle:title artist:artist] != nil;
+}
+
+- (void)addCurrentTrackToFavorites:(id)sender
+{
+    if (self.track.isEmpty) return;
+    BOOL already = NO;
+    RTFavoriteTrack *t = [self.favorites addTitle:self.track.title artist:self.track.artist
+                                          station:self.currentStation ?: @"" date:[NSDate date] alreadyPresent:&already];
+    if (!already) {
+        NSError *error = nil;
+        if (![[self.favorites dataRepresentation] writeToFile:[self favoritesPath] options:NSDataWritingAtomic error:&error]) {
+            [self.favorites removeTracks:@[t]];
+            [self showAlert:@"Brano non salvato" text:error.localizedDescription];
+            return;
+        }
+        if (self.settings.notifications) {
+            [[RTNotifier shared] notifyTitle:@"★ Aggiunto ai brani preferiti" message:t.displayText];
+        }
+    }
+    [self.favoritesWindow reload];
+    [self refresh];
+}
+
+- (void)openFavorites:(id)sender
+{
+    if (!self.favoritesWindow) {
+        self.favoritesWindow = [[RTFavoritesWindowController alloc] initWithTracks:self.favorites path:[self favoritesPath]];
+        self.favoritesWindow.delegate = self;
+    } else {
+        [self.favoritesWindow reload];
+    }
+    [self.favoritesWindow showAndFocus];
+}
+
+- (void)favoritesWindowDidChangeTracks
+{
+    [self refresh];
 }
 
 - (void)copyTrack:(id)sender

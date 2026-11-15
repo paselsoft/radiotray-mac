@@ -8,6 +8,7 @@
 #import "../src/RTRadioBrowser.h"
 #import "../src/RTBookmarksDocument.h"
 #import "../src/RTLoginItem.h"
+#import "../src/RTFavoriteTracks.h"
 
 static int failures = 0;
 static int checks = 0;
@@ -480,6 +481,71 @@ static void testLoginItem(void)
     CHECK(problem.length > 0);
 }
 
+static void testFavorites(void)
+{
+    RTFavoriteTracks *f = [RTFavoriteTracks tracksWithData:nil error:NULL];
+    CHECK(f.tracks.count == 0);
+    NSDate *d1 = [NSDate dateWithTimeIntervalSince1970:1700000000];
+    NSDate *d2 = [NSDate dateWithTimeIntervalSince1970:1800000000];
+    BOOL already = YES;
+    RTFavoriteTrack *a = [f addTitle:@" Fresh Moods " artist:@"Divent" station:@"SomaFM Groove Salad" date:d1 alreadyPresent:&already];
+    CHECK(!already);
+    CHECK_EQ(a.title, @"Fresh Moods");
+    CHECK_EQ(a.displayText, @"Fresh Moods – Divent");
+    CHECK_EQ(a.searchText, @"Divent Fresh Moods");
+    [f addTitle:@"fresh moods" artist:@"DIVENT" station:@"Altra" date:d2 alreadyPresent:&already];
+    CHECK(already);                       // stesso brano, maiuscole diverse
+    CHECK(f.tracks.count == 1);
+    [f addTitle:@"Questa insostenibile leggerezza dell'essere" artist:@"Antonello Venditti" station:@"Radio Monte Carlo"
+           date:d2 alreadyPresent:NULL];
+    [f addTitle:@"" artist:@"Solo Artista" station:@"Radio Città" date:d1 alreadyPresent:NULL];
+    CHECK(f.tracks.count == 3);
+    CHECK_EQ(f.tracks[2].title, @"Solo Artista");
+    CHECK([f trackWithTitle:@"FRESH MOODS" artist:@"divent"] == a);
+
+    // salvataggio e rilettura
+    NSData *data = [f dataRepresentation];
+    RTFavoriteTracks *g = [RTFavoriteTracks tracksWithData:data error:NULL];
+    CHECK(g.tracks.count == 3);
+    CHECK_EQ(g.tracks[1].artist, @"Antonello Venditti");
+    CHECK(fabs([g.tracks[0].added timeIntervalSinceDate:d1]) < 1);
+    CHECK([RTFavoriteTracks tracksWithData:D(@"{}") error:NULL] == nil);
+
+    // stazioni, ricerca (maiuscole e accenti ignorati, più parole), filtro, ordinamento
+    CHECK_EQ([g stations], (@[@"Radio Città", @"Radio Monte Carlo", @"SomaFM Groove Salad"]));
+    NSArray *byDate = @[[NSSortDescriptor sortDescriptorWithKey:@"added" ascending:NO]];
+    CHECK([g tracksMatching:@"" station:nil sortDescriptors:byDate].count == 3);
+    CHECK_EQ([g tracksMatching:@"" station:nil sortDescriptors:byDate].firstObject.artist, @"Antonello Venditti");
+    CHECK([g tracksMatching:@"citta" station:nil sortDescriptors:@[]].count == 1);
+    CHECK([g tracksMatching:@"venditti leggerezza" station:nil sortDescriptors:@[]].count == 1);
+    CHECK([g tracksMatching:@"venditti divent" station:nil sortDescriptors:@[]].count == 0);
+    CHECK([g tracksMatching:nil station:@"SomaFM Groove Salad" sortDescriptors:@[]].count == 1);
+    NSArray *byTitle = @[[NSSortDescriptor sortDescriptorWithKey:@"title" ascending:YES selector:@selector(localizedStandardCompare:)]];
+    CHECK_EQ([g tracksMatching:nil station:nil sortDescriptors:byTitle].firstObject.title, @"Fresh Moods");
+
+    // eliminazione
+    [g removeTracks:@[g.tracks[0]]];
+    CHECK(g.tracks.count == 2);
+
+    // CSV: intestazione, virgolette raddoppiate, separatore ";"
+    RTFavoriteTracks *h = [RTFavoriteTracks new];
+    [h addTitle:@"Il \"mio\" brano" artist:@"A; B" station:@"S" date:d1 alreadyPresent:NULL];
+    NSString *csv = [[NSString alloc] initWithData:[RTFavoriteTracks csvForTracks:h.tracks] encoding:NSUTF8StringEncoding];
+    CHECK([csv hasPrefix:@"\uFEFFTitolo;Artista;Stazione;Aggiunto il\r\n"]);
+    CHECK([csv containsString:@"\"Il \"\"mio\"\" brano\";\"A; B\";\"S\";"]);
+
+    // ricerche sul web
+    RTFavoriteTrack *t = h.tracks[0];
+    t.title = @"Città";
+    t.artist = @"Mina & Celentano";
+    NSString *yt = [RTFavoriteTracks searchURLForTrack:t site:RTTrackSearchYouTube].absoluteString;
+    CHECK([yt hasPrefix:@"https://www.youtube.com/results?search_query=Mina"]);
+    CHECK([yt containsString:@"%26"]);   // la "&" non spezza la ricerca
+    CHECK([[RTFavoriteTracks searchURLForTrack:t site:RTTrackSearchAppleMusic].absoluteString hasPrefix:@"https://music.apple.com/it/search?term="]);
+    NSString *sp = [RTFavoriteTracks searchURLForTrack:t site:RTTrackSearchSpotify].absoluteString;
+    CHECK([sp hasPrefix:@"https://open.spotify.com/search/Mina%20"]);
+}
+
 int main(int argc, const char *argv[])
 {
     @autoreleasepool {
@@ -498,6 +564,7 @@ int main(int argc, const char *argv[])
         testItalianExtras();
         testDocument();
         testLoginItem();
+        testFavorites();
         if (argc > 2) testBundledList([NSString stringWithUTF8String:argv[2]]);
         printf("%d verifiche, %d fallite\n", checks, failures);
     }
