@@ -7,7 +7,8 @@ clic destro sull'app → Apri → Apri. Istruzioni complete nel file LEGGIMI.txt
 ### Novità della 1.4.2
 - **Logo della stazione** al posto della copertina durante jingle, parlato e con le radio che non
   mandano i titoli: dall'archivio Radio Browser, oppure scelto da te nell'editor (pulsante "Logo…")
-- Titoli bloccati su un brano vecchio (alcuni canali web Mediaset, come RMC 80 e 105 Hits) ignorati
+- "Ignora i titoli di questa stazione" (nel menu, sotto il volume) per le radio che mandano titoli
+  sbagliati o vecchi, come a volte RMC 80 e 105 Hits: al loro posto si vede il logo
 - Jingle e slogan delle radio ("Radio 105", "RadioFreccia"…) non vengono più presi per brani
 - Le radio con indirizzo http:// (per esempio Radio Siena) ora funzionano
 - Percentuale del volume nella finestra "In riproduzione"

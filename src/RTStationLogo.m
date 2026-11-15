@@ -73,7 +73,8 @@ static NSString *const RTRadioBrowserHost = @"de1.api.radio-browser.info";
     }
     NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:url];
     req.timeoutInterval = 12;
-    [req setValue:@"RadioTray-Mac" forHTTPHeaderField:@"User-Agent"];
+    // alcuni siti (Wikipedia) rifiutano i programmi che non si presentano con nome e indirizzo
+    [req setValue:@"RadioTray-Mac/1.4 (https://github.com/paselsoft/radiotray-mac)" forHTTPHeaderField:@"User-Agent"];
     [[[NSURLSession sharedSession] dataTaskWithRequest:req completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
         NSInteger code = [r isKindOfClass:[NSHTTPURLResponse class]] ? [(NSHTTPURLResponse *)r statusCode] : 0;
         completion(code == 200 && d.length ? d : nil);

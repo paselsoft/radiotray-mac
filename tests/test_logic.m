@@ -730,20 +730,6 @@ int main(int argc, const char *argv[])
                    isFillerForStation:@"Radio Subasio"]);
             CHECK(![[RTTrackInfo infoWithStreamTitle:@"Queen - Radio Ga Ga" split:YES] isFillerForStation:@"Radio Monte Carlo"]);
             CHECK(![[RTTrackInfo infoWithStreamTitle:@"Sting - Fields Of Gold" split:YES] isFillerForStation:@"Radio 105 Network"]);
-            // titoli Mediaset bloccati su un brano vecchio
-            {
-                NSDateFormatter *df = [NSDateFormatter new];
-                df.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
-                df.dateFormat = @"yyyy-MM-dd'T'HH:mm:ss";
-                df.timeZone = [NSTimeZone timeZoneWithName:@"Europe/Rome"];
-                NSDate *now = [df dateFromString:@"2026-11-15T23:05:04"];
-                CHECK([RTTrackInfo isStaleStreamTitle:@"If You Love Somebody Set Them Free~Sting~~1985~~242~2026-11-14T03:00:06~2026-11-14T03:00:27~Radio Monte Carlo 80~21.57~x" now:now]);
-                CHECK([RTTrackInfo isStaleStreamTitle:@"High Hopes 3000~Role Model~~2026~USUM72604226~243~2026-11-10T03:53:44~2026-11-10T03:54:45~Radio 105 Hits" now:now]);
-                CHECK(![RTTrackInfo isStaleStreamTitle:@"PEARL JAM~EVEN FLOW~TEN~1991~~300~2026-11-15T23:02:51~2026-11-15T23:02:51~Virgin Radio" now:now]);
-                CHECK(![RTTrackInfo isStaleStreamTitle:@"JAMIROQUAI~Blue Skies~~~~~2026-11-15T22:59:35.290730~2026-11-15T22:59:35.290730~United Music Radio Subasio" now:now]);
-                CHECK([RTTrackInfo isStaleStreamTitle:@"JAMIROQUAI~Blue Skies~~~~~2026-11-15T22:40:35.290730~x~y" now:now]);
-                CHECK(![RTTrackInfo isStaleStreamTitle:@"Artista - Titolo" now:now]);
-            }
             // logo dall'archivio
             CHECK_EQ([RTStationLogo bestFaviconFromJSON:D(@"[{\"favicon\":\"https://x/logo.svg\"},{\"favicon\":\"\"},"
                       "{\"favicon\":\"https://www.facebook.com/a/b\"},{\"favicon\":\"https://www.radioitalia.it/images/logo.png\"}]")],

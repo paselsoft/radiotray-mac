@@ -17,9 +17,6 @@ NS_ASSUME_NONNULL_BEGIN
 /// "Radio Kiss Kiss - Play everywhere!"): durante jingle e pubblicità molte radio mandano questo.
 - (BOOL)isFillerForStation:(nullable NSString *)station;
 
-/// Titoli Mediaset ("…~DURATA~INIZIO~…") con l'ora d'inizio e la durata: YES se il brano è finito
-/// da più di 10 minuti (alcuni canali web restano bloccati per giorni su un brano vecchio).
-+ (BOOL)isStaleStreamTitle:(nullable NSString *)streamTitle now:(NSDate *)now;
 - (BOOL)isEqualToInfo:(nullable RTTrackInfo *)other;
 /// "Titolo\nArtista" (o solo il titolo): per gli appunti.
 - (NSString *)clipboardText;

@@ -42,6 +42,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 /// Stazioni che scrivono "Titolo - Artista" al contrario (chiave come per il tempo di ascolto).
 @property (nonatomic, copy) NSArray<NSString *> *swappedStations;
+/// Stazioni di cui ignorare i titoli (sbagliati o vecchi): si mostra il logo.
+@property (nonatomic, copy) NSArray<NSString *> *ignoredTitleStations;
 
 /// Secondi di ascolto per stazione (chiave "gruppo\nstazione").
 @property (nonatomic, copy) NSDictionary<NSString *, NSNumber *> *listeningSeconds;

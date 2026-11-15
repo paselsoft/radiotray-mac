@@ -64,6 +64,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
 @property (nonatomic, strong) NSMenuItem *alarmItem;
 @property (nonatomic, strong, nullable) NSImage *trackArtworkFull;  // copertina grande, per la finestra
 @property (nonatomic, strong) NSMenuItem *qualityItem;
+@property (nonatomic, strong) NSMenuItem *ignoreTitlesItem;
 @property (nonatomic, strong) NSMenuItem *nowPlayingItem;
 @property (nonatomic, strong, nullable) RTNowPlayingWindowController *nowPlayingWindow;
 @property (nonatomic, strong) RTAudioWatcher *audioWatcher;
@@ -308,6 +309,9 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     self.qualityItem.enabled = NO;
     self.qualityItem.indentationLevel = 1;
     [self.menu addItem:self.qualityItem];
+    self.ignoreTitlesItem = [self addItem:@"Ignora i titoli di questa stazione" action:@selector(toggleIgnoreTitles:) to:self.menu];
+    self.ignoreTitlesItem.indentationLevel = 1;
+    self.ignoreTitlesItem.toolTip = @"Per le radio che mandano titoli sbagliati o vecchi: al loro posto si vede il logo";
     [self.menu addItem:[NSMenuItem separatorItem]];
 
     // le stazioni più ascoltate, sempre a portata di mano
@@ -629,6 +633,8 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
             NSForegroundColorAttributeName: [NSColor secondaryLabelColor] }];
     }
     self.nowPlayingItem.state = self.nowPlayingWindow.window.isVisible ? NSControlStateValueOn : NSControlStateValueOff;
+    self.ignoreTitlesItem.hidden = state != RTPlayerStatePlaying || ![self currentStationKey];
+    self.ignoreTitlesItem.state = [self currentStationIgnoresTitles] ? NSControlStateValueOn : NSControlStateValueOff;
     [self updateNowPlaying];
 
     [self rebuildHistoryMenu];
@@ -746,9 +752,9 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     RTTrackInfo *info = [RTTrackInfo infoWithStreamTitle:title split:self.settings.splitTitle];
     BOOL stationSwapped = [self currentStationIsSwapped];
     if (stationSwapped) info = info.swapped;   // stazione che scrive "Titolo - Artista"
-    if ([info isFillerForStation:self.currentStation] || [RTTrackInfo isStaleStreamTitle:title now:[NSDate date]]) {
-        // jingle o pubblicità (la radio manda solo il proprio nome), oppure un titolo vecchio
-        // rimasto bloccato (alcuni canali web Mediaset): non è il brano in onda
+    if ([info isFillerForStation:self.currentStation] || [self currentStationIgnoresTitles]) {
+        // jingle o pubblicità (la radio manda solo il proprio nome), oppure stazione con titoli
+        // sbagliati che l'utente ha scelto di ignorare: si mostra il logo
         if (!self.track.isEmpty) {
             self.track = [RTTrackInfo infoWithTitle:nil artist:nil];
             self.trackArtwork = nil;
@@ -825,6 +831,30 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     if (self.currentGroup && self.currentStation) return [self listeningKeyForGroup:self.currentGroup station:self.currentStation];
     if (self.adhocStation.url) return [@"url\n" stringByAppendingString:self.adhocStation.url];
     return nil;
+}
+
+- (BOOL)currentStationIgnoresTitles
+{
+    NSString *key = [self currentStationKey];
+    return key && [self.settings.ignoredTitleStations containsObject:key];
+}
+
+- (void)toggleIgnoreTitles:(id)sender
+{
+    NSString *key = [self currentStationKey];
+    if (!key) return;
+    NSMutableArray *list = [self.settings.ignoredTitleStations mutableCopy];
+    BOOL ignore = ![list containsObject:key];
+    [list removeObject:key];
+    if (ignore) [list addObject:key];
+    self.settings.ignoredTitleStations = list;
+    if (ignore) {
+        self.track = [RTTrackInfo infoWithTitle:nil artist:nil];
+        self.trackArtwork = nil;
+        self.trackArtworkFull = nil;
+    }
+    // altrimenti il titolo ricompare al prossimo aggiornamento della radio
+    [self refresh];
 }
 
 - (BOOL)currentStationIsSwapped
