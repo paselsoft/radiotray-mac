@@ -19,7 +19,7 @@ CFLAGS     := -std=gnu11 -fobjc-arc -fmodules -O2 -g $(WARN) -arch $(ARCH) -mmac
 LDFLAGS    := -arch $(ARCH) -mmacosx-version-min=$(MACOS_MIN)
 FRAMEWORKS := -framework Cocoa -framework AVFoundation -framework CoreMedia -framework MediaPlayer -framework Carbon -framework CoreAudio
 
-LOGIC_SRC  := src/RTBookmarks.m src/RTPlaylistParser.m src/RTTrackInfo.m src/RTIcyParser.m src/RTRadioBrowser.m src/RTBookmarksDocument.m src/RTLoginItem.m src/RTFavoriteTracks.m src/RTUpdateChecker.m src/RTArtwork.m src/RTAlarm.m src/RTBackup.m
+LOGIC_SRC  := src/RTBookmarks.m src/RTPlaylistParser.m src/RTTrackInfo.m src/RTIcyParser.m src/RTRadioBrowser.m src/RTBookmarksDocument.m src/RTLoginItem.m src/RTFavoriteTracks.m src/RTUpdateChecker.m src/RTArtwork.m src/RTAlarm.m src/RTBackup.m src/RTStationLogo.m
 APP_SRC    := $(LOGIC_SRC) src/RTStreamResolver.m src/RTIcyMetadataReader.m src/RTPlayer.m src/RTSettings.m src/RTNotifier.m \
               src/RTStatusIcon.m src/RTSearchWindowController.m src/RTStationEditorController.m src/RTFavoritesWindowController.m src/RTTableCell.m src/RTHotKeys.m src/RTAudioWatcher.m src/RTNowPlayingWindowController.m src/RTFileWatcher.m src/RTMediaKeys.m src/RTAppDelegate.m src/main.m
 HEADERS    := $(wildcard src/*.h)

@@ -85,16 +85,6 @@ jobs:
         continue-on-error: true
         timeout-minutes: 8
         run: make stations STATIONS=resources/stazioni-italiane.json
-      - name: Diagnostica stazioni dell'utente (temporaneo)
-        continue-on-error: true
-        timeout-minutes: 6
-        run: |
-          clang -std=gnu11 -fobjc-arc -fmodules tests/dump_icy.m src/RTIcyMetadataReader.m src/RTIcyParser.m -framework Foundation -o build/dump_icy
-          build/dump_icy 90 https://icy.unitedradio.it/rmcweb008 http://icy.unitedradio.it/105Hits.mp3 \
-            http://icecast.unitedradio.it/Radio105.mp3 https://str01.fluidstream.net/anni60.mp3
-          echo "=== anni60 intestazioni"; curl -sS -m 10 -D - -o /dev/null -r 0-100 https://str01.fluidstream.net/anni60.mp3 | head -20
-          make build/search_stations
-          build/search_stations IT "Radio Siena" "Radio Italia" "Radio Monte Carlo" "Radio 105" "RDS" "Radio Deejay" "Subasio" || true
       - name: DMG
         run: make dmg ARCH=x86_64 VERSION=$VERSION
       - uses: actions/upload-artifact@v4

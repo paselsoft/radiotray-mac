@@ -15,6 +15,7 @@ static NSPasteboardType const RTDragType = @"io.github.paselsoft.radiotray-mac.i
 @property (nonatomic, strong) NSButton *downButton;
 @property (nonatomic, strong) NSPopUpButton *movePopup;
 @property (nonatomic, strong) NSButton *playButton;
+@property (nonatomic, strong) NSButton *logoButton;
 @property (nonatomic, strong) NSTextField *statusLabel;
 @property (nonatomic, strong, nullable) id draggedItem;
 @end
@@ -23,14 +24,14 @@ static NSPasteboardType const RTDragType = @"io.github.paselsoft.radiotray-mac.i
 
 - (instancetype)initWithBookmarksPath:(NSString *)path
 {
-    NSWindow *window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 760, 500)
+    NSWindow *window = [[NSWindow alloc] initWithContentRect:NSMakeRect(0, 0, 860, 500)
                                                    styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
                                                              NSWindowStyleMaskResizable | NSWindowStyleMaskMiniaturizable
                                                      backing:NSBackingStoreBuffered defer:YES];
     window.title = @"Stazioni";
-    window.minSize = NSMakeSize(680, 320);
+    window.minSize = NSMakeSize(820, 320);
     window.releasedWhenClosed = NO;
-    window.frameAutosaveName = @"RadioTrayStationEditor";
+    window.frameAutosaveName = @"RadioTrayStationEditor2";   // nuova misura (pulsante Logo…)
     if ((self = [super initWithWindow:window])) {
         _path = [path copy];
         [self buildContent];
@@ -104,6 +105,9 @@ static NSPasteboardType const RTDragType = @"io.github.paselsoft.radiotray-mac.i
     self.playButton = [self button:@"Ascolta" action:@selector(play:) frame:NSMakeRect(w - 114, y, 100, 32)
                                tip:@"Ascolta la stazione selezionata"];
     self.playButton.autoresizingMask = NSViewMinXMargin | NSViewMaxYMargin;
+    self.logoButton = [self button:@"Logo…" action:@selector(chooseLogo:) frame:NSMakeRect(w - 204, y, 90, 32)
+                               tip:@"Scegli l'immagine da mostrare per questa stazione quando non c'è la copertina del brano"];
+    self.logoButton.autoresizingMask = NSViewMinXMargin | NSViewMaxYMargin;
 
     NSTextField *status = [NSTextField labelWithString:@""];
     status.frame = NSMakeRect(20, 16, w - 220, 18);
@@ -236,6 +240,8 @@ static NSPasteboardType const RTDragType = @"io.github.paselsoft.radiotray-mac.i
     BOOL isStation = [item isKindOfClass:[RTDocStation class]];
     self.removeButton.enabled = ok && item != nil;
     self.playButton.enabled = ok && isStation;
+    self.logoButton.enabled = ok && isStation;
+    self.logoButton.title = isStation && [(RTDocStation *)item image] ? @"Logo ✓…" : @"Logo…";
 
     NSUInteger index = 0, count = 0;
     if (isStation) {
@@ -398,6 +404,43 @@ static NSPasteboardType const RTDragType = @"io.github.paselsoft.radiotray-mac.i
     if ([target isKindOfClass:[NSString class]]) target = [self.doc rootGroup];   // creato in fondo se manca
     RTDocGroup *group = target;
     [self commit:[self.doc moveStation:s toGroup:group atIndex:group.stations.count] select:s];
+}
+
+- (void)chooseLogo:(id)sender
+{
+    RTDocStation *s = [self selectedItem];
+    if (![s isKindOfClass:[RTDocStation class]]) return;
+    NSOpenPanel *panel = [NSOpenPanel openPanel];
+    panel.allowedFileTypes = @[@"png", @"jpg", @"jpeg", @"gif", @"tif", @"tiff", @"ico", @"icns", @"bmp"];
+    panel.message = [NSString stringWithFormat:@"Logo per «%@» (si vede quando non c'è la copertina del brano)", s.name];
+    panel.prompt = @"Usa come logo";
+    NSButton *remove = nil;
+    if (s.image) {
+        remove = [NSButton checkboxWithTitle:@"Togli il logo scelto (torna a quello dell'archivio, se c'è)" target:nil action:NULL];
+        [remove sizeToFit];
+        panel.accessoryView = remove;
+        panel.accessoryViewDisclosed = YES;
+    }
+    [panel beginSheetModalForWindow:self.window completionHandler:^(NSModalResponse result) {
+        if (remove.state == NSControlStateValueOn) {
+            [self.doc setImage:nil forStation:s];
+            [self commit:nil select:s];
+            return;
+        }
+        if (result != NSModalResponseOK || !panel.URL) return;
+        // copia nella cartella dell'app: il logo resta anche se l'originale viene spostato
+        NSString *dir = [[self.path stringByDeletingLastPathComponent] stringByAppendingPathComponent:@"loghi"];
+        [[NSFileManager defaultManager] createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:NULL];
+        NSString *dest = [dir stringByAppendingPathComponent:
+                          [NSString stringWithFormat:@"%@.%@", [NSUUID UUID].UUIDString, panel.URL.pathExtension.lowercaseString]];
+        NSError *error = nil;
+        if (![[NSFileManager defaultManager] copyItemAtPath:panel.URL.path toPath:dest error:&error]) {
+            [self commit:error.localizedDescription ?: @"Impossibile copiare l'immagine" select:s];
+            return;
+        }
+        [self.doc setImage:dest forStation:s];
+        [self commit:nil select:s];
+    }];
 }
 
 - (void)play:(id)sender

@@ -23,6 +23,7 @@ static BOOL RTValidURL(NSString *url)
 - (NSString *)name { return self.raw[@"name"] ?: @""; }
 - (void)setName:(NSString *)name { self.raw[@"name"] = [name copy]; }
 - (NSString *)url { return self.raw[@"url"] ?: @""; }
+- (NSString *)image { id v = self.raw[@"image"]; return [v isKindOfClass:[NSString class]] && [v length] ? v : nil; }
 - (void)setUrl:(NSString *)url { self.raw[@"url"] = [url copy]; }
 @end
 
@@ -226,6 +227,12 @@ static BOOL RTValidURL(NSString *url)
     if (!RTValidURL(url)) return @"L'indirizzo deve iniziare con http:// o https://";
     station.url = url;
     return nil;
+}
+
+- (void)setImage:(NSString *)image forStation:(RTDocStation *)station
+{
+    if (image.length) station.raw[@"image"] = [image copy];
+    else [station.raw removeObjectForKey:@"image"];
 }
 
 - (NSString *)removeStation:(RTDocStation *)station

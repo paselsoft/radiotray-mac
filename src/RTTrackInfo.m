@@ -133,6 +133,28 @@ static NSString *RTSimple(NSString *s)
     return [t hasPrefix:@"radio"] && a.length == 0 && t.length <= 12;
 }
 
++ (BOOL)isStaleStreamTitle:(NSString *)streamTitle now:(NSDate *)now
+{
+    NSArray<NSString *> *f = [streamTitle componentsSeparatedByString:@"~"];
+    if (f.count < 7) return NO;
+    NSString *start = RTTrim(f[6]);
+    NSRange dot = [start rangeOfString:@"."];
+    if (dot.location != NSNotFound) start = [start substringToIndex:dot.location];   // "…T20:15:04.035531"
+    static NSDateFormatter *df;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        df = [NSDateFormatter new];
+        df.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
+        df.dateFormat = @"yyyy-MM-dd'T'HH:mm:ss";
+        df.timeZone = [NSTimeZone timeZoneWithName:@"Europe/Rome"];   // ora italiana, senza fuso nel testo
+    });
+    NSDate *begin = [df dateFromString:start];
+    if (!begin) return NO;
+    NSInteger duration = RTTrim(f[5]).integerValue;
+    if (duration <= 0 || duration > 3600) duration = 600;
+    return [now timeIntervalSinceDate:begin] > duration + 600;
+}
+
 - (BOOL)isEmpty
 {
     return self.title.length == 0 && self.artist.length == 0;

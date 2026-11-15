@@ -16,6 +16,7 @@
 #import "RTBackup.h"
 #import "RTAudioWatcher.h"
 #import "RTNowPlayingWindowController.h"
+#import "RTStationLogo.h"
 #import "RTSettings.h"
 #import "RTStatusIcon.h"
 #import "RTStreamResolver.h"
@@ -67,6 +68,8 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
 @property (nonatomic, strong, nullable) RTNowPlayingWindowController *nowPlayingWindow;
 @property (nonatomic, strong) RTAudioWatcher *audioWatcher;
 @property (nonatomic) BOOL pausedByLock;
+@property (nonatomic, strong, nullable) NSImage *stationLogo;       // logo della stazione corrente
+@property (nonatomic, strong, nullable) NSImage *stationLogoThumb;
 @property (nonatomic) BOOL pausedByHeadphones;
 
 // stazione scelta (anche se spenta). currentGroup nil = indirizzo aperto con "Apri URL…"
@@ -503,7 +506,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
                 attributes:@{ NSFontAttributeName: [NSFont menuFontOfSize:0] }]];
     }
     self.trackItem.attributedTitle = status;
-    self.trackItem.image = (state == RTPlayerStatePlaying && !self.track.isEmpty) ? self.trackArtwork : nil;
+    self.trackItem.image = state == RTPlayerStatePlaying ? (self.trackArtwork ?: self.stationLogoThumb) : nil;
     self.trackItem.enabled = state == RTPlayerStatePlaying && !self.track.isEmpty;
     self.trackItem.toolTip = nil;
     if (self.trackItem.enabled) {
@@ -659,6 +662,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     self.track = [RTTrackInfo infoWithTitle:nil artist:nil];
     self.trackArtwork = nil;       // la copertina del brano della stazione precedente non vale più
     self.trackArtworkFull = nil;
+    [self loadStationLogo:station];
     self.playingNotified = NO;
     self.userStopped = NO;
 
@@ -742,8 +746,9 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     RTTrackInfo *info = [RTTrackInfo infoWithStreamTitle:title split:self.settings.splitTitle];
     BOOL stationSwapped = [self currentStationIsSwapped];
     if (stationSwapped) info = info.swapped;   // stazione che scrive "Titolo - Artista"
-    if ([info isFillerForStation:self.currentStation]) {
-        // jingle o pubblicità: la radio manda solo il proprio nome, non è un brano
+    if ([info isFillerForStation:self.currentStation] || [RTTrackInfo isStaleStreamTitle:title now:[NSDate date]]) {
+        // jingle o pubblicità (la radio manda solo il proprio nome), oppure un titolo vecchio
+        // rimasto bloccato (alcuni canali web Mediaset): non è il brano in onda
         if (!self.track.isEmpty) {
             self.track = [RTTrackInfo infoWithTitle:nil artist:nil];
             self.trackArtwork = nil;
@@ -894,6 +899,26 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
         [[NSBezierPath bezierPathWithRoundedRect:rect xRadius:4 yRadius:4] addClip];
         [image drawInRect:rect fromRect:NSZeroRect operation:NSCompositingOperationSourceOver fraction:1.0];
         return YES;
+    }];
+}
+
+/// Logo della stazione: quello scelto nell'editor (campo "image") o quello dell'archivio.
+- (void)loadStationLogo:(RTStation *)station
+{
+    self.stationLogo = nil;
+    self.stationLogoThumb = nil;
+    if (!station) return;
+    NSString *url = station.url;
+    __weak typeof(self) weakSelf = self;
+    [[RTStationLogo shared] logoForStation:station.name url:url image:station.image completion:^(NSData *data) {
+        typeof(self) strongSelf = weakSelf;
+        RTStation *current = [strongSelf currentStationObject];
+        if (!strongSelf || !data || ![current.url isEqualToString:url]) return;   // nel frattempo è cambiata stazione
+        NSImage *image = [[NSImage alloc] initWithData:data];
+        if (!image || image.size.width < 8) return;
+        strongSelf.stationLogo = image;
+        strongSelf.stationLogoThumb = [strongSelf menuThumbnail:image];
+        [strongSelf refresh];
     }];
 }
 
@@ -1528,7 +1553,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     NSArray *stations = [self currentGroupStations:&index];
     [self.nowPlayingWindow updateTitle:title artist:artist station:self.currentStation
                                quality:playing ? [self qualityText] : nil
-                               artwork:playing ? self.trackArtworkFull : nil playing:playing active:active
+                               artwork:(playing ? self.trackArtworkFull : nil) ?: self.stationLogo playing:playing active:active
                               favorite:playing && [self currentTrackIsFavorite]
                            canFavorite:playing && !self.track.isEmpty
                            hasPrevious:index != NSNotFound && index > 0
@@ -1974,6 +1999,12 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
         self.currentStation = nil;
     }
     [self buildMenu];
+    // il logo della stazione corrente potrebbe essere stato cambiato nell'editor
+    RTStation *current = [self currentStationObject];
+    if (current) {
+        [[RTStationLogo shared] forgetStationURL:current.url];
+        [self loadStationLogo:current];
+    }
     [self refresh];
 }
 

@@ -4,6 +4,15 @@ Lettore di radio via Internet nella barra dei menu per **macOS 10.13 High Sierra
 **Installazione:** apri `RadioTray-….dmg`, trascina RadioTray in Applicazioni, poi la prima volta
 clic destro sull'app → Apri → Apri. Istruzioni complete nel file LEGGIMI.txt dentro il .dmg.
 
+### Novità della 1.4.2
+- **Logo della stazione** al posto della copertina durante jingle, parlato e con le radio che non
+  mandano i titoli: dall'archivio Radio Browser, oppure scelto da te nell'editor (pulsante "Logo…")
+- Titoli bloccati su un brano vecchio (alcuni canali web Mediaset, come RMC 80 e 105 Hits) ignorati
+- Jingle e slogan delle radio ("Radio 105", "RadioFreccia"…) non vengono più presi per brani
+- Le radio con indirizzo http:// (per esempio Radio Siena) ora funzionano
+- Percentuale del volume nella finestra "In riproduzione"
+- La copertina non resta quella della stazione precedente
+
 ### Novità della 1.4.1
 - Copertine e titoli corretti per le radio che scrivono "Titolo - Artista" al contrario
   (per esempio Radio 105 Classics): rilevate da sole, o a mano dal sottomenu del brano

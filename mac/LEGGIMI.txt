@@ -30,6 +30,8 @@ Uso
   Se una radio scrive titolo e artista al contrario, RadioTray se ne accorge cercando la
   copertina e da lì in poi li mostra giusti; si può anche indicare a mano dal sottomenu del
   brano: "Titolo e artista al contrario per questa stazione".
+- Quando non c'è la copertina (jingle, parlato, radio senza titoli) si vede il logo della
+  stazione. Si può sceglierne uno proprio da Preferenze > Modifica stazioni… > "Logo…".
 - Radiosveglia…: ora, giorni, stazione e volume crescente. Il Mac deve essere acceso
   (lo stop dello schermo va bene, lo stop del computer no).
 - Più ascoltate: in cima alle stazioni compaiono le 5 che ascolti di più (dopo 10 minuti);

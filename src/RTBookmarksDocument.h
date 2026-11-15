@@ -12,6 +12,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, copy) NSString *name;
 @property (nonatomic, copy) NSString *url;
 @property (nonatomic, weak, nullable) RTDocGroup *group;
+@property (nonatomic, copy, readonly, nullable) NSString *image;
 @end
 
 @interface RTDocGroup : NSObject
@@ -38,6 +39,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (nullable NSString *)renameStation:(RTDocStation *)station to:(NSString *)name;
 - (nullable NSString *)setURL:(NSString *)url forStation:(RTDocStation *)station;
 - (nullable NSString *)removeStation:(RTDocStation *)station;
+/// Logo della stazione (campo "image": percorso di un file); nil lo toglie.
+- (void)setImage:(nullable NSString *)image forStation:(RTDocStation *)station;
 /// Sposta la stazione nel gruppo indicato (anche lo stesso), alla posizione index.
 - (nullable NSString *)moveStation:(RTDocStation *)station toGroup:(RTDocGroup *)group atIndex:(NSUInteger)index;
 
