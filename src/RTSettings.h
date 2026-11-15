@@ -40,6 +40,9 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) BOOL iCloudBackup;                      // copia giornaliera in iCloud Drive, predefinito YES
 @property (nonatomic, strong, nullable) NSDate *lastBackup;
 
+/// Stazioni che scrivono "Titolo - Artista" al contrario (chiave come per il tempo di ascolto).
+@property (nonatomic, copy) NSArray<NSString *> *swappedStations;
+
 /// Secondi di ascolto per stazione (chiave "gruppo\nstazione").
 @property (nonatomic, copy) NSDictionary<NSString *, NSNumber *> *listeningSeconds;
 

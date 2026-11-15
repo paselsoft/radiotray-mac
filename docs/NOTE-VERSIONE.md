@@ -4,6 +4,11 @@ Lettore di radio via Internet nella barra dei menu per **macOS 10.13 High Sierra
 **Installazione:** apri `RadioTray-….dmg`, trascina RadioTray in Applicazioni, poi la prima volta
 clic destro sull'app → Apri → Apri. Istruzioni complete nel file LEGGIMI.txt dentro il .dmg.
 
+### Novità della 1.4.1
+- Copertine e titoli corretti per le radio che scrivono "Titolo - Artista" al contrario
+  (per esempio Radio 105 Classics): rilevate da sole, o a mano dal sottomenu del brano
+- Riconosciuto il formato "Titolo * Artista * codice" (per esempio RDS Next)
+
 ### Novità della 1.4
 - **Finestra "In riproduzione"**: copertina grande, ◀︎ ⏯ ▶︎ ★, volume, sempre in primo piano
 - **Backup**: esporta/importa tutto in un file (unisci o sostituisci) e copia giornaliera su iCloud Drive

@@ -21,6 +21,7 @@ con **macOS High Sierra 10.13** (funziona anche sulle versioni successive).
 | 1.2 | ★ nelle notifiche, ascoltati di recente, scorciatoie ⌃⌥, rotella per il volume, avviso di nuova versione | fatta (provata sull'iMac) |
 | 1.3 | copertine, radiosveglia, stazioni più ascoltate, titolo nella barra dei menu | fatta (provata sull'iMac) |
 | 1.4 | finestra In riproduzione, backup e iCloud Drive, pausa automatica, qualità dello stream | fatta (provata sull'iMac) |
+| 1.4.1 | titolo e artista al contrario (105 Classics), formato "Titolo * Artista" (RDS) | da provare sull'iMac |
 
 ## Scaricare
 

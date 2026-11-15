@@ -53,6 +53,16 @@ static NSString *RTSoftenCaps(NSString *s)
                      : [self infoWithTitle:[NSString stringWithFormat:@"%@ - %@", artist, title] artist:nil];
     }
 
+    // RDS e altre: "Titolo * Artista * 11712" (l'ultimo campo è un codice interno)
+    NSArray<NSString *> *starred = [raw componentsSeparatedByString:@" * "];
+    if (starred.count >= 2) {
+        NSString *title = RTTrim(starred[0]), *artist = RTTrim(starred[1]);
+        if (title.length && artist.length) {
+            return split ? [self infoWithTitle:title artist:artist]
+                         : [self infoWithTitle:[NSString stringWithFormat:@"%@ - %@", artist, title] artist:nil];
+        }
+    }
+
     if (!split) return [self infoWithTitle:raw artist:nil];
 
     NSRange sep = [raw rangeOfString:@" - "];
@@ -85,6 +95,15 @@ static NSString *RTSoftenCaps(NSString *s)
         _artist = @"";
     }
     return self;
+}
+
+- (RTTrackInfo *)swapped
+{
+    if (self.title.length == 0 || self.artist.length == 0) return self;
+    RTTrackInfo *info = [RTTrackInfo new];
+    info.title = self.artist;
+    info.artist = self.title;
+    return info;
 }
 
 - (BOOL)isEmpty

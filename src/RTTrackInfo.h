@@ -11,6 +11,8 @@ NS_ASSUME_NONNULL_BEGIN
 + (instancetype)infoWithStreamTitle:(nullable NSString *)streamTitle split:(BOOL)split;
 + (instancetype)infoWithTitle:(nullable NSString *)title artist:(nullable NSString *)artist;
 - (BOOL)isEmpty;
+/// Lo stesso brano con titolo e artista scambiati (per le radio che scrivono "Titolo - Artista").
+- (RTTrackInfo *)swapped;
 - (BOOL)isEqualToInfo:(nullable RTTrackInfo *)other;
 /// "Titolo\nArtista" (o solo il titolo): per gli appunti.
 - (NSString *)clipboardText;

@@ -515,6 +515,12 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
                                  action:@selector(addCurrentTrackToFavorites:) to:sub];
         add.enabled = !favorite;
         [self addItem:@"Copia titolo e artista" action:@selector(copyTrack:) to:sub];
+        if (self.track.title.length && self.track.artist.length) {
+            NSMenuItem *swap = [self addItem:@"Titolo e artista al contrario per questa stazione"
+                                      action:@selector(toggleSwapForStation:) to:sub];
+            swap.state = [self currentStationIsSwapped] ? NSControlStateValueOn : NSControlStateValueOff;
+            swap.toolTip = @"Per le radio che scrivono \"Titolo - Artista\" invece di \"Artista - Titolo\"";
+        }
         [sub addItem:[NSMenuItem separatorItem]];
         [self addItem:@"Brani preferiti…" action:@selector(openFavorites:) to:sub];
         self.trackItem.submenu = sub;
@@ -732,41 +738,128 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
 - (void)player:(RTPlayer *)player didReceiveStreamTitle:(NSString *)title
 {
     RTTrackInfo *info = [RTTrackInfo infoWithStreamTitle:title split:self.settings.splitTitle];
+    BOOL stationSwapped = [self currentStationIsSwapped];
+    if (stationSwapped) info = info.swapped;   // stazione che scrive "Titolo - Artista"
     if (info.isEmpty || [info isEqualToInfo:self.track]) return;
     self.track = info;
     self.trackArtwork = nil;
     self.trackArtworkFull = nil;
     NSString *station = self.currentStation ?: @"";
-    if ([self.history recordTitle:info.title artist:info.artist station:station date:[NSDate date] limit:50]) {
-        [[self.history dataRepresentation] writeToFile:[self historyPath] atomically:YES];
-    }
+    [self recordHistory:info replacing:nil station:station];
     BOOL notify = self.settings.notifications && [self stationWantsNotifications];
     if (!self.settings.artwork || !info.title.length || !info.artist.length) {
         if (notify) [self notifyTrack:info station:station image:nil];
         [self refresh];
         return;
     }
-    // si aspetta la copertina al massimo 2 secondi, poi la notifica parte comunque
+    // si aspetta la copertina al massimo 2 secondi (3 se si riprova con titolo e artista scambiati),
+    // poi la notifica parte comunque, con il brano come lo si conosce in quel momento
     __block BOOL notified = NO;
     __weak typeof(self) weakSelf = self;
     void (^deliver)(NSImage *) = ^(NSImage *image) {
-        if (notified || !notify) return;
+        typeof(self) strongSelf = weakSelf;
+        if (notified || !notify || !strongSelf) return;
+        // nel frattempo è cambiato brano: la notifica del nuovo brano ci pensa da sé
+        if (![strongSelf.track isEqualToInfo:info] && ![strongSelf.track isEqualToInfo:info.swapped]) return;
         notified = YES;
-        [weakSelf notifyTrack:info station:station image:image];
+        [strongSelf notifyTrack:strongSelf.track station:station image:image];
     };
-    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{ deliver(nil); });
+    dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)((stationSwapped ? 2 : 3) * NSEC_PER_SEC)),
+                   dispatch_get_main_queue(), ^{ deliver(nil); });
+    void (^show)(NSImage *) = ^(NSImage *image) {
+        typeof(self) strongSelf = weakSelf;
+        if (!strongSelf) return;
+        strongSelf.trackArtwork = [strongSelf menuThumbnail:image];
+        strongSelf.trackArtworkFull = image;
+        [strongSelf refresh];
+    };
     [[RTArtwork shared] artworkForTitle:info.title artist:info.artist completion:^(NSData *data) {
         typeof(self) strongSelf = weakSelf;
         if (!strongSelf || ![strongSelf.track isEqualToInfo:info]) return;   // nel frattempo è cambiato brano
         NSImage *image = data ? [[NSImage alloc] initWithData:data] : nil;
-        if (image) {
-            strongSelf.trackArtwork = [strongSelf menuThumbnail:image];
-            strongSelf.trackArtworkFull = image;
-            [strongSelf refresh];
+        if (image || stationSwapped) {
+            if (image) show(image);
+            deliver(image);
+            return;
         }
-        deliver(image);
+        // nessuna copertina: forse la stazione scrive "Titolo - Artista"; si riprova al contrario
+        RTTrackInfo *reversed = info.swapped;
+        [[RTArtwork shared] artworkForTitle:reversed.title artist:reversed.artist completion:^(NSData *data2) {
+            typeof(self) s2 = weakSelf;
+            if (!s2 || ![s2.track isEqualToInfo:info]) return;
+            NSImage *image2 = data2 ? [[NSImage alloc] initWithData:data2] : nil;
+            if (image2) {
+                // trovata al contrario: si corregge il brano e si ricorda per questa stazione
+                NSLog(@"RadioTray: «%@» scrive titolo e artista al contrario", station);
+                [s2 setCurrentStationSwapped:YES];
+                s2.track = reversed;
+                [s2 recordHistory:reversed replacing:info station:station];
+                show(image2);
+            }
+            deliver(image2);
+        }];
     }];
     [self refresh];
+}
+
+/// Chiave della stazione corrente (come per il tempo di ascolto; per un indirizzo aperto a mano, l'indirizzo).
+- (NSString *)currentStationKey
+{
+    if (self.currentGroup && self.currentStation) return [self listeningKeyForGroup:self.currentGroup station:self.currentStation];
+    if (self.adhocStation.url) return [@"url\n" stringByAppendingString:self.adhocStation.url];
+    return nil;
+}
+
+- (BOOL)currentStationIsSwapped
+{
+    NSString *key = [self currentStationKey];
+    return key && [self.settings.swappedStations containsObject:key];
+}
+
+- (void)setCurrentStationSwapped:(BOOL)swapped
+{
+    NSString *key = [self currentStationKey];
+    if (!key) return;
+    NSMutableArray *list = [self.settings.swappedStations mutableCopy];
+    [list removeObject:key];
+    if (swapped) [list addObject:key];
+    self.settings.swappedStations = list;
+}
+
+/// Mette il brano nella cronologia; replacing: versione sbagliata da togliere (se era l'ultima).
+- (void)recordHistory:(RTTrackInfo *)info replacing:(RTTrackInfo *)wrong station:(NSString *)station
+{
+    if (wrong) {
+        RTFavoriteTrack *old = [self.history trackWithTitle:wrong.title artist:wrong.artist];
+        if (old && old == self.history.tracks.lastObject) [self.history removeTracks:@[old]];
+    }
+    if ([self.history recordTitle:info.title artist:info.artist station:station date:[NSDate date] limit:50] || wrong) {
+        [[self.history dataRepresentation] writeToFile:[self historyPath] atomically:YES];
+    }
+}
+
+/// Dal sottomenu del brano: la stazione scrive (o non scrive più) titolo e artista al contrario.
+- (void)toggleSwapForStation:(id)sender
+{
+    BOOL swapped = ![self currentStationIsSwapped];
+    [self setCurrentStationSwapped:swapped];
+    RTTrackInfo *wrong = self.track;
+    self.track = self.track.swapped;
+    self.trackArtwork = nil;
+    self.trackArtworkFull = nil;
+    [self recordHistory:self.track replacing:wrong station:self.currentStation ?: @""];
+    [self refresh];
+    if (!self.settings.artwork || !self.track.title.length || !self.track.artist.length) return;
+    RTTrackInfo *info = self.track;
+    __weak typeof(self) weakSelf = self;
+    [[RTArtwork shared] artworkForTitle:info.title artist:info.artist completion:^(NSData *data) {
+        typeof(self) strongSelf = weakSelf;
+        if (!strongSelf || ![strongSelf.track isEqualToInfo:info] || !data) return;
+        NSImage *image = [[NSImage alloc] initWithData:data];
+        strongSelf.trackArtwork = [strongSelf menuThumbnail:image];
+        strongSelf.trackArtworkFull = image;
+        [strongSelf refresh];
+    }];
 }
 
 - (void)notifyTrack:(RTTrackInfo *)info station:(NSString *)station image:(NSImage *)image

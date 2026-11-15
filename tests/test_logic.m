@@ -710,6 +710,18 @@ int main(int argc, const char *argv[])
         testHistoryAndUpdates();
         testAlarmAndArtwork();
         testBackup();
+        // 1.4.1: formato "Titolo * Artista * codice" e scambio
+        {
+            RTTrackInfo *t = [RTTrackInfo infoWithStreamTitle:@"Tusa * Karol G, Nicki Minaj * 11712" split:YES];
+            CHECK_EQ(t.title, @"Tusa");
+            CHECK_EQ(t.artist, @"Karol G, Nicki Minaj");
+            t = [RTTrackInfo infoWithStreamTitle:@"Round And Round - Spandau Ballet" split:YES];
+            CHECK_EQ(t.artist, @"Round And Round");
+            CHECK_EQ(t.swapped.title, @"Round And Round");
+            CHECK_EQ(t.swapped.artist, @"Spandau Ballet");
+            CHECK([[RTTrackInfo infoWithTitle:@"Solo" artist:nil].swapped.title isEqualToString:@"Solo"]);
+            CHECK_EQ([RTTrackInfo infoWithStreamTitle:@"Tusa * Karol G" split:NO].title, @"Karol G - Tusa");
+        }
         if (argc > 2) testBundledList([NSString stringWithUTF8String:argv[2]]);
         printf("%d verifiche, %d fallite\n", checks, failures);
     }

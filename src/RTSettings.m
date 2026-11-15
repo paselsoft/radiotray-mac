@@ -22,6 +22,7 @@ static NSString *const kAlarmStation = @"alarm-station";
 static NSString *const kAlarmFadeIn = @"alarm-fade-in";
 static NSString *const kAlarmLastFired = @"alarm-last-fired";
 static NSString *const kListening = @"listening-seconds";
+static NSString *const kSwapped = @"swapped-title-artist-stations";
 static NSString *const kNowPlayingVisible = @"now-playing-visible";
 static NSString *const kNowPlayingFloating = @"now-playing-floating";
 static NSString *const kPauseOnLock = @"pause-on-lock";
@@ -139,6 +140,13 @@ static NSString *const kLastBackup = @"last-backup";
 - (void)setICloudBackup:(BOOL)v { [self.d setBool:v forKey:kICloudBackup]; }
 - (NSDate *)lastBackup { return [self.d objectForKey:kLastBackup]; }
 - (void)setLastBackup:(NSDate *)v { [self.d setObject:v forKey:kLastBackup]; }
+
+- (NSArray<NSString *> *)swappedStations
+{
+    NSArray *a = [self.d arrayForKey:kSwapped];
+    return a ?: @[];
+}
+- (void)setSwappedStations:(NSArray<NSString *> *)v { [self.d setObject:v forKey:kSwapped]; }
 
 - (NSDictionary<NSString *, NSNumber *> *)listeningSeconds
 {
