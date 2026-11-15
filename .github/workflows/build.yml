@@ -85,21 +85,6 @@ jobs:
         continue-on-error: true
         timeout-minutes: 8
         run: make stations STATIONS=resources/stazioni-italiane.json
-      - name: Diagnostica HLS Deejay (temporaneo)
-        continue-on-error: true
-        timeout-minutes: 3
-        run: |
-          for u in https://4c4b867c89244861ac216426883d1ad0.msvdn.net/radiodeejay/radiodeejay/master_ma.m3u8 \
-                   https://stream.rds.radio/audio/rds.stream_aac/playlist.m3u8; do
-            echo "=== $u"; curl -sS -m 15 "$u" | head -30
-            v=$(curl -sS -m 15 "$u" | grep -v '^#' | head -1)
-            case "$v" in http*) vu="$v";; *) vu="$(dirname "$u")/$v";; esac
-            echo "=== variante $vu"; curl -sS -m 15 "$vu" | head -40
-            seg=$(curl -sS -m 15 "$vu" | grep -v '^#' | tail -1)
-            case "$seg" in http*) su="$seg";; *) su="$(dirname "$vu")/$seg";; esac
-            echo "=== segmento $su"; curl -sS -m 15 "$su" -o /tmp/seg.bin; ls -l /tmp/seg.bin
-            echo "--- ID3/testo nel segmento:"; strings -n 4 /tmp/seg.bin | grep -iE 'ID3|TIT2|TPE1|title|artist|PRIV|TXXX|StreamTitle' | head -20
-          done
       - name: DMG
         run: make dmg ARCH=x86_64 VERSION=$VERSION
       - uses: actions/upload-artifact@v4
