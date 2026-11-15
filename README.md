@@ -28,7 +28,8 @@ Le istruzioni sono nel file `LEGGIMI.txt` dentro il `.dmg`. Al primo avvio: clic
 - `main` è il ramo principale: ogni push viene compilato e provato su GitHub Actions.
 - I rami di sviluppo pubblicano il `.dmg` di prova nella release **anteprima**.
 - Per una versione stabile: aggiornare `VERSION` nel `Makefile` e `docs/NOTE-VERSIONE.md`, poi
-  creare l'etichetta (`git tag v1.0.1 && git push origin v1.0.1`). La CI pubblica "RadioTray 1.0.1"
+  in GitHub → Actions → build → **Run workflow** sul ramo `main` scrivere la versione (per esempio
+  `1.0.1`), oppure creare l'etichetta `v1.0.1`. La CI crea l'etichetta, pubblica "RadioTray 1.0.1"
   e toglie l'anteprima.
 
 ## Compilare su un Mac

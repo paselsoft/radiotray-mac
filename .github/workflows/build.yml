@@ -2,12 +2,18 @@ name: build
 
 # - push su un ramo di sviluppo: compila, prova e aggiorna la release di prova "anteprima"
 # - push su main: compila e prova (il .dmg resta tra gli artifact)
-# - etichetta vX.Y.Z: pubblica la versione stabile "RadioTray X.Y.Z" e toglie l'anteprima
+# - etichetta vX.Y.Z, oppure avvio manuale con "versione" = X.Y.Z (crea l'etichetta su questo commit):
+#   pubblica la versione stabile "RadioTray X.Y.Z" e toglie l'anteprima
 on:
   push:
     branches: ["**"]
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      versione:
+        description: "Versione stabile da pubblicare (per esempio 1.0.0); vuoto = solo compilazione"
+        required: false
+        default: ""
 
 permissions:
   contents: write   # release con il .dmg
@@ -25,7 +31,13 @@ jobs:
           fetch-depth: 0
       - name: Versione
         run: |
-          if [ "${{ github.ref_type }}" = "tag" ]; then v="${GITHUB_REF_NAME#v}"; else v=$(sed -n 's/^VERSION *?= *//p' Makefile); fi
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            v="${GITHUB_REF_NAME#v}"; echo "RELEASE_TAG=$GITHUB_REF_NAME" >> "$GITHUB_ENV"
+          elif [ -n "${{ inputs.versione }}" ]; then
+            v="${{ inputs.versione }}"; v="${v#v}"; echo "RELEASE_TAG=v$v" >> "$GITHUB_ENV"
+          else
+            v=$(sed -n 's/^VERSION *?= *//p' Makefile)
+          fi
           echo "VERSION=$v" >> "$GITHUB_ENV"
           echo "Versione $v"
       - name: Versioni
@@ -64,18 +76,18 @@ jobs:
           compression-level: 0
           retention-days: 14
       - name: Release di prova "anteprima" (rami di sviluppo)
-        if: github.ref_type == 'branch' && github.ref_name != 'main'
+        if: github.ref_type == 'branch' && github.ref_name != 'main' && inputs.versione == ''
         run: |
           gh release delete anteprima --cleanup-tag -y 2>/dev/null || true
           gh release create anteprima build/RadioTray.dmg --prerelease --target "${{ github.sha }}" \
             --title "Anteprima (build ${{ github.run_number }}, ${{ github.ref_name }})" \
             --notes "Build automatica per macOS 10.13 (x86_64). Commit ${{ github.sha }}. Istruzioni nel file LEGGIMI.txt dentro il .dmg."
-      - name: Versione stabile (etichetta vX.Y.Z)
-        if: github.ref_type == 'tag'
+      - name: Versione stabile (etichetta vX.Y.Z o avvio manuale con versione)
+        if: env.RELEASE_TAG != ''
         run: |
           cp build/RadioTray.dmg "build/RadioTray-$VERSION.dmg"
-          gh release delete "$GITHUB_REF_NAME" -y 2>/dev/null || true
-          gh release create "$GITHUB_REF_NAME" "build/RadioTray-$VERSION.dmg" --latest \
+          gh release delete "$RELEASE_TAG" -y 2>/dev/null || true
+          gh release create "$RELEASE_TAG" "build/RadioTray-$VERSION.dmg" --latest --target "${{ github.sha }}" \
             --title "RadioTray $VERSION" --notes-file docs/NOTE-VERSIONE.md
           # la versione stabile prende il posto dell'anteprima
           gh release delete anteprima --cleanup-tag -y 2>/dev/null || true
