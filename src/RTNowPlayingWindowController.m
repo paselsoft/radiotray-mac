@@ -11,6 +11,7 @@
 @property (nonatomic, strong) NSButton *nextButton;
 @property (nonatomic, strong) NSButton *favoriteButton;
 @property (nonatomic, strong) NSSlider *volumeSlider;
+@property (nonatomic, strong) NSTextField *volumeValue;
 @property (nonatomic, strong) NSButton *floatingBox;
 @end
 
@@ -89,8 +90,11 @@
     self.volumeSlider = [NSSlider sliderWithValue:80 minValue:0 maxValue:100 target:self action:@selector(volumeChanged:)];
     self.volumeSlider.controlSize = NSControlSizeSmall;
     self.volumeSlider.continuous = YES;
-    self.volumeSlider.frame = NSMakeRect(x + 22, 28, w - 30, 20);
+    self.volumeSlider.frame = NSMakeRect(x + 22, 28, w - 70, 20);
     [content addSubview:self.volumeSlider];
+    self.volumeValue = [self label:[NSFont monospacedDigitSystemFontOfSize:11 weight:NSFontWeightRegular]
+                             frame:NSMakeRect(x + w - 42, 30, 42, 16) color:[NSColor secondaryLabelColor]];
+    self.volumeValue.alignment = NSTextAlignmentRight;
 
     self.floatingBox = [NSButton checkboxWithTitle:@"Sempre in primo piano" target:self action:@selector(floatingChanged:)];
     self.floatingBox.controlSize = NSControlSizeSmall;
@@ -132,6 +136,7 @@
     self.favoriteButton.enabled = canFavorite && !favorite;
     self.favoriteButton.toolTip = favorite ? @"Già nei brani preferiti" : @"Aggiungi ai brani preferiti (⌃⌥F)";
     if (self.volumeSlider.integerValue != volume) self.volumeSlider.integerValue = volume;
+    self.volumeValue.stringValue = [NSString stringWithFormat:@"%ld%%", (long)volume];
 }
 
 /// Al posto della copertina: l'icona della radio in grigio su fondo chiaro.
@@ -153,7 +158,11 @@
 - (void)togglePlay:(id)sender { [self.delegate nowPlayingTogglePlay]; }
 - (void)next:(id)sender { [self.delegate nowPlayingNext]; }
 - (void)favorite:(id)sender { [self.delegate nowPlayingFavorite]; }
-- (void)volumeChanged:(NSSlider *)sender { [self.delegate nowPlayingVolumeChanged:sender.integerValue]; }
+- (void)volumeChanged:(NSSlider *)sender
+{
+    self.volumeValue.stringValue = [NSString stringWithFormat:@"%ld%%", (long)sender.integerValue];   // subito, mentre si trascina
+    [self.delegate nowPlayingVolumeChanged:sender.integerValue];
+}
 
 - (void)floatingChanged:(NSButton *)sender
 {

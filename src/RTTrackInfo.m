@@ -106,6 +106,33 @@ static NSString *RTSoftenCaps(NSString *s)
     return info;
 }
 
+static NSString *RTSimple(NSString *s)
+{
+    NSString *folded = [s ?: @"" stringByFoldingWithOptions:NSCaseInsensitiveSearch | NSDiacriticInsensitiveSearch
+                                                      locale:[NSLocale localeWithLocaleIdentifier:@"en_US"]];
+    NSMutableString *out = [NSMutableString string];
+    NSCharacterSet *keep = [NSCharacterSet alphanumericCharacterSet];
+    for (NSUInteger i = 0; i < folded.length; i++) {
+        unichar c = [folded characterAtIndex:i];
+        if ([keep characterIsMember:c]) [out appendFormat:@"%C", c];
+    }
+    return out;
+}
+
+- (BOOL)isFillerForStation:(NSString *)station
+{
+    NSString *s = RTSimple(station);
+    NSString *t = RTSimple(self.title), *a = RTSimple(self.artist);
+    if (t.length == 0 && a.length == 0) return NO;
+    // "Radio 105" per la stazione "Radio 105 Network", "RadioFreccia" per "Radiofreccia"
+    if (s.length >= 5 && ((t.length >= 5 && [s containsString:t]) || [t containsString:s] || [a containsString:s] ||
+                          (a.length >= 5 && [s containsString:a]))) {
+        return YES;
+    }
+    // il nome di una radio senza un vero titolo ("Radio Subasio", "RADIO SUBASIO - Suoni…")
+    return [t hasPrefix:@"radio"] && a.length == 0 && t.length <= 12;
+}
+
 - (BOOL)isEmpty
 {
     return self.title.length == 0 && self.artist.length == 0;

@@ -657,6 +657,8 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     self.currentStation = name;
     if (!groupName) self.adhocStation = station;
     self.track = [RTTrackInfo infoWithTitle:nil artist:nil];
+    self.trackArtwork = nil;       // la copertina del brano della stazione precedente non vale più
+    self.trackArtworkFull = nil;
     self.playingNotified = NO;
     self.userStopped = NO;
 
@@ -740,6 +742,16 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     RTTrackInfo *info = [RTTrackInfo infoWithStreamTitle:title split:self.settings.splitTitle];
     BOOL stationSwapped = [self currentStationIsSwapped];
     if (stationSwapped) info = info.swapped;   // stazione che scrive "Titolo - Artista"
+    if ([info isFillerForStation:self.currentStation]) {
+        // jingle o pubblicità: la radio manda solo il proprio nome, non è un brano
+        if (!self.track.isEmpty) {
+            self.track = [RTTrackInfo infoWithTitle:nil artist:nil];
+            self.trackArtwork = nil;
+            self.trackArtworkFull = nil;
+            [self refresh];
+        }
+        return;
+    }
     if (info.isEmpty || [info isEqualToInfo:self.track]) return;
     self.track = info;
     self.trackArtwork = nil;

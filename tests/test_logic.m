@@ -721,6 +721,14 @@ int main(int argc, const char *argv[])
             CHECK_EQ(t.swapped.artist, @"Spandau Ballet");
             CHECK([[RTTrackInfo infoWithTitle:@"Solo" artist:nil].swapped.title isEqualToString:@"Solo"]);
             CHECK_EQ([RTTrackInfo infoWithStreamTitle:@"Tusa * Karol G" split:NO].title, @"Karol G - Tusa");
+            // 1.4.2: il nome della stazione non è un brano
+            CHECK([[RTTrackInfo infoWithStreamTitle:@"Radio 105" split:YES] isFillerForStation:@"Radio 105 Network"]);
+            CHECK([[RTTrackInfo infoWithStreamTitle:@"RadioFreccia" split:YES] isFillerForStation:@"Radiofreccia"]);
+            CHECK([[RTTrackInfo infoWithStreamTitle:@"Radio Kiss Kiss - Play everywhere!" split:YES] isFillerForStation:@"Radio Kiss Kiss"]);
+            CHECK([[RTTrackInfo infoWithStreamTitle:@"-~RADIO SUBASIO - Suoni Emozioni e Sogni~~~~~x~y~United Music Radio Subasio" split:YES]
+                   isFillerForStation:@"Radio Subasio"]);
+            CHECK(![[RTTrackInfo infoWithStreamTitle:@"Queen - Radio Ga Ga" split:YES] isFillerForStation:@"Radio Monte Carlo"]);
+            CHECK(![[RTTrackInfo infoWithStreamTitle:@"Sting - Fields Of Gold" split:YES] isFillerForStation:@"Radio 105 Network"]);
         }
         if (argc > 2) testBundledList([NSString stringWithUTF8String:argv[2]]);
         printf("%d verifiche, %d fallite\n", checks, failures);

@@ -13,6 +13,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)isEmpty;
 /// Lo stesso brano con titolo e artista scambiati (per le radio che scrivono "Titolo - Artista").
 - (RTTrackInfo *)swapped;
+/// YES se il "brano" è solo il nome o lo slogan della stazione ("Radio 105", "RadioFreccia",
+/// "Radio Kiss Kiss - Play everywhere!"): durante jingle e pubblicità molte radio mandano questo.
+- (BOOL)isFillerForStation:(nullable NSString *)station;
 - (BOOL)isEqualToInfo:(nullable RTTrackInfo *)other;
 /// "Titolo\nArtista" (o solo il titolo): per gli appunti.
 - (NSString *)clipboardText;
