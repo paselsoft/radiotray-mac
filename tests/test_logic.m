@@ -4,6 +4,7 @@
 #import "../src/RTBookmarks.h"
 #import "../src/RTPlaylistParser.h"
 #import "../src/RTTrackInfo.h"
+#import "../src/RTIcyParser.h"
 
 static int failures = 0;
 static int checks = 0;
@@ -194,6 +195,64 @@ static void testTrackInfo(void)
     CHECK(RTTruncate(@"Città più lunga di così", 8).length == 8);
 }
 
+/// Stream ICY finto: [audio metaint][len][meta]... ; titles = un titolo per blocco ("" = blocco vuoto)
+static NSData *IcyStream(NSUInteger metaint, NSArray<NSString *> *titles, NSStringEncoding enc)
+{
+    NSMutableData *d = [NSMutableData data];
+    for (NSString *t in titles) {
+        NSMutableData *audio = [NSMutableData dataWithLength:metaint];
+        memset(audio.mutableBytes, 0xAB, metaint);
+        [d appendData:audio];
+        if (t.length == 0) {
+            unsigned char zero = 0;
+            [d appendBytes:&zero length:1];
+            continue;
+        }
+        NSMutableData *meta = [[[NSString stringWithFormat:@"StreamTitle='%@';StreamUrl='';", t] dataUsingEncoding:enc] mutableCopy];
+        NSUInteger blocks = (meta.length + 15) / 16;
+        meta.length = blocks * 16;
+        unsigned char len = (unsigned char)blocks;
+        [d appendBytes:&len length:1];
+        [d appendData:meta];
+    }
+    return d;
+}
+
+static void testIcy(void)
+{
+    NSArray *titles = @[@"Miles Davis - So What", @"", @"Mina - L'importante è finire", @"Mina - L'importante è finire"];
+    NSData *stream = IcyStream(100, titles, NSUTF8StringEncoding);
+
+    // tutto in un colpo
+    RTIcyParser *p = [[RTIcyParser alloc] initWithMetaInterval:100];
+    CHECK_EQ([p feed:stream], (@[@"Miles Davis - So What", @"Mina - L'importante è finire", @"Mina - L'importante è finire"]));
+
+    // a pezzetti di 7 byte (i blocchi di rete tagliano ovunque)
+    p = [[RTIcyParser alloc] initWithMetaInterval:100];
+    NSMutableArray *found = [NSMutableArray array];
+    for (NSUInteger i = 0; i < stream.length; i += 7) {
+        [found addObjectsFromArray:[p feed:[stream subdataWithRange:NSMakeRange(i, MIN((NSUInteger)7, stream.length - i))]]];
+    }
+    CHECK(found.count == 3);
+    CHECK_EQ(found.firstObject, @"Miles Davis - So What");
+
+    // un byte alla volta
+    p = [[RTIcyParser alloc] initWithMetaInterval:100];
+    [found removeAllObjects];
+    const unsigned char *b = stream.bytes;
+    for (NSUInteger i = 0; i < stream.length; i++) [found addObjectsFromArray:[p feed:[NSData dataWithBytes:b + i length:1]]];
+    CHECK(found.count == 3);
+
+    // Latin-1
+    p = [[RTIcyParser alloc] initWithMetaInterval:50];
+    CHECK_EQ([p feed:IcyStream(50, @[@"Battiato - Centro di gravità"], NSISOLatin1StringEncoding)], @[@"Battiato - Centro di gravità"]);
+
+    CHECK_EQ([RTIcyParser streamTitleFromMetadata:D(@"StreamTitle='';")], @"");
+    CHECK_EQ([RTIcyParser streamTitleFromMetadata:D(@"StreamUrl='x';")], nil);
+    CHECK_EQ([RTIcyParser streamTitleFromMetadata:D(@"StreamTitle='Senza fine")], @"Senza fine");
+    CHECK_EQ([RTIcyParser streamTitleFromMetadata:D(@"streamtitle=\"A - B\";")], @"A - B");
+}
+
 int main(int argc, const char *argv[])
 {
     @autoreleasepool {
@@ -205,6 +264,7 @@ int main(int argc, const char *argv[])
         testASX();
         testXSPF();
         testTrackInfo();
+        testIcy();
         printf("%d verifiche, %d fallite\n", checks, failures);
     }
     return failures ? 1 : 0;

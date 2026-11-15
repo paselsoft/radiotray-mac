@@ -19,8 +19,8 @@ CFLAGS     := -std=gnu11 -fobjc-arc -fmodules -O2 -g $(WARN) -arch $(ARCH) -mmac
 LDFLAGS    := -arch $(ARCH) -mmacosx-version-min=$(MACOS_MIN)
 FRAMEWORKS := -framework Cocoa -framework AVFoundation -framework CoreMedia
 
-LOGIC_SRC  := src/RTBookmarks.m src/RTPlaylistParser.m src/RTTrackInfo.m
-APP_SRC    := $(LOGIC_SRC) src/RTStreamResolver.m src/RTPlayer.m src/RTSettings.m src/RTNotifier.m \
+LOGIC_SRC  := src/RTBookmarks.m src/RTPlaylistParser.m src/RTTrackInfo.m src/RTIcyParser.m
+APP_SRC    := $(LOGIC_SRC) src/RTStreamResolver.m src/RTIcyMetadataReader.m src/RTPlayer.m src/RTSettings.m src/RTNotifier.m \
               src/RTStatusIcon.m src/RTAppDelegate.m src/main.m
 HEADERS    := $(wildcard src/*.h)
 
@@ -43,9 +43,9 @@ $(BUILD)/test_logic: tests/test_logic.m $(LOGIC_SRC) $(HEADERS)
 test: $(BUILD)/test_logic
 	$(BUILD)/test_logic resources/bookmarks.json
 
-$(BUILD)/check_stations: tests/check_stations.m $(LOGIC_SRC) src/RTStreamResolver.m $(HEADERS)
+$(BUILD)/check_stations: tests/check_stations.m $(LOGIC_SRC) src/RTStreamResolver.m src/RTIcyMetadataReader.m $(HEADERS)
 	@mkdir -p $(BUILD)
-	$(CC) $(TEST_FLAGS) tests/check_stations.m $(LOGIC_SRC) src/RTStreamResolver.m -framework Foundation -o $@
+	$(CC) $(TEST_FLAGS) tests/check_stations.m $(LOGIC_SRC) src/RTStreamResolver.m src/RTIcyMetadataReader.m -framework Foundation -o $@
 
 stations: $(BUILD)/check_stations
 	$(BUILD)/check_stations resources/bookmarks.json

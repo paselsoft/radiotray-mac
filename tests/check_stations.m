@@ -5,6 +5,7 @@
 #import "../src/RTBookmarks.h"
 #import "../src/RTPlaylistParser.h"
 #import "../src/RTStreamResolver.h"
+#import "../src/RTIcyMetadataReader.h"
 
 static BOOL waitFor(BOOL *done, NSTimeInterval seconds)
 {
@@ -50,6 +51,29 @@ static NSString *probe(NSString *url)
     return p.result ?: @"errore: nessuna risposta";
 }
 
+/// Primo titolo ICY letto con lo stesso codice dell'app (al massimo 20 s).
+@interface RTTitleCatcher : NSObject <RTIcyMetadataReaderDelegate>
+@property (nonatomic, copy) NSString *title;
+@end
+@implementation RTTitleCatcher
+- (void)metadataReader:(RTIcyMetadataReader *)reader didReadStreamTitle:(NSString *)title { self.title = title; }
+@end
+
+static NSString *readTitle(NSString *url)
+{
+    RTTitleCatcher *catcher = [RTTitleCatcher new];
+    RTIcyMetadataReader *reader = [RTIcyMetadataReader new];
+    reader.delegate = catcher;
+    [reader startWithURL:url];
+    NSDate *limit = [NSDate dateWithTimeIntervalSinceNow:20];
+    while (!catcher.title && !reader.unsupported && [limit timeIntervalSinceNow] > 0) {
+        [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.05]];
+    }
+    [reader stop];
+    if (catcher.title) return [NSString stringWithFormat:@"titolo «%@»", catcher.title];
+    return reader.unsupported ? @"nessun metadato ICY" : @"nessun titolo in 20 s";
+}
+
 int main(int argc, const char *argv[])
 {
     @autoreleasepool {
@@ -83,7 +107,8 @@ int main(int argc, const char *argv[])
                     ok = [p hasPrefix:@"HTTP 2"] &&
                          ([p rangeOfString:@"audio/"].location != NSNotFound || [p rangeOfString:@"mpegurl"].location != NSNotFound ||
                           [p rangeOfString:@"ogg"].location != NSNotFound);
-                    status = [NSString stringWithFormat:@"%@ → %@ [%@]", resolver.lastDecision, streams[0], p];
+                    NSString *title = ok ? readTitle(streams[0]) : @"-";
+                    status = [NSString stringWithFormat:@"%@ → %@ [%@] %@", resolver.lastDecision, streams[0], p, title];
                 } else {
                     status = [NSString stringWithFormat:@"ERRORE: %@", err];
                 }

@@ -1,5 +1,6 @@
 #import "RTPlayer.h"
 #import <AVFoundation/AVFoundation.h>
+#import "RTIcyMetadataReader.h"
 
 static void *RTItemStatusContext = &RTItemStatusContext;
 static void *RTItemMetadataContext = &RTItemMetadataContext;
@@ -7,7 +8,7 @@ static void *RTPlayerTimeControlContext = &RTPlayerTimeControlContext;
 
 static const NSTimeInterval RTConnectTimeout = 20.0;
 
-@interface RTPlayer ()
+@interface RTPlayer () <RTIcyMetadataReaderDelegate>
 @property (nonatomic, strong) AVPlayer *player;
 @property (nonatomic, strong, nullable) AVPlayerItem *item;
 @property (nonatomic, copy) NSArray<NSString *> *urls;
@@ -17,6 +18,8 @@ static const NSTimeInterval RTConnectTimeout = 20.0;
 @property (nonatomic, copy, nullable) NSString *lastError;
 @property (nonatomic, strong, nullable) NSTimer *connectTimer;
 @property (nonatomic) BOOL hasPlayed;
+@property (nonatomic) BOOL avMetadataSeen;   // AVPlayer consegna i metadati: il lettore ICY non serve
+@property (nonatomic, strong) RTIcyMetadataReader *icyReader;
 @end
 
 @implementation RTPlayer
@@ -28,6 +31,8 @@ static const NSTimeInterval RTConnectTimeout = 20.0;
         _player.automaticallyWaitsToMinimizeStalling = YES;
         _urls = @[];
         _volume = 100;
+        _icyReader = [RTIcyMetadataReader new];
+        _icyReader.delegate = self;
         [_player addObserver:self forKeyPath:@"timeControlStatus" options:NSKeyValueObservingOptionNew
                      context:RTPlayerTimeControlContext];
     }
@@ -124,6 +129,8 @@ static const NSTimeInterval RTConnectTimeout = 20.0;
 {
     [self.connectTimer invalidate];
     self.connectTimer = nil;
+    [self.icyReader stop];
+    self.avMetadataSeen = NO;
     AVPlayerItem *item = self.item;
     if (!item) return;
     self.item = nil;
@@ -191,7 +198,27 @@ static const NSTimeInterval RTConnectTimeout = 20.0;
         // metadati ID3 separati (HLS): si ricompone "Artista - Titolo"
         title = [NSString stringWithFormat:@"%@ - %@", artist, title];
     }
-    if (title) [self.delegate player:self didReceiveStreamTitle:title];
+    if (title) {
+        if (!self.avMetadataSeen) {
+            self.avMetadataSeen = YES;
+            [self.icyReader stop];
+        }
+        [self.delegate player:self didReceiveStreamTitle:title];
+    }
+}
+
+- (void)startIcyReaderIfNeeded
+{
+    // su 10.13 AVPlayer non consegna i titoli ICY: li si legge con una seconda connessione
+    if (self.avMetadataSeen || !self.currentURL) return;
+    if ([[NSURL URLWithString:self.currentURL].path.pathExtension.lowercaseString isEqualToString:@"m3u8"]) return;
+    [self.icyReader startWithURL:self.currentURL];
+}
+
+- (void)metadataReader:(RTIcyMetadataReader *)reader didReadStreamTitle:(NSString *)title
+{
+    if (self.avMetadataSeen || !self.item) return;
+    [self.delegate player:self didReceiveStreamTitle:title];
 }
 
 - (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context
@@ -216,6 +243,7 @@ static const NSTimeInterval RTConnectTimeout = 20.0;
         if (!self.item) return;
         switch (self.player.timeControlStatus) {
             case AVPlayerTimeControlStatusPlaying:
+                if (!self.hasPlayed) [self startIcyReaderIfNeeded];
                 self.hasPlayed = YES;
                 [self.connectTimer invalidate];
                 self.connectTimer = nil;
