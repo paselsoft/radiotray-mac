@@ -15,7 +15,7 @@ static NSString *const kColAdded = @"added";
 @property (nonatomic, strong) NSTableView *table;
 @property (nonatomic, strong) NSTextField *statusLabel;
 @property (nonatomic, strong) NSButton *removeButton;
-@property (nonatomic, strong) NSButton *copyButton;
+@property (nonatomic, strong) NSButton *duplicateButton;
 @property (nonatomic, strong) NSPopUpButton *webPopup;
 @property (nonatomic, strong) NSButton *exportButton;
 @property (nonatomic, strong) NSDateFormatter *dateFormatter;
@@ -112,7 +112,7 @@ static NSString *const kColAdded = @"added";
     self.removeButton.keyEquivalent = @"\x7f";
     self.removeButton.keyEquivalentModifierMask = NSEventModifierFlagCommand;
     self.removeButton.toolTip = @"Elimina i brani selezionati (⌘⌫)";
-    self.copyButton = [self button:@"Copia" action:@selector(copy:) frame:NSMakeRect(114, y, 90, 32)];
+    self.duplicateButton = [self button:@"Copia" action:@selector(copy:) frame:NSMakeRect(114, y, 90, 32)];
 
     NSPopUpButton *web = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(212, y + 3, 160, 26) pullsDown:YES];
     [web addItemWithTitle:@"Cerca su…"];
@@ -207,7 +207,7 @@ static NSString *const kColAdded = @"added";
 {
     NSUInteger n = self.table.selectedRowIndexes.count;
     self.removeButton.enabled = n > 0;
-    self.copyButton.enabled = n > 0;
+    self.duplicateButton.enabled = n > 0;
     self.webPopup.enabled = n == 1;
     self.exportButton.enabled = self.shown.count > 0;
 }
