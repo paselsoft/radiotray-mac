@@ -8,6 +8,8 @@ on:
   push:
     branches: ["**"]
     tags: ["v*"]
+  schedule:
+    - cron: "17 6 * * 1"   # ogni lunedì mattina: controllo che le stazioni rispondano ancora
   workflow_dispatch:
     inputs:
       versione:
@@ -59,14 +61,38 @@ jobs:
           else
             echo "Rosetta non disponibile su questo runner: prova saltata"
           fi
+      - name: Servono i controlli delle stazioni?
+        id: changes
+        # solo se sono cambiati gli elenchi delle stazioni o il codice che le legge,
+        # oppure nel controllo settimanale o in un avvio manuale senza versione
+        run: |
+          run=false
+          if [ "${{ github.event_name }}" = "schedule" ]; then run=true; fi
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -z "${{ inputs.versione }}" ]; then run=true; fi
+          if [ "${{ github.event_name }}" = "push" ] && git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" 2>/dev/null \
+               | grep -qE '^(resources/.*\.json|src/RT(StreamResolver|PlaylistParser|IcyMetadataReader|IcyParser)\.m|tests/check_stations\.m)$'; then
+            run=true
+          fi
+          echo "stations=$run" >> "$GITHUB_OUTPUT"
+          echo "Controlli delle stazioni: $run"
       - name: Stazioni predefinite raggiungibili (facoltativo)
+        if: steps.changes.outputs.stations == 'true'
         continue-on-error: true
         timeout-minutes: 5
         run: make stations
       - name: Radio italiane consigliate raggiungibili (facoltativo)
+        if: steps.changes.outputs.stations == 'true'
         continue-on-error: true
         timeout-minutes: 8
         run: make stations STATIONS=resources/stazioni-italiane.json
+      - name: Diagnostica delle copertine (temporaneo)
+        continue-on-error: true
+        timeout-minutes: 4
+        run: |
+          clang -std=gnu11 -fobjc-arc -fmodules tests/check_artwork.m src/RTArtwork.m -framework Foundation -o build/check_artwork
+          build/check_artwork "Sting|If You Love Somebody Set Them Free" "Ray Parker|Ghostbusters" "Gary's Gang|Knock Me Out" \
+            "Boddhi Satva & Erin Kimberly|Now Or Never [Gregor Salto Radio Edit]" "Spandau Ballet|Round And Round" \
+            "Karol G, Nicki Minaj|Tusa" "Fresh Moods|Moonstars"
       - name: DMG
         run: make dmg ARCH=x86_64 VERSION=$VERSION
       - uses: actions/upload-artifact@v4
