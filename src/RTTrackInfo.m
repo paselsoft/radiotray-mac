@@ -19,11 +19,21 @@ NSString *RTTruncate(NSString *text, NSUInteger max)
 
 @implementation RTTrackInfo
 
+/// "PINGUINI TATTICI NUCLEARI" → "Pinguini Tattici Nucleari" (solo se tutto maiuscolo)
+static NSString *RTSoftenCaps(NSString *s)
+{
+    if (s.length < 4) return s;
+    NSCharacterSet *letters = [NSCharacterSet letterCharacterSet];
+    if ([s rangeOfCharacterFromSet:letters].location == NSNotFound) return s;
+    if (![s isEqualToString:s.uppercaseString]) return s;
+    return [s capitalizedStringWithLocale:[NSLocale localeWithLocaleIdentifier:@"it_IT"]];
+}
+
 + (instancetype)infoWithTitle:(NSString *)title artist:(NSString *)artist
 {
     RTTrackInfo *info = [self new];
-    info.title = RTTrim(title);
-    info.artist = RTTrim(artist);
+    info.title = RTSoftenCaps(RTTrim(title));
+    info.artist = RTSoftenCaps(RTTrim(artist));
     // un titolo fatto solo di "-" è un tag vuoto
     if ([info.title isEqualToString:@"-"]) info.title = @"";
     if ([info.artist isEqualToString:@"-"]) info.artist = @"";
@@ -33,6 +43,16 @@ NSString *RTTruncate(NSString *text, NSUInteger max)
 + (instancetype)infoWithStreamTitle:(NSString *)streamTitle split:(BOOL)split
 {
     NSString *raw = RTTrim(streamTitle);
+
+    // radio Mediaset (105, Virgin, R101, RMC…): "ARTISTA~TITOLO~ALBUM~ANNO~ISRC~DURATA~inizio~fine~STAZIONE"
+    NSArray<NSString *> *fields = [raw componentsSeparatedByString:@"~"];
+    if (fields.count >= 3) {
+        NSString *artist = RTTrim(fields[0]), *title = RTTrim(fields[1]);
+        if (title.length == 0) return [self infoWithTitle:artist artist:nil];
+        return split ? [self infoWithTitle:title artist:artist]
+                     : [self infoWithTitle:[NSString stringWithFormat:@"%@ - %@", artist, title] artist:nil];
+    }
+
     if (!split) return [self infoWithTitle:raw artist:nil];
 
     NSRange sep = [raw rangeOfString:@" - "];

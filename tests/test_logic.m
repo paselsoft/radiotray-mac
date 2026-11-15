@@ -340,6 +340,58 @@ static void testRadioBrowser(void)
     CHECK([RTRadioBrowser stationsFromJSON:D(@"[]")].count == 0);
 }
 
+static void testItalianExtras(void)
+{
+    // titoli Mediaset
+    RTTrackInfo *t = [RTTrackInfo infoWithStreamTitle:@"PINGUINI TATTICI NUCLEARI~NELLA BORSA DI ANNA~REPLAY~2026~IT5LS2600016~184~2026-11-15T15:39:05~2026-11-15T15:39:05~R101" split:YES];
+    CHECK_EQ(t.artist, @"Pinguini Tattici Nucleari");
+    CHECK_EQ(t.title, @"Nella Borsa Di Anna");
+    t = [RTTrackInfo infoWithStreamTitle:@"U2~SILENCIO~CARNAVAL DE LUZ~2026~~144~a~b~Virgin Radio" split:YES];
+    CHECK_EQ(t.artist, @"U2");
+    CHECK_EQ(t.title, @"Silencio");
+    t = [RTTrackInfo infoWithStreamTitle:@"U2~SILENCIO~X~2026" split:NO];
+    CHECK_EQ(t.title, @"U2 - Silencio");
+    // maiuscole solo se tutto il testo è maiuscolo
+    t = [RTTrackInfo infoWithStreamTitle:@"THE CLASH - ROCK THE CASBAH" split:YES];
+    CHECK_EQ(t.artist, @"The Clash");
+    CHECK_EQ(t.title, @"Rock The Casbah");
+    t = [RTTrackInfo infoWithStreamTitle:@"AC/DC - Back In Black" split:YES];
+    CHECK_EQ(t.title, @"Back In Black");
+
+    // nomi tecnici dei server
+    CHECK_EQ([RTIcyParser stationNameFromHeader:@"FM_VRG_mp3_radiomediaset"], nil);
+    CHECK_EQ([RTIcyParser stationNameFromHeader:@"RadioFreccia"], @"RadioFreccia");
+
+    // unione con il file dell'utente
+    NSString *mine = @"[{\"group\":\"Rai\",\"stations\":[{\"name\":\"Radio Uno\",\"url\":\"http://icestreaming.rai.it/1.mp3\"}]}]";
+    NSString *list = @"[{\"group\":\"Radio italiane\",\"stations\":[{\"name\":\"RTL 102.5\",\"url\":\"https://a/rtl\"}]},"
+                      "{\"group\":\"Rai\",\"stations\":[{\"name\":\"Rai Radio 1\",\"url\":\"https://icestreaming.rai.it/1.mp3\"},"
+                      "{\"name\":\"Rai Radio 2\",\"url\":\"https://icestreaming.rai.it/2.mp3\"}]}]";
+    NSUInteger added = 99;
+    NSString *error = nil;
+    NSData *out = [RTBookmarks dataByMergingStations:[RTBookmarks bookmarksWithData:D(list) error:NULL]
+                                            intoData:D(mine) added:&added error:&error];
+    CHECK(out != nil);
+    CHECK(added == 2);   // Rai Radio 1 c'è già (stesso indirizzo, anche se http e nome diverso)
+    RTBookmarks *b = [RTBookmarks bookmarksWithData:out error:NULL];
+    CHECK([b stationCount] == 3);
+    CHECK_EQ([b stationNamed:@"Radio Uno" inGroup:@"Rai"].url, @"http://icestreaming.rai.it/1.mp3");
+    CHECK([b stationNamed:@"Rai Radio 2" inGroup:@"Rai"] != nil);
+    CHECK([b stationNamed:@"RTL 102.5" inGroup:@"Radio italiane"] != nil);
+    // seconda volta: niente da aggiungere
+    [RTBookmarks dataByMergingStations:[RTBookmarks bookmarksWithData:D(list) error:NULL] intoData:out added:&added error:NULL];
+    CHECK(added == 0);
+}
+
+static void testBundledList(NSString *path)
+{
+    NSString *error = nil;
+    RTBookmarks *b = [RTBookmarks bookmarksWithContentsOfFile:path error:&error];
+    CHECK(b != nil);
+    if (!b) fprintf(stderr, "  %s\n", error.UTF8String);
+    CHECK([b stationCount] >= 15);
+}
+
 int main(int argc, const char *argv[])
 {
     @autoreleasepool {
@@ -355,6 +407,8 @@ int main(int argc, const char *argv[])
         testAddStation();
         testStationName();
         testRadioBrowser();
+        testItalianExtras();
+        if (argc > 2) testBundledList([NSString stringWithUTF8String:argv[2]]);
         printf("%d verifiche, %d fallite\n", checks, failures);
     }
     return failures ? 1 : 0;

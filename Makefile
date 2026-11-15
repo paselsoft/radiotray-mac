@@ -9,7 +9,7 @@
 
 ARCH       ?= x86_64
 MACOS_MIN  ?= 10.13
-VERSION    ?= 0.3.0
+VERSION    ?= 0.3.1
 BUILD      := build
 APP        := $(BUILD)/RadioTray.app
 
@@ -41,7 +41,7 @@ $(BUILD)/test_logic: tests/test_logic.m $(LOGIC_SRC) $(HEADERS)
 	$(CC) $(TEST_FLAGS) tests/test_logic.m $(LOGIC_SRC) -framework Foundation -o $@
 
 test: $(BUILD)/test_logic
-	$(BUILD)/test_logic resources/bookmarks.json
+	$(BUILD)/test_logic resources/bookmarks.json resources/stazioni-italiane.json
 
 $(BUILD)/check_stations: tests/check_stations.m $(LOGIC_SRC) src/RTStreamResolver.m src/RTIcyMetadataReader.m $(HEADERS)
 	@mkdir -p $(BUILD)

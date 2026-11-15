@@ -15,6 +15,7 @@ con **macOS High Sierra 10.13** (funziona anche sulle versioni successive).
 |---|---|---|
 | 1 | icona e menu, stazioni a gruppi (stesso `bookmarks.json` di Radiotray-NG), playlist PLS/M3U/ASX/XSPF, AVPlayer, titolo e artista, volume, ultima stazione, notifiche, `.dmg` dalla CI | fatta (provata sull'iMac) |
 | 2 | titolo letto dallo stream (ICY), timer di spegnimento, stazione successiva/precedente, tasti multimediali, Apri URL…, ricarica automatica, riconnessione | fatta (provata sull'iMac) |
+| 2.5 | nome vero della stazione, Aggiungi alle stazioni…, Cerca stazioni (Radio Browser), radio italiane consigliate | da provare sull'iMac |
 | 3 | editor delle stazioni, importazione, avvio al login | — |
 
 ## Scaricare

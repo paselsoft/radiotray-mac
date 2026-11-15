@@ -81,6 +81,8 @@ typedef NS_ENUM(NSInteger, RTIcyPhase) {
     }
     name = [name stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
     if (name.length == 0) return nil;
+    // nome tecnico del server, non della radio: niente spazi e trattini bassi
+    if ([name rangeOfString:@" "].location == NSNotFound && [name rangeOfString:@"_"].location != NSNotFound) return nil;
     NSString *lower = name.lowercaseString;
     for (NSString *generic in @[@"no name", @"noname", @"unspecified", @"unknown", @"-", @"stream", @"icecast", @"shoutcast",
                                 @"this is my server name", @"default"]) {

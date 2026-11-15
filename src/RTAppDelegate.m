@@ -262,6 +262,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     [self addItem:@"Modifica stazioni…" action:@selector(editBookmarks:) to:prefsMenu];
     [self addItem:@"Mostra il file delle stazioni nel Finder" action:@selector(revealBookmarks:) to:prefsMenu];
     [self addItem:@"Ricarica stazioni" action:@selector(reloadBookmarks:) to:prefsMenu];
+    [self addItem:@"Aggiungi le radio italiane consigliate" action:@selector(addItalianStations:) to:prefsMenu];
     [prefsMenu addItem:[NSMenuItem separatorItem]];
     [self addItem:@"Notifiche" action:@selector(toggleNotifications:) to:prefsMenu].tag = 1;
     [self addItem:@"Notifiche dettagliate (connessione, arresto)" action:@selector(toggleVerbose:) to:prefsMenu].tag = 2;
@@ -820,6 +821,38 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
 {
     [self installDefaultBookmarksIfNeeded];
     [[NSWorkspace sharedWorkspace] activateFileViewerSelectingURLs:@[[NSURL fileURLWithPath:self.settings.bookmarksPath]]];
+}
+
+- (void)addItalianStations:(id)sender
+{
+    NSString *listPath = [[NSBundle mainBundle] pathForResource:@"stazioni-italiane" ofType:@"json"];
+    NSString *error = nil;
+    RTBookmarks *list = listPath ? [RTBookmarks bookmarksWithContentsOfFile:listPath error:&error] : nil;
+    if (!list) {
+        [self showAlert:@"Elenco non disponibile" text:error ?: @"Il file delle radio italiane manca dall'app."];
+        return;
+    }
+    [self installDefaultBookmarksIfNeeded];
+    NSString *path = self.settings.bookmarksPath;
+    NSData *data = [NSData dataWithContentsOfFile:path] ?: [@"[]" dataUsingEncoding:NSUTF8StringEncoding];
+    NSUInteger added = 0;
+    NSData *updated = [RTBookmarks dataByMergingStations:list intoData:data added:&added error:&error];
+    if (!updated) {
+        [self showAlert:@"Stazioni non aggiunte" text:error];
+        return;
+    }
+    if (added == 0) {
+        [self showAlert:@"Nessuna stazione da aggiungere" text:@"Le radio italiane consigliate sono già tutte nelle tue stazioni."];
+        return;
+    }
+    NSError *writeError = nil;
+    if (![updated writeToFile:path options:NSDataWritingAtomic error:&writeError]) {
+        [self showAlert:@"Stazioni non aggiunte" text:writeError.localizedDescription];
+        return;
+    }
+    [self reloadBookmarksInteractive:YES];
+    [[RTNotifier shared] notifyTitle:@"Radio italiane aggiunte"
+                             message:[NSString stringWithFormat:@"%lu stazioni nei gruppi «Radio italiane» e «Rai»", (unsigned long)added]];
 }
 
 - (void)reloadBookmarks:(id)sender

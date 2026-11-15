@@ -15,6 +15,11 @@ Uso
 - Stazione precedente / successiva: passa alla stazione vicina nello stesso gruppo.
 - Apri URL…: ascolta un indirizzo qualsiasi (stream o playlist) senza aggiungerlo alle stazioni.
   Se il server lo dichiara, al posto dell'indirizzo compare il nome vero della stazione.
+- Cerca stazioni…: cerca per nome nell'archivio pubblico Radio Browser (decine di migliaia
+  di radio, filtro per paese). Doppio clic per ascoltare, "Aggiungi…" per salvarla.
+- Preferenze > Aggiungi le radio italiane consigliate: aggiunge RTL 102.5, RDS, Deejay, 105,
+  Virgin, R101, RMC, Kiss Kiss, Capital, m2o, Radio 24, Radiofreccia, Subasio e le Rai
+  (solo quelle che non hai già).
 - Aggiungi alle stazioni…: compare mentre ascolti un indirizzo aperto con Apri URL…;
   chiede nome e gruppo (esistente o nuovo) e lo salva in bookmarks.json.
 - Timer di spegnimento…: spegne la radio dopo i minuti scelti; un altro clic lo annulla.

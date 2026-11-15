@@ -1,31 +1,119 @@
 [
    {
-      "group" : "Rai",
-      "stations" : [
-         { "name" : "Rai Radio 1", "url" : "https://icestreaming.rai.it/1.mp3" },
-         { "name" : "Rai Radio 2", "url" : "https://icestreaming.rai.it/2.mp3" },
-         { "name" : "Rai Radio 3", "url" : "https://icestreaming.rai.it/3.mp3" }
+      "group": "Radio italiane",
+      "stations": [
+         {
+            "name": "RTL 102.5",
+            "url": "https://streamingv2.shoutcast.com/rtl-1025"
+         },
+         {
+            "name": "RDS 100% Grandi Successi",
+            "url": "https://stream.rds.radio/audio/rds.stream_aac/playlist.m3u8"
+         },
+         {
+            "name": "Radio Deejay",
+            "url": "https://4c4b867c89244861ac216426883d1ad0.msvdn.net/radiodeejay/radiodeejay/master_ma.m3u8"
+         },
+         {
+            "name": "Radio 105",
+            "url": "http://icecast.unitedradio.it/Radio105.mp3"
+         },
+         {
+            "name": "Virgin Radio",
+            "url": "http://icecast.unitedradio.it/Virgin.mp3"
+         },
+         {
+            "name": "R101",
+            "url": "http://icecast.unitedradio.it/r101"
+         },
+         {
+            "name": "Radio Monte Carlo",
+            "url": "http://edge.radiomontecarlo.net/RMC.mp3"
+         },
+         {
+            "name": "Radio Kiss Kiss",
+            "url": "http://ice07.fluidstream.net:8080/KissKiss.mp3"
+         },
+         {
+            "name": "Radio Capital",
+            "url": "https://4c4b867c89244861ac216426883d1ad0.msvdn.net/radiocapital/radiocapital/master_ma.m3u8"
+         },
+         {
+            "name": "Radio m2o",
+            "url": "https://4c4b867c89244861ac216426883d1ad0.msvdn.net/radiom2o/radiom2o/master_ma.m3u8"
+         },
+         {
+            "name": "Radio 24",
+            "url": "http://shoutcast.radio24.it:8000/listen.pls"
+         },
+         {
+            "name": "Radiofreccia",
+            "url": "https://streamingv2.shoutcast.com/radiofreccia"
+         },
+         {
+            "name": "Radio Subasio",
+            "url": "http://icy.unitedradio.it/Subasio.mp3"
+         }
       ]
    },
    {
-      "group" : "Jazz e lounge",
-      "stations" : [
-         { "name" : "Radio Swiss Jazz", "url" : "https://stream.srg-ssr.ch/m/rsj/mp3_128" },
-         { "name" : "SomaFM Groove Salad", "url" : "https://somafm.com/groovesalad.pls" },
-         { "name" : "SomaFM Secret Agent", "url" : "https://ice1.somafm.com/secretagent-128-mp3" },
-         { "name" : "SomaFM Sonic Universe", "url" : "https://somafm.com/sonicuniverse.pls" }
+      "group": "Rai",
+      "stations": [
+         {
+            "name": "Rai Radio 1",
+            "url": "https://icestreaming.rai.it/1.mp3"
+         },
+         {
+            "name": "Rai Radio 2",
+            "url": "https://icestreaming.rai.it/2.mp3"
+         },
+         {
+            "name": "Rai Radio 3",
+            "url": "https://icestreaming.rai.it/3.mp3"
+         },
+         {
+            "name": "Rai Isoradio",
+            "url": "https://icestreaming.rai.it/6.mp3"
+         }
       ]
    },
    {
-      "group" : "Classica",
-      "stations" : [
-         { "name" : "Radio Swiss Classic", "url" : "https://stream.srg-ssr.ch/m/rsc_de/mp3_128" }
+      "group": "Jazz e lounge",
+      "stations": [
+         {
+            "name": "Radio Swiss Jazz",
+            "url": "https://stream.srg-ssr.ch/m/rsj/mp3_128"
+         },
+         {
+            "name": "SomaFM Groove Salad",
+            "url": "https://somafm.com/groovesalad.pls"
+         },
+         {
+            "name": "SomaFM Secret Agent",
+            "url": "https://ice1.somafm.com/secretagent-128-mp3"
+         },
+         {
+            "name": "SomaFM Sonic Universe",
+            "url": "https://somafm.com/sonicuniverse.pls"
+         }
       ]
    },
    {
-      "group" : "root",
-      "stations" : [
-         { "name" : "Radio Paradise", "url" : "https://stream.radioparadise.com/aac-128" }
+      "group": "Classica",
+      "stations": [
+         {
+            "name": "Radio Swiss Classic",
+            "url": "https://stream.srg-ssr.ch/m/rsc_de/mp3_128"
+         }
+      ]
+   },
+   {
+      "group": "root",
+      "stations": [
+         {
+            "name": "Radio Paradise",
+            "url": "https://stream.radioparadise.com/aac-128"
+         }
       ]
    }
 ]

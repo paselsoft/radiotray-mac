@@ -39,6 +39,11 @@ extern NSString *const RTRootGroupName;
 /// restano come sono. Errore (in italiano) se il JSON non è valido o il nome esiste già nel gruppo.
 + (nullable NSData *)dataByAddingStation:(NSString *)name url:(NSString *)url toGroup:(NSString *)group
                                   inData:(NSData *)data error:(NSString *_Nullable *_Nullable)error;
+
+/// Aggiunge al JSON dei preferiti le stazioni di extra che non ci sono già (stesso indirizzo in
+/// qualsiasi gruppo, o stesso nome nello stesso gruppo). In *added il numero di stazioni aggiunte.
++ (nullable NSData *)dataByMergingStations:(RTBookmarks *)extra intoData:(NSData *)data
+                                     added:(NSUInteger *_Nullable)added error:(NSString *_Nullable *_Nullable)error;
 @end
 
 NS_ASSUME_NONNULL_END

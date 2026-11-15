@@ -199,6 +199,39 @@ static BOOL RTBool(id value, BOOL fallback)
     return [text dataUsingEncoding:NSUTF8StringEncoding];
 }
 
+static NSString *RTURLKey(NSString *url)
+{
+    NSString *u = url.lowercaseString;
+    if ([u hasPrefix:@"https://"]) u = [u substringFromIndex:8];
+    else if ([u hasPrefix:@"http://"]) u = [u substringFromIndex:7];
+    while ([u hasSuffix:@"/"]) u = [u substringToIndex:u.length - 1];
+    return u;
+}
+
++ (NSData *)dataByMergingStations:(RTBookmarks *)extra intoData:(NSData *)data
+                            added:(NSUInteger *)added error:(NSString **)error
+{
+    if (added) *added = 0;
+    RTBookmarks *current = [self bookmarksWithData:data error:error];
+    if (!current) return nil;
+    NSMutableSet<NSString *> *urls = [NSMutableSet set];
+    for (RTGroup *g in current.groups) {
+        for (RTStation *s in g.stations) [urls addObject:RTURLKey(s.url)];
+    }
+    NSData *result = data;
+    for (RTGroup *g in extra.groups) {
+        for (RTStation *s in g.stations) {
+            if ([urls containsObject:RTURLKey(s.url)]) continue;
+            NSData *next = [self dataByAddingStation:s.name url:s.url toGroup:g.name inData:result error:NULL];
+            if (!next) continue;   // nome già presente nel gruppo
+            result = next;
+            [urls addObject:RTURLKey(s.url)];
+            if (added) (*added)++;
+        }
+    }
+    return result;
+}
+
 - (instancetype)init
 {
     if ((self = [super init])) {
