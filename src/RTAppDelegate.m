@@ -5,6 +5,8 @@
 #import "RTNotifier.h"
 #import "RTPlayer.h"
 #import "RTSearchWindowController.h"
+#import "RTStationEditorController.h"
+#import "RTLoginItem.h"
 #import "RTSettings.h"
 #import "RTStatusIcon.h"
 #import "RTStreamResolver.h"
@@ -13,7 +15,7 @@
 static const NSUInteger RTMenuLineLength = 48;
 static const NSInteger RTMaxSleepMinutes = 24 * 60;
 
-@interface RTAppDelegate () <NSMenuDelegate, RTPlayerDelegate, RTMediaKeysDelegate, RTSearchWindowDelegate>
+@interface RTAppDelegate () <NSMenuDelegate, RTPlayerDelegate, RTMediaKeysDelegate, RTSearchWindowDelegate, RTStationEditorDelegate>
 @property (nonatomic, strong) NSStatusItem *statusItem;
 @property (nonatomic, strong) NSMenu *menu;
 @property (nonatomic, strong) NSMenuItem *trackItem;
@@ -34,6 +36,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
 @property (nonatomic, strong) RTFileWatcher *bookmarksWatcher;
 @property (nonatomic, strong) RTMediaKeys *mediaKeys;
 @property (nonatomic, strong, nullable) RTSearchWindowController *searchWindow;
+@property (nonatomic, strong, nullable) RTStationEditorController *stationEditor;
 
 // stazione scelta (anche se spenta). currentGroup nil = indirizzo aperto con "Apri URL…"
 @property (nonatomic, copy, nullable) NSString *currentGroup;
@@ -89,12 +92,16 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     __weak typeof(self) weakSelf = self;
     self.bookmarksWatcher = [[RTFileWatcher alloc] initWithPath:self.settings.bookmarksPath changeHandler:^{
         [weakSelf reloadBookmarksInteractive:NO];
+        [weakSelf.stationEditor reloadFromDisk];
     }];
     [self.bookmarksWatcher start];
 
     self.mediaKeys = [RTMediaKeys new];
     self.mediaKeys.delegate = self;
     [self.mediaKeys start];
+
+    // se l'app è stata spostata, l'avvio al login deve puntare al nuovo percorso
+    [RTLoginItem refreshAppPath:[NSBundle mainBundle].bundlePath];
 
     // al risveglio dallo stop la connessione è quasi sempre morta: si ricollega
     [[NSWorkspace sharedWorkspace].notificationCenter addObserver:self selector:@selector(systemDidWake:)
@@ -243,7 +250,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     }
     if (rootBottom) [self addRootStationsTo:self.menu];
     if (self.bookmarks.stationCount == 0) {
-        NSMenuItem *none = [self addItem:@"Nessuna stazione: usa Preferenze ▸ Modifica stazioni…" action:NULL to:self.menu];
+        NSMenuItem *none = [self addItem:@"Nessuna stazione: usa Cerca stazioni… o Preferenze ▸ Modifica stazioni…" action:NULL to:self.menu];
         none.enabled = NO;
     }
     [self.menu addItem:[NSMenuItem separatorItem]];
@@ -259,7 +266,8 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     NSMenuItem *prefs = [[NSMenuItem alloc] initWithTitle:@"Preferenze" action:NULL keyEquivalent:@""];
     NSMenu *prefsMenu = [[NSMenu alloc] initWithTitle:@"Preferenze"];
     prefsMenu.autoenablesItems = NO;
-    [self addItem:@"Modifica stazioni…" action:@selector(editBookmarks:) to:prefsMenu];
+    [self addItem:@"Modifica stazioni…" action:@selector(openStationEditor:) to:prefsMenu];
+    [self addItem:@"Modifica il file JSON in TextEdit…" action:@selector(editBookmarks:) to:prefsMenu];
     [self addItem:@"Mostra il file delle stazioni nel Finder" action:@selector(revealBookmarks:) to:prefsMenu];
     [self addItem:@"Ricarica stazioni" action:@selector(reloadBookmarks:) to:prefsMenu];
     [self addItem:@"Aggiungi le radio italiane consigliate" action:@selector(addItalianStations:) to:prefsMenu];
@@ -268,6 +276,8 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     [self addItem:@"Notifiche dettagliate (connessione, arresto)" action:@selector(toggleVerbose:) to:prefsMenu].tag = 2;
     [self addItem:@"Separa titolo e artista" action:@selector(toggleSplit:) to:prefsMenu].tag = 3;
     [self addItem:@"Stazioni senza gruppo in fondo al menu" action:@selector(toggleRootBottom:) to:prefsMenu].tag = 4;
+    [prefsMenu addItem:[NSMenuItem separatorItem]];
+    [self addItem:@"Avvia RadioTray al login" action:@selector(toggleLoginItem:) to:prefsMenu].tag = 5;
     prefs.submenu = prefsMenu;
     [self.menu addItem:prefs];
 
@@ -409,6 +419,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     [prefs itemWithTag:2].enabled = self.settings.notifications;
     [prefs itemWithTag:3].state = self.settings.splitTitle ? NSControlStateValueOn : NSControlStateValueOff;
     [prefs itemWithTag:4].state = self.settings.rootGroupAtBottom ? NSControlStateValueOn : NSControlStateValueOff;
+    [prefs itemWithTag:5].state = [RTLoginItem isEnabled] ? NSControlStateValueOn : NSControlStateValueOff;
 
     // "In riproduzione" di sistema (tasti multimediali)
     [self.mediaKeys updateWithStation:self.currentStation title:self.track.title artist:self.track.artist
@@ -799,6 +810,58 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     if (self.player.state != RTPlayerStateStopped) [self stopPlayback];
     if (self.settings.notifications) [[RTNotifier shared] notifyTitle:@"Timer di spegnimento" message:@"La radio è stata spenta"];
     [self refresh];
+}
+
+- (void)toggleLoginItem:(id)sender
+{
+    BOOL enable = ![RTLoginItem isEnabled];
+    NSString *problem = [RTLoginItem setEnabled:enable appPath:[NSBundle mainBundle].bundlePath];
+    if (problem) {
+        [self showAlert:enable ? @"Avvio automatico non attivato" : @"Avvio automatico non disattivato" text:problem];
+    } else if (self.settings.notifications) {
+        [[RTNotifier shared] notifyTitle:enable ? @"Avvio automatico attivato" : @"Avvio automatico disattivato"
+                                 message:enable ? @"RadioTray partirà da solo a ogni accesso" : nil];
+    }
+    [self refresh];
+}
+
+- (void)openStationEditor:(id)sender
+{
+    [self installDefaultBookmarksIfNeeded];
+    if (!self.stationEditor) {
+        self.stationEditor = [[RTStationEditorController alloc] initWithBookmarksPath:self.settings.bookmarksPath];
+        self.stationEditor.delegate = self;
+    } else {
+        [self.stationEditor reloadFromDisk];
+    }
+    [self.stationEditor showAndFocus];
+}
+
+- (void)stationEditorDidSaveBookmarks
+{
+    // l'editor ha già scritto il file: si aggiorna il menu senza notifiche
+    [self.bookmarksWatcher rememberCurrentContents];
+    RTBookmarks *b = [RTBookmarks bookmarksWithContentsOfFile:self.settings.bookmarksPath error:NULL];
+    if (!b) return;
+    self.bookmarks = b;
+    // la stazione scelta potrebbe essere stata rinominata o eliminata: si tiene solo se esiste ancora
+    if (self.currentGroup && ![b stationNamed:self.currentStation ?: @"" inGroup:self.currentGroup] &&
+        self.player.state == RTPlayerStateStopped) {
+        self.currentGroup = nil;
+        self.currentStation = nil;
+    }
+    [self buildMenu];
+    [self refresh];
+}
+
+- (void)stationEditorPlayStation:(NSString *)name group:(NSString *)group
+{
+    [self playStationNamed:name inGroup:group];
+}
+
+- (void)stationEditorOpenJSON
+{
+    [self editBookmarks:nil];
 }
 
 - (void)editBookmarks:(id)sender

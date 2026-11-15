@@ -6,6 +6,8 @@
 #import "../src/RTTrackInfo.h"
 #import "../src/RTIcyParser.h"
 #import "../src/RTRadioBrowser.h"
+#import "../src/RTBookmarksDocument.h"
+#import "../src/RTLoginItem.h"
 
 static int failures = 0;
 static int checks = 0;
@@ -392,6 +394,92 @@ static void testBundledList(NSString *path)
     CHECK([b stationCount] >= 15);
 }
 
+static void testDocument(void)
+{
+    NSString *json = @"[{\"group\":\"Jazz\",\"image\":\"j.png\",\"stations\":["
+                      "{\"name\":\"A\",\"url\":\"http://a/\",\"notifications\":false},"
+                      "{\"name\":\"B\",\"url\":\"http://b/\"}]},"
+                      "{\"group\":\"Rock\",\"stations\":[{\"name\":\"C\",\"url\":\"http://c/\"}]},"
+                      "{\"group\":\"root\",\"stations\":[]}]";
+    NSString *error = nil;
+    RTBookmarksDocument *doc = [RTBookmarksDocument documentWithData:D(json) error:&error];
+    CHECK(doc != nil);
+    CHECK(doc.groups.count == 3);
+    RTDocGroup *jazz = doc.groups[0], *rock = doc.groups[1], *root = doc.groups[2];
+    RTDocStation *a = jazz.stations[0], *b = jazz.stations[1], *c = rock.stations[0];
+    CHECK(root.isRoot);
+    CHECK_EQ([RTBookmarksDocument displayNameForGroup:root], @"(senza gruppo)");
+
+    // rinomina e indirizzo
+    CHECK([doc renameStation:a to:@"  Alfa "] == nil);
+    CHECK_EQ(a.name, @"Alfa");
+    CHECK([doc renameStation:b to:@"alfa"] != nil);           // doppione (maiuscole ignorate)
+    CHECK([doc renameStation:b to:@""] != nil);
+    CHECK([doc setURL:@"ftp://x" forStation:b] != nil);
+    CHECK([doc setURL:@"https://b2/" forStation:b] == nil);
+    CHECK([doc renameGroup:jazz to:@"Rock"] != nil);
+    CHECK([doc renameGroup:jazz to:@"root"] != nil);
+    CHECK([doc renameGroup:root to:@"X"] != nil);
+    CHECK([doc renameGroup:jazz to:@"Jazz e blues"] == nil);
+
+    // spostamenti
+    CHECK([doc moveStation:b toGroup:jazz atIndex:0] == nil);
+    CHECK(jazz.stations[0] == b);
+    CHECK([doc moveStation:a toGroup:rock atIndex:0] == nil);
+    CHECK(rock.stations[0] == a && rock.stations[1] == c && a.group == rock);
+    CHECK([doc moveGroup:root toIndex:0] == nil);
+    CHECK(doc.groups[0] == root);
+    CHECK([doc moveGroup:root toIndex:99] == nil);
+    CHECK(doc.groups.lastObject == root);
+
+    // aggiunta ed eliminazione
+    RTDocGroup *news = nil;
+    CHECK([doc addGroupNamed:@"Notizie" atIndex:1 group:&news] == nil);
+    CHECK(doc.groups[1] == news);
+    CHECK([doc addGroupNamed:@"notizie" atIndex:0 group:NULL] != nil);
+    RTDocStation *r24 = nil;
+    CHECK([doc addStationNamed:@"Radio 24" url:@"http://r24/listen.pls" toGroup:news atIndex:0 station:&r24] == nil);
+    CHECK([doc addStationNamed:@"Radio 24" url:@"http://r24/" toGroup:news atIndex:0 station:NULL] != nil);
+    CHECK([doc addStationNamed:@"X" url:@"non un url" toGroup:news atIndex:0 station:NULL] != nil);
+    CHECK([doc moveStation:c toGroup:news atIndex:5] == nil);   // indice oltre la fine: in fondo
+    CHECK(news.stations.lastObject == c);
+    CHECK([doc removeStation:a] == nil);
+    CHECK([doc removeStation:a] != nil);
+    CHECK([doc removeGroup:rock] == nil);
+    CHECK([doc rootGroup] == root);
+
+    // salvataggio: campi sconosciuti conservati, il risultato è un file valido
+    NSData *out = [doc dataRepresentation];
+    NSString *text = [[NSString alloc] initWithData:out encoding:NSUTF8StringEncoding];
+    CHECK(![text containsString:@"\\/"]);
+    RTBookmarks *bm = [RTBookmarks bookmarksWithData:out error:&error];
+    CHECK(bm != nil);
+    CHECK_EQ([bm groupNamed:@"Jazz e blues"].image, @"j.png");
+    CHECK_EQ([bm stationNamed:@"B" inGroup:@"Jazz e blues"].url, @"https://b2/");
+    CHECK_EQ([bm stationNamed:@"Radio 24" inGroup:@"Notizie"].url, @"http://r24/listen.pls");
+    CHECK([bm stationNamed:@"C" inGroup:@"Notizie"] != nil);
+    CHECK([bm groupNamed:@"Rock"] == nil);
+    NSArray *names = [bm.groups valueForKey:@"name"];
+    CHECK_EQ(names, (@[@"Jazz e blues", @"Notizie", @"root"]));
+
+    // "root" creato se manca
+    RTBookmarksDocument *empty = [RTBookmarksDocument documentWithData:D(@"[]") error:NULL];
+    CHECK([empty rootGroup].isRoot && empty.groups.count == 1);
+    // file non valido: niente editor
+    CHECK([RTBookmarksDocument documentWithData:D(@"[{") error:&error] == nil);
+}
+
+static void testLoginItem(void)
+{
+    NSDictionary *p = [RTLoginItem agentPlistForAppPath:@"/Applications/RadioTray.app"];
+    CHECK_EQ(p[@"ProgramArguments"], (@[@"/usr/bin/open", @"-g", @"/Applications/RadioTray.app"]));
+    CHECK_EQ(p[@"RunAtLoad"], @YES);
+    CHECK([[RTLoginItem agentPath] hasSuffix:@"Library/LaunchAgents/io.github.paselsoft.radiotray-mac.plist"]);
+    // dal disco scaricato non si attiva (e non si scrive niente)
+    NSString *problem = [RTLoginItem setEnabled:YES appPath:@"/Volumes/RadioTray/RadioTray.app"];
+    CHECK(problem.length > 0);
+}
+
 int main(int argc, const char *argv[])
 {
     @autoreleasepool {
@@ -408,6 +496,8 @@ int main(int argc, const char *argv[])
         testStationName();
         testRadioBrowser();
         testItalianExtras();
+        testDocument();
+        testLoginItem();
         if (argc > 2) testBundledList([NSString stringWithUTF8String:argv[2]]);
         printf("%d verifiche, %d fallite\n", checks, failures);
     }

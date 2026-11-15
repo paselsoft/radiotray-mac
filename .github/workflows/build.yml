@@ -1,11 +1,16 @@
 name: build
 
+# - push su un ramo di sviluppo: compila, prova e aggiorna la release di prova "anteprima"
+# - push su main: compila e prova (il .dmg resta tra gli artifact)
+# - etichetta vX.Y.Z: pubblica la versione stabile "RadioTray X.Y.Z" e toglie l'anteprima
 on:
   push:
+    branches: ["**"]
+    tags: ["v*"]
   workflow_dispatch:
 
 permissions:
-  contents: write   # release "anteprima" con il .dmg
+  contents: write   # release con il .dmg
 
 jobs:
   macos:
@@ -18,14 +23,19 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Versione
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then v="${GITHUB_REF_NAME#v}"; else v=$(sed -n 's/^VERSION *?= *//p' Makefile); fi
+          echo "VERSION=$v" >> "$GITHUB_ENV"
+          echo "Versione $v"
       - name: Versioni
         run: sw_vers && xcodebuild -version && clang --version
       - name: Test della logica (preferiti, playlist, titoli)
         run: make test
       - name: Compilazione (x86_64, macOS 10.13)
-        run: make app ARCH=x86_64
+        run: make app ARCH=x86_64 VERSION=$VERSION
       - name: Verifica del binario (architettura, versione minima, firma)
-        run: make check-mac ARCH=x86_64
+        run: make check-mac ARCH=x86_64 VERSION=$VERSION
       - name: Prova di avvio sotto Rosetta (facoltativa)
         continue-on-error: true
         timeout-minutes: 2
@@ -46,16 +56,26 @@ jobs:
         timeout-minutes: 8
         run: make stations STATIONS=resources/stazioni-italiane.json
       - name: DMG
-        run: make dmg ARCH=x86_64
+        run: make dmg ARCH=x86_64 VERSION=$VERSION
       - uses: actions/upload-artifact@v4
         with:
           name: RadioTray-macOS-10.13-x86_64
           path: build/RadioTray.dmg
           compression-level: 0
           retention-days: 14
-      - name: Release "anteprima" con il .dmg
+      - name: Release di prova "anteprima" (rami di sviluppo)
+        if: github.ref_type == 'branch' && github.ref_name != 'main'
         run: |
           gh release delete anteprima --cleanup-tag -y 2>/dev/null || true
           gh release create anteprima build/RadioTray.dmg --prerelease --target "${{ github.sha }}" \
             --title "Anteprima (build ${{ github.run_number }}, ${{ github.ref_name }})" \
             --notes "Build automatica per macOS 10.13 (x86_64). Commit ${{ github.sha }}. Istruzioni nel file LEGGIMI.txt dentro il .dmg."
+      - name: Versione stabile (etichetta vX.Y.Z)
+        if: github.ref_type == 'tag'
+        run: |
+          cp build/RadioTray.dmg "build/RadioTray-$VERSION.dmg"
+          gh release delete "$GITHUB_REF_NAME" -y 2>/dev/null || true
+          gh release create "$GITHUB_REF_NAME" "build/RadioTray-$VERSION.dmg" --latest \
+            --title "RadioTray $VERSION" --notes-file docs/NOTE-VERSIONE.md
+          # la versione stabile prende il posto dell'anteprima
+          gh release delete anteprima --cleanup-tag -y 2>/dev/null || true

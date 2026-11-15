@@ -16,13 +16,20 @@ con **macOS High Sierra 10.13** (funziona anche sulle versioni successive).
 | 1 | icona e menu, stazioni a gruppi (stesso `bookmarks.json` di Radiotray-NG), playlist PLS/M3U/ASX/XSPF, AVPlayer, titolo e artista, volume, ultima stazione, notifiche, `.dmg` dalla CI | fatta (provata sull'iMac) |
 | 2 | titolo letto dallo stream (ICY), timer di spegnimento, stazione successiva/precedente, tasti multimediali, Apri URL…, ricarica automatica, riconnessione | fatta (provata sull'iMac) |
 | 2.5 | nome vero della stazione, Aggiungi alle stazioni…, Cerca stazioni (Radio Browser), radio italiane consigliate | fatta (ricerca provata sull'iMac) |
-| 3 | editor delle stazioni, importazione, avvio al login | — |
+| 3 | editor delle stazioni, avvio al login, versione 1.0 | fatta |
 
 ## Scaricare
 
-Ogni push compila l'app su GitHub Actions. Il `.dmg` si trova nella release
-[**anteprima**](../../releases/tag/anteprima). Le istruzioni sono nel file `LEGGIMI.txt` dentro il `.dmg`. Al primo avvio:
-clic destro sull'app → Apri.
+La versione stabile è nella pagina [**Release**](../../releases/latest): scarica `RadioTray-x.y.z.dmg`.
+Le istruzioni sono nel file `LEGGIMI.txt` dentro il `.dmg`. Al primo avvio: clic destro sull'app → Apri.
+
+## Come si pubblica una versione
+
+- `main` è il ramo principale: ogni push viene compilato e provato su GitHub Actions.
+- I rami di sviluppo pubblicano il `.dmg` di prova nella release **anteprima**.
+- Per una versione stabile: aggiornare `VERSION` nel `Makefile` e `docs/NOTE-VERSIONE.md`, poi
+  creare l'etichetta (`git tag v1.0.1 && git push origin v1.0.1`). La CI pubblica "RadioTray 1.0.1"
+  e toglie l'anteprima.
 
 ## Compilare su un Mac
 

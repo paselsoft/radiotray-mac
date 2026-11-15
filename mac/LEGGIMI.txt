@@ -28,7 +28,10 @@ Uso
 - Se la connessione cade, o il Mac esce dallo stop, la radio si ricollega da sola.
 
 Stazioni
-- Preferenze > Modifica stazioni… apre il file bookmarks.json in TextEdit.
+- Preferenze > Modifica stazioni… apre l'editor: doppio clic su nome o indirizzo per
+  modificarli, trascina per spostare (anche da un gruppo all'altro), pulsanti per nuovo
+  gruppo, nuova stazione, elimina, su/giù e "Sposta in…". Le modifiche sono salvate subito.
+- Preferenze > Modifica il file JSON in TextEdit… apre direttamente il file bookmarks.json.
   Si trova in ~/Library/Application Support/RadioTray/bookmarks.json
 - Il formato è lo stesso di Radiotray-NG per Linux: puoi copiare lì il tuo
   ~/.config/radiotray-ng/bookmarks.json.
@@ -37,4 +40,5 @@ Stazioni
   Ogg/Opus e WMA non sono supportati da macOS: usa il flusso MP3 o AAC della stazione.
 
 Avvio automatico
-- Preferenze di Sistema > Utenti e gruppi > Elementi login > + > RadioTray.
+- Preferenze > Avvia RadioTray al login (spunta). Funziona solo dalla cartella Applicazioni,
+  non dal disco scaricato. Per toglierlo basta togliere la spunta.

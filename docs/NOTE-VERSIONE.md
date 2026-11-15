@@ -1,0 +1,22 @@
+Lettore di radio via Internet nella barra dei menu per **macOS 10.13 High Sierra** e successivi
+(Intel 64 bit; provato su iMac 27" Late 2009), ispirato a Radiotray-NG per Linux.
+
+**Installazione:** apri `RadioTray-….dmg`, trascina RadioTray in Applicazioni, poi la prima volta
+clic destro sull'app → Apri → Apri. Istruzioni complete nel file LEGGIMI.txt dentro il .dmg.
+
+### Cosa fa
+- Stazioni a gruppi nel menu, con lo stesso `bookmarks.json` di Radiotray-NG
+- Playlist PLS, M3U, ASX, XSPF; stream MP3, AAC e HLS
+- Titolo e artista del brano nel menu e nelle notifiche (anche con le radio Mediaset)
+- Volume, accendi/spegni l'ultima stazione, stazione precedente/successiva, tasti multimediali
+- Timer di spegnimento, riconnessione automatica (anche dopo lo stop del Mac)
+- **Cerca stazioni**: archivio pubblico Radio Browser, ascolto di prova e aggiunta ai preferiti
+- **Editor delle stazioni**: rinomina, sposta (anche trascinando) ed elimina stazioni e gruppi
+- Apri URL… con il nome vero della stazione e "Aggiungi alle stazioni…"
+- Radio italiane consigliate (RTL 102.5, RDS, Deejay, 105, Virgin, R101, RMC, Kiss Kiss,
+  Capital, m2o, Radio 24, Radiofreccia, Subasio, Rai)
+- Avvio automatico al login
+
+### Limiti noti
+- Ogg Vorbis/Opus, FLAC e WMA non sono riproducibili su macOS (la ricerca li mostra in grigio).
+- Alcune radio non inviano il titolo del brano (Rai, Radio 24, quelle in HLS come Deejay e Capital).
