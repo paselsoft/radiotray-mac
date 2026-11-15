@@ -22,6 +22,13 @@ static NSString *const kAlarmStation = @"alarm-station";
 static NSString *const kAlarmFadeIn = @"alarm-fade-in";
 static NSString *const kAlarmLastFired = @"alarm-last-fired";
 static NSString *const kListening = @"listening-seconds";
+static NSString *const kNowPlayingVisible = @"now-playing-visible";
+static NSString *const kNowPlayingFloating = @"now-playing-floating";
+static NSString *const kPauseOnLock = @"pause-on-lock";
+static NSString *const kPauseOnHeadphones = @"pause-on-headphones";
+static NSString *const kResumeAfterPause = @"resume-after-pause";
+static NSString *const kICloudBackup = @"icloud-backup";
+static NSString *const kLastBackup = @"last-backup";
 
 @implementation RTSettings
 
@@ -46,6 +53,12 @@ static NSString *const kListening = @"listening-seconds";
             kAlarmMinutes: @(7 * 60),
             kAlarmDays: @(0x1F),
             kAlarmFadeIn: @YES,
+            kNowPlayingVisible: @NO,
+            kNowPlayingFloating: @YES,
+            kPauseOnLock: @YES,
+            kPauseOnHeadphones: @YES,
+            kResumeAfterPause: @YES,
+            kICloudBackup: @YES,
         }];
     });
     return shared;
@@ -111,6 +124,21 @@ static NSString *const kListening = @"listening-seconds";
 - (void)setAlarmFadeIn:(BOOL)v { [self.d setBool:v forKey:kAlarmFadeIn]; }
 - (NSDate *)alarmLastFired { return [self.d objectForKey:kAlarmLastFired]; }
 - (void)setAlarmLastFired:(NSDate *)v { [self.d setObject:v forKey:kAlarmLastFired]; }
+
+- (BOOL)nowPlayingVisible { return [self.d boolForKey:kNowPlayingVisible]; }
+- (void)setNowPlayingVisible:(BOOL)v { [self.d setBool:v forKey:kNowPlayingVisible]; }
+- (BOOL)nowPlayingFloating { return [self.d boolForKey:kNowPlayingFloating]; }
+- (void)setNowPlayingFloating:(BOOL)v { [self.d setBool:v forKey:kNowPlayingFloating]; }
+- (BOOL)pauseOnLock { return [self.d boolForKey:kPauseOnLock]; }
+- (void)setPauseOnLock:(BOOL)v { [self.d setBool:v forKey:kPauseOnLock]; }
+- (BOOL)pauseOnHeadphones { return [self.d boolForKey:kPauseOnHeadphones]; }
+- (void)setPauseOnHeadphones:(BOOL)v { [self.d setBool:v forKey:kPauseOnHeadphones]; }
+- (BOOL)resumeAfterPause { return [self.d boolForKey:kResumeAfterPause]; }
+- (void)setResumeAfterPause:(BOOL)v { [self.d setBool:v forKey:kResumeAfterPause]; }
+- (BOOL)iCloudBackup { return [self.d boolForKey:kICloudBackup]; }
+- (void)setICloudBackup:(BOOL)v { [self.d setBool:v forKey:kICloudBackup]; }
+- (NSDate *)lastBackup { return [self.d objectForKey:kLastBackup]; }
+- (void)setLastBackup:(NSDate *)v { [self.d setObject:v forKey:kLastBackup]; }
 
 - (NSDictionary<NSString *, NSNumber *> *)listeningSeconds
 {

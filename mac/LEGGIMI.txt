@@ -32,6 +32,13 @@ Uso
 - Più ascoltate: in cima alle stazioni compaiono le 5 che ascolti di più (dopo 10 minuti);
   si azzerano da Preferenze.
 - Preferenze > Titolo del brano nella barra dei menu: "Artista – Titolo" accanto all'icona.
+- Finestra In riproduzione: copertina grande, titolo, stazione, formato, ◀︎ ⏯ ▶︎ ★ e volume;
+  può restare sempre in primo piano.
+- Sotto il volume, nel menu, il formato e la qualità dello stream (per esempio "MP3 · 128 kbps").
+- Preferenze > Pausa automatica: quando blocchi lo schermo e quando stacchi le cuffie
+  (e riprende quando torni).
+- Preferenze > Backup: esporta e importa stazioni, preferiti, cronologia e impostazioni in un
+  solo file; copia automatica ogni giorno in iCloud Drive > RadioTray (ultimi 10 giorni).
 - Aggiornamenti: una volta al giorno RadioTray controlla se c'è una versione nuova e, se c'è,
   lo dice con una notifica e una voce in cima al menu.
 - Stazione precedente / successiva: passa alla stazione vicina nello stesso gruppo.

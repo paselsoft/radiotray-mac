@@ -9,7 +9,7 @@
 
 ARCH       ?= x86_64
 MACOS_MIN  ?= 10.13
-VERSION    ?= 1.3.0
+VERSION    ?= 1.4.0
 BUILD      := build
 APP        := $(BUILD)/RadioTray.app
 
@@ -17,11 +17,11 @@ CC         := clang
 WARN       := -Wall -Wextra -Wno-unused-parameter -Werror=unguarded-availability-new
 CFLAGS     := -std=gnu11 -fobjc-arc -fmodules -O2 -g $(WARN) -arch $(ARCH) -mmacosx-version-min=$(MACOS_MIN)
 LDFLAGS    := -arch $(ARCH) -mmacosx-version-min=$(MACOS_MIN)
-FRAMEWORKS := -framework Cocoa -framework AVFoundation -framework CoreMedia -framework MediaPlayer -framework Carbon
+FRAMEWORKS := -framework Cocoa -framework AVFoundation -framework CoreMedia -framework MediaPlayer -framework Carbon -framework CoreAudio
 
-LOGIC_SRC  := src/RTBookmarks.m src/RTPlaylistParser.m src/RTTrackInfo.m src/RTIcyParser.m src/RTRadioBrowser.m src/RTBookmarksDocument.m src/RTLoginItem.m src/RTFavoriteTracks.m src/RTUpdateChecker.m src/RTArtwork.m src/RTAlarm.m
+LOGIC_SRC  := src/RTBookmarks.m src/RTPlaylistParser.m src/RTTrackInfo.m src/RTIcyParser.m src/RTRadioBrowser.m src/RTBookmarksDocument.m src/RTLoginItem.m src/RTFavoriteTracks.m src/RTUpdateChecker.m src/RTArtwork.m src/RTAlarm.m src/RTBackup.m
 APP_SRC    := $(LOGIC_SRC) src/RTStreamResolver.m src/RTIcyMetadataReader.m src/RTPlayer.m src/RTSettings.m src/RTNotifier.m \
-              src/RTStatusIcon.m src/RTSearchWindowController.m src/RTStationEditorController.m src/RTFavoritesWindowController.m src/RTTableCell.m src/RTHotKeys.m src/RTFileWatcher.m src/RTMediaKeys.m src/RTAppDelegate.m src/main.m
+              src/RTStatusIcon.m src/RTSearchWindowController.m src/RTStationEditorController.m src/RTFavoritesWindowController.m src/RTTableCell.m src/RTHotKeys.m src/RTAudioWatcher.m src/RTNowPlayingWindowController.m src/RTFileWatcher.m src/RTMediaKeys.m src/RTAppDelegate.m src/main.m
 HEADERS    := $(wildcard src/*.h)
 
 # i test girano sull'architettura del runner (Apple Silicon o Intel)

@@ -83,13 +83,17 @@ didReceiveResponse:(NSURLResponse *)response completionHandler:(void (^)(NSURLSe
         completionHandler(NSURLSessionResponseCancel);
         return;
     }
-    NSInteger metaint = 0;
+    NSInteger metaint = 0, bitrate = 0;
     NSString *stationName = nil;
+    NSString *contentType = response.MIMEType;
     if ([response isKindOfClass:[NSHTTPURLResponse class]]) {
         NSDictionary *headers = [(NSHTTPURLResponse *)response allHeaderFields];
         for (NSString *key in headers) {
             if ([key caseInsensitiveCompare:@"icy-metaint"] == NSOrderedSame) {
                 metaint = [[headers[key] description] integerValue];
+            } else if ([key caseInsensitiveCompare:@"icy-br"] == NSOrderedSame) {
+                // a volte "128,128": si prende il primo numero
+                bitrate = [[[headers[key] description] componentsSeparatedByString:@","].firstObject integerValue];
             } else if ([key caseInsensitiveCompare:@"icy-name"] == NSOrderedSame) {
                 stationName = [RTIcyParser stationNameFromHeader:[headers[key] description]];
             }
@@ -97,6 +101,9 @@ didReceiveResponse:(NSURLResponse *)response completionHandler:(void (^)(NSURLSe
     }
     if (stationName && [self.delegate respondsToSelector:@selector(metadataReader:didReadStationName:)]) {
         [self.delegate metadataReader:self didReadStationName:stationName];
+    }
+    if ([self.delegate respondsToSelector:@selector(metadataReader:didReadBitrate:contentType:)]) {
+        [self.delegate metadataReader:self didReadBitrate:bitrate contentType:contentType];
     }
     if (metaint <= 0) {
         NSLog(@"RadioTray: lo stream non invia metadati ICY (%@)", self.url);

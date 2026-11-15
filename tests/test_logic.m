@@ -12,6 +12,7 @@
 #import "../src/RTUpdateChecker.h"
 #import "../src/RTArtwork.h"
 #import "../src/RTAlarm.h"
+#import "../src/RTBackup.h"
 
 static int failures = 0;
 static int checks = 0;
@@ -637,6 +638,56 @@ static void testAlarmAndArtwork(void)
     CHECK([RTArtwork artworkURLFromJSON:D(@"{}") title:@"a" artist:@"b"] == nil);
 }
 
+static void testBackup(void)
+{
+    RTBackupContents *c = [RTBackupContents new];
+    c.bookmarks = D(@"[{\"group\":\"Jazz\",\"stations\":[{\"name\":\"A\",\"url\":\"http://a/x\"}]}]");
+    RTFavoriteTracks *f = [RTFavoriteTracks new];
+    [f addTitle:@"Brano" artist:@"Artista" station:@"A" date:[NSDate dateWithTimeIntervalSince1970:1800000000] alreadyPresent:NULL];
+    c.favorites = [f dataRepresentation];
+    c.history = nil;
+    c.settings = [RTBackup exportableSettings:@{ @"volume-level": @70, @"notifications": @YES,
+                                                 @"listening-seconds": @{ @"Jazz\nA": @3600 },
+                                                 @"last-update-check": [NSDate date],          // data: esclusa
+                                                 @"NSWindow Frame Stazioni": @"0 0 100 100",    // di sistema: esclusa
+                                                 @"alarm-last-fired": @"x" }];
+    CHECK(c.settings.count == 3);
+    CHECK_EQ(c.settings[@"volume-level"], @70);
+    c.appVersion = @"1.4.0";
+    c.created = [NSDate dateWithTimeIntervalSince1970:1800000000];
+
+    NSData *data = [RTBackup dataForContents:c];
+    NSString *text = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
+    CHECK([text containsString:@"\"format\" : \"radiotray-mac-backup\""]);
+    CHECK([text containsString:@"http://a/x"]);
+
+    NSString *error = nil;
+    RTBackupContents *back = [RTBackup contentsFromData:data error:&error];
+    CHECK(back != nil);
+    CHECK([[RTBookmarks bookmarksWithData:back.bookmarks error:NULL] stationCount] == 1);
+    CHECK_EQ([RTFavoriteTracks tracksWithData:back.favorites error:NULL].tracks.firstObject.artist, @"Artista");
+    CHECK(back.history == nil);
+    CHECK_EQ(back.settings[@"listening-seconds"][@"Jazz\nA"], @3600);
+    CHECK_EQ(back.appVersion, @"1.4.0");
+    CHECK(fabs([back.created timeIntervalSince1970] - 1800000000) < 1);
+
+    CHECK([RTBackup contentsFromData:D(@"{\"a\":1}") error:&error] == nil);
+    CHECK([error containsString:@"non è un backup"]);
+    CHECK([RTBackup contentsFromData:D(@"{\"format\":\"radiotray-mac-backup\",\"version\":9}") error:&error] == nil);
+    CHECK([error containsString:@"più recente"]);
+    CHECK([RTBackup contentsFromData:D(@"{\"format\":\"radiotray-mac-backup\",\"version\":1,\"bookmarks\":{}}") error:&error] == nil);
+
+    // copie datate: si tengono le ultime 2
+    NSString *dir = [NSTemporaryDirectory() stringByAppendingPathComponent:[NSUUID UUID].UUIDString];
+    for (int day = 1; day <= 4; day++) {
+        CHECK([RTBackup writeBackup:data toFolder:dir keep:2 date:[NSDate dateWithTimeIntervalSince1970:1800000000 + day * 86400]] == nil);
+    }
+    NSArray *files = [[[NSFileManager defaultManager] contentsOfDirectoryAtPath:dir error:NULL] sortedArrayUsingSelector:@selector(compare:)];
+    CHECK(files.count == 3);   // RadioTray-backup.json + 2 copie datate
+    CHECK([files containsObject:@"RadioTray-backup.json"]);
+    [[NSFileManager defaultManager] removeItemAtPath:dir error:NULL];
+}
+
 int main(int argc, const char *argv[])
 {
     @autoreleasepool {
@@ -658,6 +709,7 @@ int main(int argc, const char *argv[])
         testFavorites();
         testHistoryAndUpdates();
         testAlarmAndArtwork();
+        testBackup();
         if (argc > 2) testBundledList([NSString stringWithUTF8String:argv[2]]);
         printf("%d verifiche, %d fallite\n", checks, failures);
     }

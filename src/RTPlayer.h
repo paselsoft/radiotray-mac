@@ -18,6 +18,8 @@ typedef NS_ENUM(NSInteger, RTPlayerState) {
 - (void)player:(RTPlayer *)player didReceiveStreamTitle:(NSString *)title;
 /// Nome della stazione dichiarato dal server (icy-name).
 - (void)player:(RTPlayer *)player didReceiveStationName:(NSString *)name;
+/// Formato ("MP3", "AAC", "HE-AAC"…) e bitrate (kbps, 0 se sconosciuto) dello stream in ascolto.
+- (void)player:(RTPlayer *)player didUpdateStreamFormat:(nullable NSString *)format bitrate:(NSInteger)kbps;
 /// La connessione è caduta: nuovo tentativo n. attempt tra poco (stato "in connessione").
 - (void)player:(RTPlayer *)player willReconnect:(NSUInteger)attempt error:(NSString *)error;
 /// Chiamato quando nessun URL funziona: il lettore è già fermo.
@@ -29,6 +31,11 @@ typedef NS_ENUM(NSInteger, RTPlayerState) {
 @property (nonatomic, readonly) RTPlayerState state;
 @property (nonatomic) NSInteger volume;   // 0–100
 @property (nonatomic, copy, readonly, nullable) NSString *currentURL;
+@property (nonatomic, copy, readonly, nullable) NSString *streamFormat;
+@property (nonatomic, readonly) NSInteger streamBitrate;
+
+/// "MP3" da un Content-Type ("audio/mpeg"), nil se sconosciuto (testabile).
++ (nullable NSString *)formatForContentType:(nullable NSString *)contentType;
 
 - (void)playStreams:(NSArray<NSString *> *)urls;
 - (void)stop;

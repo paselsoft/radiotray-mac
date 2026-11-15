@@ -12,6 +12,8 @@ NS_ASSUME_NONNULL_BEGIN
 @optional
 /// Nome della stazione dichiarato dal server (intestazione icy-name), se c'è.
 - (void)metadataReader:(RTIcyMetadataReader *)reader didReadStationName:(NSString *)name;
+/// Bitrate (kbps, 0 se non dichiarato) e Content-Type dello stream, letti dalle intestazioni.
+- (void)metadataReader:(RTIcyMetadataReader *)reader didReadBitrate:(NSInteger)kbps contentType:(nullable NSString *)contentType;
 @end
 
 @interface RTIcyMetadataReader : NSObject

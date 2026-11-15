@@ -13,6 +13,9 @@
 #import "RTUpdateChecker.h"
 #import "RTArtwork.h"
 #import "RTAlarm.h"
+#import "RTBackup.h"
+#import "RTAudioWatcher.h"
+#import "RTNowPlayingWindowController.h"
 #import "RTSettings.h"
 #import "RTStatusIcon.h"
 #import "RTStreamResolver.h"
@@ -21,7 +24,7 @@
 static const NSUInteger RTMenuLineLength = 48;
 static const NSInteger RTMaxSleepMinutes = 24 * 60;
 
-@interface RTAppDelegate () <NSMenuDelegate, RTPlayerDelegate, RTMediaKeysDelegate, RTSearchWindowDelegate, RTStationEditorDelegate, RTFavoritesWindowDelegate>
+@interface RTAppDelegate () <NSMenuDelegate, RTPlayerDelegate, RTMediaKeysDelegate, RTSearchWindowDelegate, RTStationEditorDelegate, RTFavoritesWindowDelegate, RTNowPlayingDelegate, RTAudioWatcherDelegate>
 @property (nonatomic, strong) NSStatusItem *statusItem;
 @property (nonatomic, strong) NSMenu *menu;
 @property (nonatomic, strong) NSMenuItem *trackItem;
@@ -58,6 +61,13 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
 @property (nonatomic, strong, nullable) NSDate *lastTick;
 @property (nonatomic, strong, nullable) NSTimer *fadeTimer;        // volume crescente della sveglia
 @property (nonatomic, strong) NSMenuItem *alarmItem;
+@property (nonatomic, strong, nullable) NSImage *trackArtworkFull;  // copertina grande, per la finestra
+@property (nonatomic, strong) NSMenuItem *qualityItem;
+@property (nonatomic, strong) NSMenuItem *nowPlayingItem;
+@property (nonatomic, strong, nullable) RTNowPlayingWindowController *nowPlayingWindow;
+@property (nonatomic, strong) RTAudioWatcher *audioWatcher;
+@property (nonatomic) BOOL pausedByLock;
+@property (nonatomic) BOOL pausedByHeadphones;
 
 // stazione scelta (anche se spenta). currentGroup nil = indirizzo aperto con "Apri URL…"
 @property (nonatomic, copy, nullable) NSString *currentGroup;
@@ -148,6 +158,11 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     self.ticker = [NSTimer scheduledTimerWithTimeInterval:30 target:self selector:@selector(tick:) userInfo:nil repeats:YES];
     self.ticker.tolerance = 5;
     [self tick:nil];
+
+    self.audioWatcher = [RTAudioWatcher new];
+    self.audioWatcher.delegate = self;
+    [self.audioWatcher start];
+    if (self.settings.nowPlayingVisible) [self showNowPlaying:NO];
 
     // se l'app è stata spostata, l'avvio al login deve puntare al nuovo percorso
     [RTLoginItem refreshAppPath:[NSBundle mainBundle].bundlePath];
@@ -286,6 +301,10 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     self.actionItem = [self addItem:@"Accendi" action:@selector(togglePlay:) to:self.menu];
     self.volumeItem = [self buildVolumeItem];
     [self.menu addItem:self.volumeItem];
+    self.qualityItem = [[NSMenuItem alloc] initWithTitle:@"" action:NULL keyEquivalent:@""];
+    self.qualityItem.enabled = NO;
+    self.qualityItem.indentationLevel = 1;
+    [self.menu addItem:self.qualityItem];
     [self.menu addItem:[NSMenuItem separatorItem]];
 
     // le stazioni più ascoltate, sempre a portata di mano
@@ -333,6 +352,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     self.nextItem = [self addItem:@"Stazione successiva" action:@selector(nextStation:) to:self.menu];
     [self addItem:@"Cerca stazioni…" action:@selector(searchStations:) to:self.menu];
     [self addItem:@"Brani preferiti…" action:@selector(openFavorites:) to:self.menu];
+    self.nowPlayingItem = [self addItem:@"Finestra In riproduzione" action:@selector(toggleNowPlaying:) to:self.menu];
     self.historyItem = [[NSMenuItem alloc] initWithTitle:@"Ascoltati di recente" action:NULL keyEquivalent:@""];
     [self.menu addItem:self.historyItem];
     [self addItem:@"Apri URL…" action:@selector(openURL:) to:self.menu];
@@ -375,6 +395,30 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     [self addItem:@"Titolo del brano nella barra dei menu" action:@selector(toggleTitleInBar:) to:prefsMenu].tag = 9;
     [self addItem:@"Copertine degli album" action:@selector(toggleArtwork:) to:prefsMenu].tag = 10;
     [self addItem:@"Azzera le stazioni più ascoltate" action:@selector(resetListening:) to:prefsMenu];
+
+    [prefsMenu addItem:[NSMenuItem separatorItem]];
+    NSMenuItem *pauseItem = [[NSMenuItem alloc] initWithTitle:@"Pausa automatica" action:NULL keyEquivalent:@""];
+    NSMenu *pauseMenu = [[NSMenu alloc] initWithTitle:@"Pausa automatica"];
+    pauseMenu.autoenablesItems = NO;
+    [self addItem:@"Quando blocchi lo schermo" action:@selector(togglePauseOnLock:) to:pauseMenu].tag = 11;
+    [self addItem:@"Quando stacchi le cuffie" action:@selector(togglePauseOnHeadphones:) to:pauseMenu].tag = 12;
+    [pauseMenu addItem:[NSMenuItem separatorItem]];
+    [self addItem:@"Riprendi quando torni (sblocco, cuffie)" action:@selector(toggleResume:) to:pauseMenu].tag = 13;
+    pauseItem.submenu = pauseMenu;
+    pauseItem.tag = 15;
+    [prefsMenu addItem:pauseItem];
+
+    NSMenuItem *backupItem = [[NSMenuItem alloc] initWithTitle:@"Backup" action:NULL keyEquivalent:@""];
+    NSMenu *backupMenu = [[NSMenu alloc] initWithTitle:@"Backup"];
+    backupMenu.autoenablesItems = NO;
+    [self addItem:@"Esporta un backup…" action:@selector(exportBackup:) to:backupMenu];
+    [self addItem:@"Importa un backup…" action:@selector(importBackup:) to:backupMenu];
+    [backupMenu addItem:[NSMenuItem separatorItem]];
+    [self addItem:@"Backup automatico su iCloud Drive (ogni giorno)" action:@selector(toggleICloudBackup:) to:backupMenu].tag = 14;
+    [self addItem:@"Mostra i backup su iCloud Drive" action:@selector(revealICloudBackups:) to:backupMenu].tag = 16;
+    backupItem.submenu = backupMenu;
+    backupItem.tag = 17;
+    [prefsMenu addItem:backupItem];
     [self addItem:@"Controlla gli aggiornamenti ora" action:@selector(checkUpdatesNow:) to:prefsMenu];
     prefs.submenu = prefsMenu;
     [self.menu addItem:prefs];
@@ -555,6 +599,29 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
         self.alarmItem.toolTip = nil;
     }
 
+    NSMenu *pauseMenu = [prefs itemWithTag:15].submenu;
+    [pauseMenu itemWithTag:11].state = self.settings.pauseOnLock ? NSControlStateValueOn : NSControlStateValueOff;
+    [pauseMenu itemWithTag:12].state = self.settings.pauseOnHeadphones ? NSControlStateValueOn : NSControlStateValueOff;
+    [pauseMenu itemWithTag:13].state = self.settings.resumeAfterPause ? NSControlStateValueOn : NSControlStateValueOff;
+    NSMenu *backupMenu = [prefs itemWithTag:17].submenu;
+    BOOL hasICloud = [RTBackup iCloudFolder] != nil;
+    [backupMenu itemWithTag:14].state = self.settings.iCloudBackup && hasICloud ? NSControlStateValueOn : NSControlStateValueOff;
+    [backupMenu itemWithTag:14].enabled = hasICloud;
+    [backupMenu itemWithTag:14].toolTip = hasICloud ? @"Copia in iCloud Drive ▸ RadioTray; si tengono gli ultimi 10 giorni"
+                                                    : @"iCloud Drive non è attivo su questo Mac";
+    [backupMenu itemWithTag:16].enabled = hasICloud;
+
+    // qualità dello stream, sotto il volume
+    NSString *quality = [self qualityText];
+    self.qualityItem.hidden = !(state == RTPlayerStatePlaying && quality);
+    if (quality) {
+        self.qualityItem.attributedTitle = [[NSAttributedString alloc] initWithString:quality attributes:@{
+            NSFontAttributeName: [NSFont menuFontOfSize:[NSFont smallSystemFontSize]],
+            NSForegroundColorAttributeName: [NSColor secondaryLabelColor] }];
+    }
+    self.nowPlayingItem.state = self.nowPlayingWindow.window.isVisible ? NSControlStateValueOn : NSControlStateValueOff;
+    [self updateNowPlaying];
+
     [self rebuildHistoryMenu];
 
     // "In riproduzione" di sistema (tasti multimediali)
@@ -668,6 +735,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     if (info.isEmpty || [info isEqualToInfo:self.track]) return;
     self.track = info;
     self.trackArtwork = nil;
+    self.trackArtworkFull = nil;
     NSString *station = self.currentStation ?: @"";
     if ([self.history recordTitle:info.title artist:info.artist station:station date:[NSDate date] limit:50]) {
         [[self.history dataRepresentation] writeToFile:[self historyPath] atomically:YES];
@@ -693,6 +761,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
         NSImage *image = data ? [[NSImage alloc] initWithData:data] : nil;
         if (image) {
             strongSelf.trackArtwork = [strongSelf menuThumbnail:image];
+            strongSelf.trackArtworkFull = image;
             [strongSelf refresh];
         }
         deliver(image);
@@ -721,6 +790,11 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
         [image drawInRect:rect fromRect:NSZeroRect operation:NSCompositingOperationSourceOver fraction:1.0];
         return YES;
     }];
+}
+
+- (void)player:(RTPlayer *)player didUpdateStreamFormat:(NSString *)format bitrate:(NSInteger)kbps
+{
+    [self refresh];
 }
 
 - (void)player:(RTPlayer *)player didReceiveStationName:(NSString *)name
@@ -1265,6 +1339,15 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
         if (![[self mostPlayedStations:5] isEqualToArray:before]) [self buildMenu];
     }
 
+    // backup giornaliero su iCloud Drive
+    if (self.settings.iCloudBackup && [RTBackup iCloudFolder] &&
+        (!self.settings.lastBackup || -self.settings.lastBackup.timeIntervalSinceNow > 24 * 60 * 60)) {
+        NSString *problem = [RTBackup writeBackup:[RTBackup dataForContents:[self currentBackupContents]]
+                                         toFolder:[RTBackup iCloudFolder] keep:10 date:now];
+        if (problem) NSLog(@"RadioTray: backup su iCloud Drive non riuscito: %@", problem);
+        else self.settings.lastBackup = now;
+    }
+
     // radiosveglia
     if (self.settings.alarmEnabled && self.settings.alarmStation &&
         [RTAlarm shouldFireAt:now minutes:self.settings.alarmMinutes days:self.settings.alarmDays
@@ -1279,6 +1362,296 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     self.settings.listeningSeconds = @{};
     [self buildMenu];
     [self refresh];
+}
+
+#pragma mark - Qualità dello stream
+
+- (NSString *)qualityText
+{
+    NSString *format = self.player.streamFormat;
+    NSInteger kbps = self.player.streamBitrate;
+    if (!format && kbps <= 0) return nil;
+    if (format && kbps > 0) return [NSString stringWithFormat:@"%@ · %ld kbps", format, (long)kbps];
+    return format ?: [NSString stringWithFormat:@"%ld kbps", (long)kbps];
+}
+
+#pragma mark - Finestra "In riproduzione"
+
+- (void)showNowPlaying:(BOOL)activate
+{
+    if (!self.nowPlayingWindow) {
+        self.nowPlayingWindow = [[RTNowPlayingWindowController alloc] initFloating:self.settings.nowPlayingFloating];
+        self.nowPlayingWindow.delegate = self;
+    }
+    self.settings.nowPlayingVisible = YES;
+    [self updateNowPlaying];
+    if (activate) {
+        [NSApp activateIgnoringOtherApps:YES];
+        [self.nowPlayingWindow showWindow:nil];
+    } else {
+        [self.nowPlayingWindow showWithoutActivating];
+    }
+    [self refresh];
+}
+
+- (void)toggleNowPlaying:(id)sender
+{
+    if (self.nowPlayingWindow.window.isVisible) {
+        [self.nowPlayingWindow close];   // windowWillClose → nowPlayingClosed
+    } else {
+        [self showNowPlaying:YES];
+    }
+}
+
+- (void)updateNowPlaying
+{
+    if (!self.nowPlayingWindow.window.isVisible && !self.settings.nowPlayingVisible) return;
+    RTPlayerState state = self.player.state;
+    BOOL active = state != RTPlayerStateStopped, playing = state == RTPlayerStatePlaying;
+    NSString *title, *artist = nil;
+    if (playing && !self.track.isEmpty) {
+        title = self.track.title.length ? self.track.title : self.track.artist;
+        artist = self.track.title.length ? self.track.artist : nil;
+    } else if (playing) {
+        title = @"In riproduzione";
+    } else if (active) {
+        title = @"Connessione in corso…";
+    } else {
+        title = self.currentStation ? @"Radio spenta" : @"Scegli una stazione dal menu";
+    }
+    NSUInteger index;
+    NSArray *stations = [self currentGroupStations:&index];
+    [self.nowPlayingWindow updateTitle:title artist:artist station:self.currentStation
+                               quality:playing ? [self qualityText] : nil
+                               artwork:playing ? self.trackArtworkFull : nil playing:playing active:active
+                              favorite:playing && [self currentTrackIsFavorite]
+                           canFavorite:playing && !self.track.isEmpty
+                           hasPrevious:index != NSNotFound && index > 0
+                               hasNext:index != NSNotFound && index + 1 < stations.count
+                                volume:self.player.volume];
+}
+
+- (void)nowPlayingPrevious { [self previousStation:nil]; }
+- (void)nowPlayingNext { [self nextStation:nil]; }
+- (void)nowPlayingTogglePlay { [self togglePlay:nil]; }
+- (void)nowPlayingFavorite { [self addCurrentTrackToFavorites:nil]; }
+
+- (void)nowPlayingVolumeChanged:(NSInteger)volume
+{
+    self.player.volume = volume;
+    self.settings.volume = self.player.volume;
+    [self refresh];
+}
+
+- (void)nowPlayingFloatingChanged:(BOOL)floating
+{
+    self.settings.nowPlayingFloating = floating;
+}
+
+- (void)nowPlayingClosed
+{
+    self.settings.nowPlayingVisible = NO;
+    dispatch_async(dispatch_get_main_queue(), ^{ [self refresh]; });
+}
+
+#pragma mark - Pausa automatica
+
+- (void)pauseForReason:(NSString *)reason
+{
+    if (self.player.state == RTPlayerStateStopped) return;
+    [self stopPlayback];
+    if (self.settings.notifications) [[RTNotifier shared] notifyTitle:@"Radio in pausa" message:reason];
+}
+
+- (void)audioWatcherScreenLocked
+{
+    if (!self.settings.pauseOnLock || self.player.state == RTPlayerStateStopped) return;
+    self.pausedByLock = YES;
+    [self stopPlayback];
+}
+
+- (void)audioWatcherScreenUnlocked
+{
+    if (!self.pausedByLock) return;
+    self.pausedByLock = NO;
+    if (self.settings.resumeAfterPause && self.player.state == RTPlayerStateStopped) {
+        // si lascia alla rete un attimo per tornare su
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            if (self.player.state == RTPlayerStateStopped) [self startCurrentStation];
+        });
+    }
+}
+
+- (void)audioWatcherHeadphonesRemoved
+{
+    if (!self.settings.pauseOnHeadphones || self.player.state == RTPlayerStateStopped) return;
+    self.pausedByHeadphones = YES;
+    [self pauseForReason:@"Cuffie staccate: l'audio non esce dagli altoparlanti"];
+}
+
+- (void)audioWatcherHeadphonesConnected
+{
+    if (!self.pausedByHeadphones) return;
+    self.pausedByHeadphones = NO;
+    if (self.settings.resumeAfterPause && self.player.state == RTPlayerStateStopped) [self startCurrentStation];
+}
+
+- (void)togglePauseOnLock:(id)sender { self.settings.pauseOnLock = !self.settings.pauseOnLock; [self refresh]; }
+- (void)togglePauseOnHeadphones:(id)sender { self.settings.pauseOnHeadphones = !self.settings.pauseOnHeadphones; [self refresh]; }
+- (void)toggleResume:(id)sender { self.settings.resumeAfterPause = !self.settings.resumeAfterPause; [self refresh]; }
+
+#pragma mark - Backup
+
+- (RTBackupContents *)currentBackupContents
+{
+    RTBackupContents *c = [RTBackupContents new];
+    c.bookmarks = [NSData dataWithContentsOfFile:self.settings.bookmarksPath];
+    c.favorites = [self.favorites dataRepresentation];
+    c.history = [self.history dataRepresentation];
+    NSString *domain = [NSBundle mainBundle].bundleIdentifier ?: @"io.github.paselsoft.radiotray-mac";
+    c.settings = [RTBackup exportableSettings:[[NSUserDefaults standardUserDefaults] persistentDomainForName:domain] ?: @{}];
+    c.appVersion = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleShortVersionString"];
+    c.created = [NSDate date];
+    return c;
+}
+
+- (void)exportBackup:(id)sender
+{
+    [NSApp activateIgnoringOtherApps:YES];
+    NSSavePanel *panel = [NSSavePanel savePanel];
+    NSDateFormatter *df = [NSDateFormatter new];
+    df.dateFormat = @"yyyy-MM-dd";
+    panel.nameFieldStringValue = [NSString stringWithFormat:@"RadioTray backup %@.json", [df stringFromDate:[NSDate date]]];
+    panel.message = @"Stazioni, brani preferiti, ascoltati di recente e impostazioni in un solo file";
+    if ([panel runModal] != NSModalResponseOK || !panel.URL) return;
+    NSError *error = nil;
+    if (![[RTBackup dataForContents:[self currentBackupContents]] writeToURL:panel.URL options:NSDataWritingAtomic error:&error]) {
+        [self showAlert:@"Backup non riuscito" text:error.localizedDescription];
+        return;
+    }
+    if (self.settings.notifications) [[RTNotifier shared] notifyTitle:@"Backup salvato" message:panel.URL.lastPathComponent];
+}
+
+- (void)importBackup:(id)sender
+{
+    [NSApp activateIgnoringOtherApps:YES];
+    NSOpenPanel *panel = [NSOpenPanel openPanel];
+    panel.allowsMultipleSelection = NO;
+    panel.canChooseDirectories = NO;
+    panel.message = @"Scegli un backup di RadioTray (.json)";
+    NSString *folder = [RTBackup iCloudFolder];
+    if (folder && [[NSFileManager defaultManager] fileExistsAtPath:folder]) panel.directoryURL = [NSURL fileURLWithPath:folder];
+    if ([panel runModal] != NSModalResponseOK || !panel.URL) return;
+
+    NSString *error = nil;
+    RTBackupContents *c = [RTBackup contentsFromData:[NSData dataWithContentsOfURL:panel.URL] ?: [NSData data] error:&error];
+    if (!c) {
+        [self showAlert:@"Backup non importato" text:error];
+        return;
+    }
+    RTBookmarks *bm = c.bookmarks ? [RTBookmarks bookmarksWithData:c.bookmarks error:NULL] : nil;
+    RTFavoriteTracks *fav = c.favorites ? [RTFavoriteTracks tracksWithData:c.favorites error:NULL] : nil;
+    NSDateFormatter *df = [NSDateFormatter new];
+    df.locale = [NSLocale localeWithLocaleIdentifier:@"it_IT"];
+    df.dateStyle = NSDateFormatterLongStyle;
+    df.timeStyle = NSDateFormatterShortStyle;
+
+    NSAlert *alert = [NSAlert new];
+    alert.messageText = @"Importa il backup";
+    alert.informativeText = [NSString stringWithFormat:
+        @"Backup del %@: %lu stazioni, %lu brani preferiti.
+
+"
+        @"«Unisci» aggiunge stazioni e preferiti che mancano e lascia il resto com'è.
+"
+        @"«Sostituisci tutto» rimette stazioni, preferiti, cronologia e impostazioni come nel backup "
+        @"(prima viene salvata una copia dello stato attuale).",
+        c.created ? [df stringFromDate:c.created] : @"data sconosciuta",
+        (unsigned long)bm.stationCount, (unsigned long)fav.tracks.count];
+    [alert addButtonWithTitle:@"Unisci"];
+    [alert addButtonWithTitle:@"Sostituisci tutto"];
+    [alert addButtonWithTitle:@"Annulla"];
+    NSModalResponse choice = [alert runModal];
+    if (choice == NSAlertThirdButtonReturn) return;
+
+    NSString *path = self.settings.bookmarksPath;
+    if (choice == NSAlertFirstButtonReturn) {
+        // unione
+        NSUInteger addedStations = 0, addedTracks = 0;
+        if (bm) {
+            NSData *current = [NSData dataWithContentsOfFile:path] ?: [@"[]" dataUsingEncoding:NSUTF8StringEncoding];
+            NSData *merged = [RTBookmarks dataByMergingStations:bm intoData:current added:&addedStations error:&error];
+            if (!merged) {
+                [self showAlert:@"Stazioni non unite" text:error];
+                return;
+            }
+            if (addedStations) [merged writeToFile:path atomically:YES];
+        }
+        for (RTFavoriteTrack *t in fav.tracks) {
+            BOOL already = NO;
+            [self.favorites addTitle:t.title artist:t.artist station:t.station date:t.added alreadyPresent:&already];
+            if (!already) addedTracks++;
+        }
+        if (addedTracks) [[self.favorites dataRepresentation] writeToFile:[self favoritesPath] atomically:YES];
+        [self reloadAfterImport];
+        [self showAlert:@"Backup importato"
+                   text:[NSString stringWithFormat:@"Aggiunte %lu stazioni e %lu brani preferiti.",
+                         (unsigned long)addedStations, (unsigned long)addedTracks]];
+        return;
+    }
+
+    // sostituzione: prima una copia dello stato attuale
+    NSString *safety = [[self.settings supportDirectory] stringByAppendingPathComponent:@"backup-prima-dell-importazione.json"];
+    [[RTBackup dataForContents:[self currentBackupContents]] writeToFile:safety atomically:YES];
+    if (c.bookmarks && bm) [c.bookmarks writeToFile:path atomically:YES];
+    if (c.favorites) [c.favorites writeToFile:[self favoritesPath] atomically:YES];
+    if (c.history) [c.history writeToFile:[self historyPath] atomically:YES];
+    NSUserDefaults *d = [NSUserDefaults standardUserDefaults];
+    for (NSString *key in c.settings) [d setObject:c.settings[key] forKey:key];
+    self.favorites = [RTFavoriteTracks tracksWithContentsOfFile:[self favoritesPath] error:NULL] ?: [RTFavoriteTracks new];
+    self.history = [RTFavoriteTracks tracksWithContentsOfFile:[self historyPath] error:NULL] ?: [RTFavoriteTracks new];
+    [self.favoritesWindow close];
+    self.favoritesWindow = nil;   // si riapre con i brani nuovi
+    self.player.volume = self.settings.volume;
+    [self applyHotKeys];
+    [self reloadAfterImport];
+    [self showAlert:@"Backup importato"
+               text:[NSString stringWithFormat:@"Tutto è stato ripristinato. Lo stato precedente è salvato in
+%@", safety]];
+}
+
+- (void)reloadAfterImport
+{
+    [self.bookmarksWatcher rememberCurrentContents];
+    RTBookmarks *b = [RTBookmarks bookmarksWithContentsOfFile:self.settings.bookmarksPath error:NULL];
+    if (b) self.bookmarks = b;
+    [self.stationEditor reloadFromDisk];
+    [self.favoritesWindow reload];
+    [self buildMenu];
+    [self refresh];
+}
+
+- (void)toggleICloudBackup:(id)sender
+{
+    self.settings.iCloudBackup = !self.settings.iCloudBackup;
+    if (self.settings.iCloudBackup) {
+        self.settings.lastBackup = nil;   // il primo backup subito
+        [self tick:nil];
+    }
+    [self refresh];
+}
+
+- (void)revealICloudBackups:(id)sender
+{
+    NSString *folder = [RTBackup iCloudFolder];
+    if (!folder) return;
+    [[NSFileManager defaultManager] createDirectoryAtPath:folder withIntermediateDirectories:YES attributes:nil error:NULL];
+    NSString *file = [folder stringByAppendingPathComponent:@"RadioTray-backup.json"];
+    if ([[NSFileManager defaultManager] fileExistsAtPath:file]) {
+        [[NSWorkspace sharedWorkspace] activateFileViewerSelectingURLs:@[[NSURL fileURLWithPath:file]]];
+    } else {
+        [[NSWorkspace sharedWorkspace] openURL:[NSURL fileURLWithPath:folder]];
+    }
 }
 
 #pragma mark - Radiosveglia

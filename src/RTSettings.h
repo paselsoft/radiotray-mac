@@ -29,6 +29,17 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) BOOL alarmFadeIn;                       // volume crescente, predefinito YES
 @property (nonatomic, strong, nullable) NSDate *alarmLastFired;
 
+// finestra "In riproduzione"
+@property (nonatomic) BOOL nowPlayingVisible;                 // predefinito NO
+@property (nonatomic) BOOL nowPlayingFloating;                // sempre in primo piano, predefinito YES
+// pausa automatica
+@property (nonatomic) BOOL pauseOnLock;                       // predefinito YES
+@property (nonatomic) BOOL pauseOnHeadphones;                 // predefinito YES
+@property (nonatomic) BOOL resumeAfterPause;                  // predefinito YES
+// backup
+@property (nonatomic) BOOL iCloudBackup;                      // copia giornaliera in iCloud Drive, predefinito YES
+@property (nonatomic, strong, nullable) NSDate *lastBackup;
+
 /// Secondi di ascolto per stazione (chiave "gruppo\nstazione").
 @property (nonatomic, copy) NSDictionary<NSString *, NSNumber *> *listeningSeconds;
 

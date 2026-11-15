@@ -28,6 +28,11 @@ static const NSUInteger RTMaxReconnects = sizeof(RTReconnectDelays) / sizeof(RTR
 @property (nonatomic, strong, nullable) NSTimer *stallTimer;
 @property (nonatomic) BOOL avMetadataSeen;   // AVPlayer consegna i metadati: il lettore ICY non serve
 @property (nonatomic, strong) RTIcyMetadataReader *icyReader;
+@property (nonatomic, copy, readwrite, nullable) NSString *streamFormat;
+@property (nonatomic, readwrite) NSInteger streamBitrate;
+@property (nonatomic) NSInteger declaredBitrate;              // icy-br
+@property (nonatomic, copy, nullable) NSString *declaredFormat; // dal Content-Type
+@property (nonatomic, strong, nullable) NSTimer *infoTimer;
 @end
 
 @implementation RTPlayer
@@ -154,6 +159,15 @@ static const NSUInteger RTMaxReconnects = sizeof(RTReconnectDelays) / sizeof(RTR
     self.stallTimer = nil;
     [self.icyReader stop];
     self.avMetadataSeen = NO;
+    [self.infoTimer invalidate];
+    self.infoTimer = nil;
+    self.declaredBitrate = 0;
+    self.declaredFormat = nil;
+    if (self.streamFormat || self.streamBitrate) {
+        self.streamFormat = nil;
+        self.streamBitrate = 0;
+        [self.delegate player:self didUpdateStreamFormat:nil bitrate:0];
+    }
     AVPlayerItem *item = self.item;
     if (!item) return;
     self.item = nil;
@@ -293,6 +307,59 @@ static const NSUInteger RTMaxReconnects = sizeof(RTReconnectDelays) / sizeof(RTR
     [self.icyReader startWithURL:self.currentURL];
 }
 
++ (NSString *)formatForContentType:(NSString *)contentType
+{
+    NSString *ct = contentType.lowercaseString ?: @"";
+    if ([ct containsString:@"mpeg"] && ![ct containsString:@"mpegurl"]) return @"MP3";
+    if ([ct containsString:@"aacp"]) return @"HE-AAC";
+    if ([ct containsString:@"aac"] || [ct containsString:@"mp4"]) return @"AAC";
+    if ([ct containsString:@"ogg"]) return @"Ogg";
+    if ([ct containsString:@"mpegurl"]) return @"HLS";
+    return nil;
+}
+
+/// Formato dalla traccia audio, bitrate da: intestazione icy-br, stima della traccia, registro HLS.
+- (void)updateStreamInfo
+{
+    AVPlayerItem *item = self.item;
+    if (!item) return;
+    NSString *format = nil;
+    double bitrate = self.declaredBitrate * 1000.0;
+    for (AVPlayerItemTrack *t in item.tracks) {
+        AVAssetTrack *track = t.assetTrack;
+        if (![track.mediaType isEqualToString:AVMediaTypeAudio]) continue;
+        for (id desc in track.formatDescriptions) {
+            switch (CMFormatDescriptionGetMediaSubType((__bridge CMFormatDescriptionRef)desc)) {
+                case kAudioFormatMPEGLayer3: format = @"MP3"; break;
+                case kAudioFormatMPEG4AAC: format = @"AAC"; break;
+                case kAudioFormatMPEG4AAC_HE:
+                case kAudioFormatMPEG4AAC_HE_V2: format = @"HE-AAC"; break;
+                default: break;
+            }
+        }
+        if (bitrate <= 0 && track.estimatedDataRate > 0) bitrate = track.estimatedDataRate;
+    }
+    if (bitrate <= 0) {
+        AVPlayerItemAccessLogEvent *event = item.accessLog.events.lastObject;
+        if (event.indicatedBitrate > 0) bitrate = event.indicatedBitrate;
+        else if (event.observedBitrate > 0) bitrate = event.observedBitrate;
+    }
+    if (!format) format = self.declaredFormat;
+    NSInteger kbps = (NSInteger)lround(bitrate / 1000.0);
+    if ((format == self.streamFormat || [format isEqualToString:self.streamFormat ?: @""]) && kbps == self.streamBitrate) return;
+    self.streamFormat = format;
+    self.streamBitrate = kbps;
+    [self.delegate player:self didUpdateStreamFormat:format bitrate:kbps];
+}
+
+- (void)metadataReader:(RTIcyMetadataReader *)reader didReadBitrate:(NSInteger)kbps contentType:(NSString *)contentType
+{
+    if (!self.item) return;
+    self.declaredBitrate = kbps;
+    self.declaredFormat = [RTPlayer formatForContentType:contentType];
+    [self updateStreamInfo];
+}
+
 - (void)metadataReader:(RTIcyMetadataReader *)reader didReadStationName:(NSString *)name
 {
     if (!self.item) return;
@@ -327,7 +394,14 @@ static const NSUInteger RTMaxReconnects = sizeof(RTReconnectDelays) / sizeof(RTR
         if (!self.item) return;
         switch (self.player.timeControlStatus) {
             case AVPlayerTimeControlStatusPlaying:
-                if (!self.hasPlayed) [self startIcyReaderIfNeeded];
+                if (!self.hasPlayed) {
+                    [self startIcyReaderIfNeeded];
+                    [self updateStreamInfo];
+                    // il registro di accesso (bitrate HLS) si riempie dopo qualche secondo
+                    [self.infoTimer invalidate];
+                    self.infoTimer = [NSTimer scheduledTimerWithTimeInterval:6 target:self selector:@selector(updateStreamInfo)
+                                                                    userInfo:nil repeats:NO];
+                }
                 self.hasPlayed = YES;
                 self.everPlayed = YES;
                 self.reconnectAttempt = 0;
