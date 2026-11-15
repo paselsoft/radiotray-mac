@@ -19,6 +19,8 @@ typedef void (^RTLogoCompletion)(NSData *_Nullable imageData);
 /// Logo migliore tra i risultati JSON dell'archivio: niente SVG (macOS 10.13 non li legge)
 /// né pagine di Facebook (testabile).
 + (nullable NSString *)bestFaviconFromJSON:(NSData *)data;
+/// Tutti i loghi utilizzabili, nell'ordine (testabile).
++ (NSArray<NSString *> *)faviconsFromJSON:(nullable NSData *)data;
 @end
 
 NS_ASSUME_NONNULL_END

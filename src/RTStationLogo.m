@@ -34,8 +34,14 @@ static NSString *const RTRadioBrowserHost = @"de1.api.radio-browser.info";
 
 + (NSString *)bestFaviconFromJSON:(NSData *)data
 {
+    return [self faviconsFromJSON:data].firstObject;
+}
+
++ (NSArray<NSString *> *)faviconsFromJSON:(NSData *)data
+{
+    NSMutableArray *out = [NSMutableArray array];
     id root = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:NULL] : nil;
-    if (![root isKindOfClass:[NSArray class]]) return nil;
+    if (![root isKindOfClass:[NSArray class]]) return out;
     for (NSDictionary *s in (NSArray *)root) {
         if (![s isKindOfClass:[NSDictionary class]]) continue;
         NSString *f = [s[@"favicon"] isKindOfClass:[NSString class]] ? s[@"favicon"] : @"";
@@ -43,9 +49,9 @@ static NSString *const RTRadioBrowserHost = @"de1.api.radio-browser.info";
         NSString *lower = f.lowercaseString;
         if (!([lower hasPrefix:@"http://"] || [lower hasPrefix:@"https://"])) continue;
         if ([lower containsString:@".svg"] || [lower containsString:@"facebook.com"]) continue;
-        return f;
+        if (![out containsObject:f]) [out addObject:f];
     }
-    return nil;
+    return out;
 }
 
 - (NSString *)fileForKey:(NSString *)key
@@ -118,12 +124,25 @@ static NSString *const RTRadioBrowserHost = @"de1.api.radio-browser.info";
             completion(logo);
         });
     };
-    void (^download)(NSString *) = ^(NSString *favicon) {
-        if (!favicon) {
+    // si provano i loghi uno dopo l'altro finché uno si scarica
+    __block void (^tryNext)(NSArray<NSString *> *);
+    void (^download)(NSArray<NSString *> *) = ^(NSArray<NSString *> *candidates) { tryNext(candidates); };
+    tryNext = ^(NSArray<NSString *> *candidates) {
+        if (candidates.count == 0) {
             store(nil);
+            tryNext = nil;   // spezza il riferimento circolare del blocco
             return;
         }
-        [self get:[NSURL URLWithString:favicon] completion:^(NSData *d) { store(d.length > 100 ? d : nil); }];
+        NSArray *rest = [candidates subarrayWithRange:NSMakeRange(1, candidates.count - 1)];
+        [self get:[NSURL URLWithString:candidates[0]] completion:^(NSData *d) {
+            if (d.length > 100) {
+                store(d);
+                tryNext = nil;
+            } else {
+                NSLog(@"RadioTray: logo non scaricabile: %@", candidates[0]);
+                tryNext(rest);
+            }
+        }];
     };
     NSURLComponents *byURL = [NSURLComponents new];
     byURL.scheme = @"https";
@@ -131,11 +150,7 @@ static NSString *const RTRadioBrowserHost = @"de1.api.radio-browser.info";
     byURL.path = @"/json/stations/byurl";
     byURL.queryItems = @[[NSURLQueryItem queryItemWithName:@"url" value:url]];
     [self get:byURL.URL completion:^(NSData *d1) {
-        NSString *favicon = [RTStationLogo bestFaviconFromJSON:d1];
-        if (favicon) {
-            download(favicon);
-            return;
-        }
+        NSArray *byURLLogos = [RTStationLogo faviconsFromJSON:d1];
         NSURLComponents *byName = [NSURLComponents new];
         byName.scheme = @"https";
         byName.host = RTRadioBrowserHost;
@@ -145,7 +160,9 @@ static NSString *const RTRadioBrowserHost = @"de1.api.radio-browser.info";
                               [NSURLQueryItem queryItemWithName:@"reverse" value:@"true"],
                               [NSURLQueryItem queryItemWithName:@"limit" value:@"10"]];
         [self get:byName.URL completion:^(NSData *d2) {
-            download([RTStationLogo bestFaviconFromJSON:d2]);
+            NSMutableArray *all = [byURLLogos mutableCopy];
+            for (NSString *f in [RTStationLogo faviconsFromJSON:d2]) if (![all containsObject:f]) [all addObject:f];
+            download(all);
         }];
     }];
 }

@@ -44,6 +44,7 @@ static const NSUInteger RTMaxReconnects = sizeof(RTReconnectDelays) / sizeof(RTR
         _player.automaticallyWaitsToMinimizeStalling = YES;
         _urls = @[];
         _volume = 100;
+        _readsTitles = YES;
         _icyReader = [RTIcyMetadataReader new];
         _icyReader.delegate = self;
         [_player addObserver:self forKeyPath:@"timeControlStatus" options:NSKeyValueObservingOptionNew
@@ -299,10 +300,21 @@ static const NSUInteger RTMaxReconnects = sizeof(RTReconnectDelays) / sizeof(RTR
     }
 }
 
+- (void)setReadsTitles:(BOOL)readsTitles
+{
+    if (_readsTitles == readsTitles) return;
+    _readsTitles = readsTitles;
+    if (!readsTitles) {
+        [self.icyReader stop];
+    } else if (self.state == RTPlayerStatePlaying) {
+        [self startIcyReaderIfNeeded];
+    }
+}
+
 - (void)startIcyReaderIfNeeded
 {
     // su 10.13 AVPlayer non consegna i titoli ICY: li si legge con una seconda connessione
-    if (self.avMetadataSeen || !self.currentURL) return;
+    if (!self.readsTitles || self.avMetadataSeen || !self.currentURL) return;
     if ([[NSURL URLWithString:self.currentURL].path.pathExtension.lowercaseString isEqualToString:@"m3u8"]) return;
     [self.icyReader startWithURL:self.currentURL];
 }

@@ -673,6 +673,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     self.userStopped = NO;
 
     [self.player markConnecting];
+    self.player.readsTitles = ![self currentStationIgnoresTitles];   // niente seconda connessione se i titoli sono ignorati
     [self notifyVerbose:@"Connessione in corso…" message:name];
     [self refresh];
 
@@ -848,6 +849,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     [list removeObject:key];
     if (ignore) [list addObject:key];
     self.settings.ignoredTitleStations = list;
+    self.player.readsTitles = !ignore;
     if (ignore) {
         self.track = [RTTrackInfo infoWithTitle:nil artist:nil];
         self.trackArtwork = nil;

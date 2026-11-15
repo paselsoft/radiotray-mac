@@ -30,6 +30,8 @@ typedef NS_ENUM(NSInteger, RTPlayerState) {
 @property (nonatomic, weak, nullable) id<RTPlayerDelegate> delegate;
 @property (nonatomic, readonly) RTPlayerState state;
 @property (nonatomic) NSInteger volume;   // 0–100
+/// NO: non si apre la seconda connessione che legge i titoli (stazioni con titoli ignorati).
+@property (nonatomic) BOOL readsTitles;
 @property (nonatomic, copy, readonly, nullable) NSString *currentURL;
 @property (nonatomic, copy, readonly, nullable) NSString *streamFormat;
 @property (nonatomic, readonly) NSInteger streamBitrate;
