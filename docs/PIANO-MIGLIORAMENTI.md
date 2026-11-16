@@ -25,12 +25,9 @@ Legenda: `[x]` fatto (versione) · `[ ]` da fare · 🚧 in preparazione nell'an
 - [x] **5. Spegnimento graduale** con il timer di spegnimento (1.9)
 - [x] **9. Ascolti segnalati all'archivio Radio Browser** (1.9)
 - [x] Compilazione su Mac Intel di GitHub: niente più code bloccate (1.9)
-
-## In preparazione (1.10)
-
-- [ ] 🚧 **3. Preferire https** quando la radio lo offre
-- [ ] 🚧 **4. Volume uniforme tra le stazioni**: volume ricordato per ogni stazione
-- [ ] 🚧 **6. Scelta dell'uscita audio dal menu**
+- [x] **3. https quando la radio lo offre** (1.10)
+- [x] **4. Volume ricordato per ogni stazione** (1.10)
+- [x] **6. Scelta dell'uscita audio dal menu** (1.10)
 
 ## Da fare
 
