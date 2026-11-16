@@ -118,6 +118,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
 {
     self.settings = [RTSettings shared];
     [self installMainMenu];
+    if (self.settings.dockIcon) [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
     self.stationItems = [NSMutableArray array];
     self.menuLogoCache = [NSCache new];
     self.logoQueue = [NSMutableArray array];
@@ -223,6 +224,11 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     NSMenu *main = [NSMenu new];
     NSMenuItem *appItem = [main addItemWithTitle:@"RadioTray" action:NULL keyEquivalent:@""];
     NSMenu *appMenu = [[NSMenu alloc] initWithTitle:@"RadioTray"];
+    NSMenuItem *about = [appMenu addItemWithTitle:@"Informazioni su RadioTray" action:@selector(about:) keyEquivalent:@""];
+    about.target = self;
+    [appMenu addItem:[NSMenuItem separatorItem]];
+    [appMenu addItemWithTitle:@"Nascondi RadioTray" action:@selector(hide:) keyEquivalent:@"h"];
+    [appMenu addItem:[NSMenuItem separatorItem]];
     [appMenu addItemWithTitle:@"Esci da RadioTray" action:@selector(terminate:) keyEquivalent:@"q"];
     appItem.submenu = appMenu;
 
@@ -511,6 +517,9 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     [self addItem:@"Copertine degli album" action:@selector(toggleArtwork:) to:prefsMenu].tag = 10;
     [self addItem:@"Loghi delle stazioni nel menu" action:@selector(toggleMenuLogos:) to:prefsMenu].tag = 18;
     [self addItem:@"Apri la finestra In riproduzione all'avvio" action:@selector(toggleNowPlayingAtLaunch:) to:prefsMenu].tag = 19;
+    NSMenuItem *dock = [self addItem:@"Icona nel Dock" action:@selector(toggleDockIcon:) to:prefsMenu];
+    dock.tag = 24;
+    dock.toolTip = @"Clic sull'icona: finestra In riproduzione. Clic destro sull'icona: comandi e \"Mantieni nel Dock\"";
     NSMenuItem *https = [self addItem:@"Usa https quando la radio lo offre" action:@selector(togglePreferHTTPS:) to:prefsMenu];
     https.tag = 21;
     https.toolTip = @"Connessione cifrata: si prova da soli la versione https di ogni stazione http e la si usa se funziona";
@@ -801,6 +810,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     RTScrobbler *scrobbler = [RTScrobbler shared];
     [prefs itemWithTag:23].title = scrobbler.linked ? [NSString stringWithFormat:@"ListenBrainz: %@…", scrobbler.userName] : @"ListenBrainz…";
     [prefs itemWithTag:23].state = scrobbler.linked ? NSControlStateValueOn : NSControlStateValueOff;
+    [prefs itemWithTag:24].state = self.settings.dockIcon ? NSControlStateValueOn : NSControlStateValueOff;
     [prefs itemWithTag:21].state = self.settings.preferHTTPS ? NSControlStateValueOn : NSControlStateValueOff;
     [prefs itemWithTag:22].state = self.settings.stationVolumes ? NSControlStateValueOn : NSControlStateValueOff;
     [prefs itemWithTag:20].state = self.settings.reportListening ? NSControlStateValueOn : NSControlStateValueOff;
@@ -1913,6 +1923,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
 {
     if (!self.track.title.length || !self.track.artist.length) return;
     if (!self.lyricsWindow) self.lyricsWindow = [RTLyricsWindowController new];
+    self.lyricsWindow.anchorWindow = self.nowPlayingWindow.window;
     [self.lyricsWindow showTitle:self.track.title artist:self.track.artist];
 }
 
@@ -1985,6 +1996,56 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
         }
         [self refresh];
     }];
+}
+
+#pragma mark - Icona nel Dock
+
+- (void)toggleDockIcon:(id)sender
+{
+    self.settings.dockIcon = !self.settings.dockIcon;
+    [NSApp setActivationPolicy:self.settings.dockIcon ? NSApplicationActivationPolicyRegular : NSApplicationActivationPolicyAccessory];
+    if (!self.settings.dockIcon) {
+        // senza icona nel Dock l'app torna "di sfondo": le finestre aperte restano davanti
+        dispatch_async(dispatch_get_main_queue(), ^{ [NSApp activateIgnoringOtherApps:YES]; });
+    }
+    [self refresh];
+}
+
+/// Clic sull'icona nel Dock (o RadioTray riaperto dal Finder): si mostra la finestra In riproduzione.
+- (BOOL)applicationShouldHandleReopen:(NSApplication *)sender hasVisibleWindows:(BOOL)flag
+{
+    [self showNowPlaying:YES];
+    return NO;
+}
+
+/// Clic destro sull'icona nel Dock.
+- (NSMenu *)applicationDockMenu:(NSApplication *)sender
+{
+    NSMenu *menu = [[NSMenu alloc] initWithTitle:@"RadioTray"];
+    BOOL active = self.player.state != RTPlayerStateStopped;
+    if (active && !self.track.isEmpty) {
+        NSMenuItem *now = [menu addItemWithTitle:RTTruncate(self.track.clipboardText, RTMenuLineLength) action:NULL keyEquivalent:@""];
+        now.enabled = NO;
+    }
+    NSString *station = self.currentStation;
+    NSString *action = active ? @"Spegni" : (station ? [NSString stringWithFormat:@"Accendi %@", RTTruncate(station, 32)] : @"Accendi");
+    [self addItem:action action:@selector(togglePlay:) to:menu];
+    [self addItem:@"Stazione precedente" action:@selector(previousStation:) to:menu];
+    [self addItem:@"Stazione successiva" action:@selector(nextStation:) to:menu];
+    // le stazioni più ascoltate, per accenderle con un clic
+    NSArray *top = [self mostPlayedStations:5];
+    if (top.count) {
+        [menu addItem:[NSMenuItem separatorItem]];
+        for (NSArray *key in top) {
+            NSMenuItem *item = [self addItem:key[1] action:@selector(stationChosen:) to:menu];
+            item.representedObject = key;
+            item.state = active && [key[0] isEqualToString:self.currentGroup ?: @""] && [key[1] isEqualToString:station ?: @""]
+                       ? NSControlStateValueOn : NSControlStateValueOff;
+        }
+    }
+    [menu addItem:[NSMenuItem separatorItem]];
+    [self addItem:@"Finestra In riproduzione" action:@selector(toggleNowPlaying:) to:menu];
+    return menu;
 }
 
 - (void)togglePreferHTTPS:(id)sender

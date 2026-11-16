@@ -35,6 +35,11 @@ Legenda: `[x]` fatto (versione) · `[ ]` da fare · 🚧 in preparazione nell'an
 - [x] **13. Programmi**: accensioni programmate oltre alla radiosveglia (1.12)
 - [x] Finestra In riproduzione al centro a destra, si riapre dove l'hai lasciata (1.12)
 
+## In preparazione (1.13)
+
+- [ ] 🚧 **Icona nel Dock** con menu dei comandi
+- [ ] 🚧 **Finestre attaccate**: testo e In riproduzione si spostano insieme
+
 ## Da fare
 
 ### Funzioni nuove

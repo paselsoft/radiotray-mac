@@ -31,6 +31,7 @@ con **macOS High Sierra 10.13** (funziona anche sulle versioni successive).
 | 1.10.0 | https quando la radio lo offre, volume ricordato per ogni stazione, uscita audio dal menu | fatta (provata sull'iMac) |
 | 1.11.0 | ListenBrainz, Cerca stazioni per genere e più ascoltate | fatta (provata sull'iMac) |
 | 1.12.0 | titoli per Deejay, Capital, m2o e programma Rai, testi delle canzoni, programmi | fatta (provata sull'iMac) |
+| 1.13.0 | icona nel Dock, finestre del testo e In riproduzione attaccate | anteprima da provare |
 
 ## Scaricare
 

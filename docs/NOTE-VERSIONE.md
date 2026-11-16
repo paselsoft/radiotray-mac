@@ -4,6 +4,14 @@ Lettore di radio via Internet nella barra dei menu per **macOS 10.13 High Sierra
 **Installazione:** apri `RadioTray-….dmg`, trascina RadioTray in Applicazioni, poi la prima volta
 clic destro sull'app → Apri → Apri. Istruzioni complete nel file LEGGIMI.txt dentro il .dmg.
 
+### Novità della 1.13
+- **Icona nel Dock**: clic sull'icona per la finestra In riproduzione; clic destro per accendere, spegnere,
+  cambiare stazione o scegliere una delle più ascoltate, e per "Mantieni nel Dock". Si toglie da
+  Preferenze ▸ Icona nel Dock
+- **Finestre attaccate**: avvicinando la finestra del testo alla finestra In riproduzione (sotto, sopra
+  o di lato) le due si uniscono e si spostano insieme; trascinando via il testo si staccano.
+  Il testo si apre già attaccato sotto la finestra In riproduzione
+
 ### Novità della 1.12
 - **Titoli anche per Radio Deejay, Radio Capital e m2o**: titolo, artista e copertina presi dal sito
   della radio; per le radio Rai si vede il programma in onda

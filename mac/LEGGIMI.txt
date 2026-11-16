@@ -39,6 +39,10 @@ Uso
 - Programmi…: altre accensioni programmate (ora, giorni, stazione), anche con spegnimento
   dopo qualche minuto, per esempio il giornale radio delle 18:00 per 30 minuti.
 - Testo della canzone: pulsante "Testo" nella finestra In riproduzione, o dal sottomenu del brano.
+  La finestra del testo si attacca alla finestra In riproduzione quando le avvicini: unite si
+  spostano insieme; trascinando via il testo si staccano.
+- Icona nel Dock: clic per la finestra In riproduzione, clic destro per i comandi e per
+  "Opzioni > Mantieni nel Dock" (così RadioTray si apre anche dal Dock). Si toglie da Preferenze.
 - Radio Deejay, Capital e m2o: titoli e copertine presi dal sito della radio; per le radio Rai
   si vede il programma in onda.
 - Radiosveglia…: ora, giorni, stazione e volume crescente. Il Mac deve essere acceso

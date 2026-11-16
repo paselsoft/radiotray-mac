@@ -1,7 +1,12 @@
 #import "RTLyricsWindowController.h"
 #import "RTLyrics.h"
 
-@interface RTLyricsWindowController ()
+static NSString *const kAttachedKey = @"lyrics-attached";
+static const CGFloat RTSnapDistance = 16;
+
+@interface RTLyricsWindowController () <NSWindowDelegate>
+@property (nonatomic) BOOL placing;
+@property (nonatomic) BOOL attached;
 @property (nonatomic, strong) NSTextField *heading;
 @property (nonatomic, strong) NSTextView *textView;
 @property (nonatomic, copy) NSString *key;
@@ -22,6 +27,7 @@
     panel.frameAutosaveName = @"RadioTrayLyrics";
     if ((self = [super initWithWindow:panel])) {
         _key = @"";
+        panel.delegate = self;
         NSView *content = panel.contentView;
         CGFloat w = content.bounds.size.width, h = content.bounds.size.height;
         self.heading = [NSTextField labelWithString:@""];
@@ -78,12 +84,95 @@
     }];
 }
 
+#pragma mark - Finestre attaccate
+
+- (void)attach
+{
+    NSWindow *anchor = self.anchorWindow;
+    if (!anchor || self.attached) return;
+    self.window.level = anchor.level;
+    [anchor addChildWindow:self.window ordered:NSWindowAbove];
+    self.attached = YES;
+    [[NSUserDefaults standardUserDefaults] setBool:YES forKey:kAttachedKey];
+}
+
+- (void)detach
+{
+    if (!self.attached) return;
+    [self.anchorWindow removeChildWindow:self.window];
+    self.window.level = NSNormalWindowLevel;
+    self.attached = NO;
+    [[NSUserDefaults standardUserDefaults] setBool:NO forKey:kAttachedKey];
+}
+
+/// Se la finestra del testo è vicina a un bordo della finestra In riproduzione, la si accosta
+/// esattamente e la si attacca; altrimenti la si stacca.
+- (void)snapIfNear
+{
+    NSWindow *anchor = self.anchorWindow;
+    if (!anchor.isVisible) {
+        [self detach];
+        return;
+    }
+    NSRect a = anchor.frame, l = self.window.frame;
+    BOOL overlapX = NSMaxX(l) > NSMinX(a) + 20 && NSMinX(l) < NSMaxX(a) - 20;
+    BOOL overlapY = NSMaxY(l) > NSMinY(a) + 20 && NSMinY(l) < NSMaxY(a) - 20;
+    CGFloat alignX = fabs(NSMinX(l) - NSMinX(a)) < 30 ? NSMinX(a) : NSMinX(l);
+    CGFloat alignTop = fabs(NSMaxY(l) - NSMaxY(a)) < 30 ? NSMaxY(a) - NSHeight(l) : NSMinY(l);
+    NSPoint origin = l.origin;
+    BOOL near = NO;
+    if (overlapX && fabs(NSMaxY(l) - NSMinY(a)) < RTSnapDistance) {         // sotto
+        origin = NSMakePoint(alignX, NSMinY(a) - NSHeight(l)); near = YES;
+    } else if (overlapX && fabs(NSMinY(l) - NSMaxY(a)) < RTSnapDistance) {  // sopra
+        origin = NSMakePoint(alignX, NSMaxY(a)); near = YES;
+    } else if (overlapY && fabs(NSMinX(l) - NSMaxX(a)) < RTSnapDistance) {  // a destra
+        origin = NSMakePoint(NSMaxX(a), alignTop); near = YES;
+    } else if (overlapY && fabs(NSMaxX(l) - NSMinX(a)) < RTSnapDistance) {  // a sinistra
+        origin = NSMakePoint(NSMinX(a) - NSWidth(l), alignTop); near = YES;
+    }
+    if (!near) {
+        [self detach];
+        return;
+    }
+    if (!NSEqualPoints(origin, l.origin)) {
+        self.placing = YES;
+        [self.window setFrameOrigin:origin];
+        self.placing = NO;
+    }
+    [self attach];
+}
+
+- (void)windowDidMove:(NSNotification *)notification
+{
+    if (self.placing) return;
+    [self snapIfNear];
+}
+
+- (void)windowWillClose:(NSNotification *)notification
+{
+    if (self.attached) {
+        [self.anchorWindow removeChildWindow:self.window];
+        self.window.level = NSNormalWindowLevel;
+        self.attached = NO;   // la preferenza resta: alla prossima apertura si riattacca
+    }
+}
+
 - (void)showTitle:(NSString *)title artist:(NSString *)artist
 {
     [self load:title artist:artist];
+    NSUserDefaults *d = [NSUserDefaults standardUserDefaults];
+    BOOL wantsAttached = [d objectForKey:kAttachedKey] ? [d boolForKey:kAttachedKey] : YES;
+    if (!self.window.isVisible && wantsAttached && self.anchorWindow.isVisible) {
+        // si apre attaccata sotto la finestra In riproduzione
+        NSRect a = self.anchorWindow.frame;
+        self.placing = YES;
+        [self.window setFrameOrigin:NSMakePoint(NSMinX(a), NSMinY(a) - NSHeight(self.window.frame))];
+        self.placing = NO;
+    }
     [NSApp activateIgnoringOtherApps:YES];
     [self showWindow:nil];
     [self.window makeKeyAndOrderFront:nil];
+    [self snapIfNear];
 }
 
 - (void)trackChangedTitle:(NSString *)title artist:(NSString *)artist
