@@ -24,7 +24,7 @@ con **macOS High Sierra 10.13** (funziona anche sulle versioni successive).
 | 1.4.1 | titolo e artista al contrario (105 Classics), formato "Titolo * Artista" (RDS) | fatta |
 | 1.4.2 | loghi delle stazioni, jingle ignorati, "Ignora i titoli" per stazione, radio http, volume in percentuale | fatta (provata sull'iMac) |
 | 1.5.0 | copertine ufficiali RDS, verifica delle stazioni con proposta di indirizzi nuovi, loghi nel menu e nell'editor, logo da indirizzo web | fatta (provata sull'iMac) |
-| 1.6.0 | ricerca nell'editor delle stazioni, importazione di playlist .pls e .m3u | anteprima da provare |
+| 1.6.0 | ricerca nell'editor delle stazioni, importazione di playlist .pls e .m3u | fatta (provata sull'iMac) |
 
 ## Scaricare
 
