@@ -41,7 +41,7 @@
 
 static NSString *const kOriginKey = @"now-playing-origin";
 
-/// Dove l'hai lasciata l'ultima volta; la prima volta al centro, sul lato sinistro dello schermo.
+/// Dove l'hai lasciata l'ultima volta; la prima volta al centro, sul lato destro dello schermo.
 - (void)placeWindow
 {
     NSWindow *w = self.window;
@@ -58,7 +58,7 @@ static NSString *const kOriginKey = @"now-playing-origin";
         }
     }
     NSRect screen = (NSScreen.mainScreen ?: NSScreen.screens.firstObject).visibleFrame;
-    [w setFrameOrigin:NSMakePoint(NSMinX(screen) + 20, NSMidY(screen) - NSHeight(w.frame) / 2)];
+    [w setFrameOrigin:NSMakePoint(NSMaxX(screen) - NSWidth(w.frame) - 20, NSMidY(screen) - NSHeight(w.frame) / 2)];
 }
 
 - (void)windowDidMove:(NSNotification *)notification

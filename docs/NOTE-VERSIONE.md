@@ -11,8 +11,8 @@ clic destro sull'app → Apri → Apri. Istruzioni complete nel file LEGGIMI.txt
   (testi dall'archivio gratuito LRCLIB); la finestra si aggiorna da sola quando cambia brano
 - **Programmi**: altre accensioni programmate oltre alla radiosveglia (ora, giorni, stazione) che possono
   anche spegnere la radio dopo qualche minuto, per esempio il giornale radio delle 18:00
-- La finestra In riproduzione si apre al centro sul lato sinistro dello schermo e poi ricorda
-  dove la sposti
+- La finestra In riproduzione si apre al centro sul lato destro dello schermo e poi si riapre
+  sempre dove l'hai lasciata l'ultima volta
 
 ### Novità della 1.11
 - **ListenBrainz**: i brani ascoltati (per almeno un minuto) finiscono nel tuo profilo listenbrainz.org,
