@@ -66,7 +66,12 @@ Uso
 - Timer di spegnimento…: spegne la radio dopo i minuti scelti; un altro clic lo annulla.
 - Tasti multimediali (play/pausa, avanti, indietro): comandano la radio quando
   RadioTray è l'ultima app che ha suonato.
-- Se la connessione cade, o il Mac esce dallo stop, la radio si ricollega da sola.
+- Se la connessione cade, o il Mac esce dallo stop, la radio si ricollega da sola; se la radio
+  ha più server (playlist, file .pls importati) passa subito a un altro. Si ricollega da sola anche
+  quando cambia la rete (Wi-Fi che cade e torna, rete diversa).
+- Timer di spegnimento: nell'ultimo minuto il volume scende piano fino a zero.
+- Preferenze > Segnala gli ascolti all'archivio Radio Browser: come chiede l'archivio, si manda
+  solo l'indirizzo della stazione ascoltata, al massimo una volta al giorno. Si può togliere.
 
 Stazioni
 - Preferenze > Modifica stazioni… apre l'editor: doppio clic su nome o indirizzo per

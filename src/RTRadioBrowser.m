@@ -48,7 +48,7 @@ static NSString *RTStr(id v)
     if ((self = [super init])) {
         NSURLSessionConfiguration *cfg = [NSURLSessionConfiguration ephemeralSessionConfiguration];
         cfg.timeoutIntervalForRequest = 12;
-        cfg.HTTPAdditionalHeaders = @{ @"User-Agent": @"RadioTray-Mac/0.3", @"Accept": @"application/json" };
+        cfg.HTTPAdditionalHeaders = @{ @"User-Agent": @"RadioTray-Mac/1.9", @"Accept": @"application/json" };
         _session = [NSURLSession sessionWithConfiguration:cfg];
     }
     return self;
@@ -211,6 +211,55 @@ static NSString *RTStr(id v)
         add([NSString stringWithFormat:@"Radio %@", [clean substringFromIndex:5]]);
     }
     return out;
+}
+
++ (NSString *)stationUUIDFromJSON:(NSData *)data
+{
+    id root = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:NULL] : nil;
+    if (![root isKindOfClass:[NSArray class]]) return nil;
+    for (NSDictionary *s in (NSArray *)root) {
+        if (![s isKindOfClass:[NSDictionary class]]) continue;
+        NSString *uuid = [s[@"stationuuid"] isKindOfClass:[NSString class]] ? s[@"stationuuid"] : nil;
+        if (uuid.length) return uuid;
+    }
+    return nil;
+}
+
++ (void)reportListeningToURL:(NSString *)url
+{
+    static NSMutableDictionary<NSString *, NSDate *> *reported;
+    static NSURLSession *session;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        reported = [NSMutableDictionary dictionary];
+        NSURLSessionConfiguration *cfg = [NSURLSessionConfiguration ephemeralSessionConfiguration];
+        cfg.timeoutIntervalForRequest = 15;
+        cfg.HTTPAdditionalHeaders = @{ @"User-Agent": @"RadioTray-Mac/1.9", @"Accept": @"application/json" };
+        session = [NSURLSession sessionWithConfiguration:cfg];
+    });
+    if (!url.length) return;
+    NSDate *last = reported[url];
+    if (last && -last.timeIntervalSinceNow < 24 * 3600) return;
+    reported[url] = [NSDate date];
+
+    NSString *host = RTServers().firstObject;
+    NSURLComponents *byURL = [NSURLComponents new];
+    byURL.scheme = @"https";
+    byURL.host = host;
+    byURL.path = @"/json/stations/byurl";
+    byURL.queryItems = @[[NSURLQueryItem queryItemWithName:@"url" value:url]];
+    [[session dataTaskWithURL:byURL.URL completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+        NSString *uuid = [RTRadioBrowser stationUUIDFromJSON:data];
+        if (!uuid) return;   // stazione non nell'archivio
+        NSURLComponents *click = [NSURLComponents new];
+        click.scheme = @"https";
+        click.host = host;
+        click.path = [@"/json/url/" stringByAppendingString:uuid];
+        [[session dataTaskWithURL:click.URL completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
+            NSInteger code = [r isKindOfClass:[NSHTTPURLResponse class]] ? [(NSHTTPURLResponse *)r statusCode] : 0;
+            NSLog(@"RadioTray: ascolto segnalato a Radio Browser (%@, HTTP %ld)", uuid, (long)code);
+        }] resume];
+    }] resume];
 }
 
 @end

@@ -1,0 +1,48 @@
+# Piano dei miglioramenti di RadioTray per Mac
+
+Elenco dei miglioramenti, fatti e da fare. A ogni versione pubblicata si spuntano quelli
+realizzati e si ripropone quello che manca.
+
+Legenda: `[x]` fatto (versione) · `[ ]` da fare · 🚧 in preparazione nell'anteprima
+
+## Fatti
+
+- [x] Menu nella barra, stazioni a gruppi, file `bookmarks.json` di Radiotray-NG (1.0)
+- [x] Titoli dei brani anche con le radio Mediaset, notifiche, tasti multimediali (1.0)
+- [x] Cerca stazioni nell'archivio Radio Browser, editor delle stazioni, avvio al login (1.0)
+- [x] Brani preferiti con ricerca, filtri ed esportazione CSV (1.1)
+- [x] ★ nelle notifiche, ascoltati di recente, scorciatoie ⌃⌥, rotella per il volume, avviso di nuova versione (1.2)
+- [x] Copertine degli album, radiosveglia, più ascoltate, titolo nella barra dei menu (1.3)
+- [x] Finestra "In riproduzione", backup e iCloud, pausa con schermo bloccato e cuffie, qualità dello stream (1.4)
+- [x] Titolo e artista al contrario, formato "Titolo * Artista" (1.4.1)
+- [x] Loghi delle stazioni, "Ignora i titoli", jingle ignorati, radio http (1.4.2)
+- [x] Copertine ufficiali di RDS, Verifica le stazioni, loghi nel menu, logo da indirizzo web (1.5)
+- [x] Ricerca nell'editor, importazione di playlist .pls e .m3u (1.6)
+- [x] Cerca stazioni riprova con le sigle (RMC, RDS, Deejay…) (1.7)
+- [x] Finestra "In riproduzione" aperta all'avvio (1.8)
+
+## In preparazione (1.9)
+
+- [ ] 🚧 **1. Server di riserva per ogni stazione**: se lo stream cade si passa subito a un altro
+  server della stessa radio; l'importazione delle playlist li salva tutti
+- [ ] 🚧 **2. Riconnessione al cambio di rete** (Wi-Fi che cade e torna, rete diversa)
+- [ ] 🚧 **5. Spegnimento graduale** con il timer di spegnimento (volume che scende nell'ultimo minuto)
+- [ ] 🚧 **9. Segnalare gli ascolti a Radio Browser**, come l'archivio chiede alle app
+
+## Da fare
+
+### Stabilità
+- [ ] **3. Preferire https**: se una stazione http risponde anche in https, usare quello
+
+### Ascolto
+- [ ] **4. Volume uniforme tra le stazioni**: correzione di volume ricordata per ogni stazione
+- [ ] **6. Scelta dell'uscita audio dal menu** (altoparlanti, cuffie, AirPlay, casse USB)
+
+### Funzioni nuove
+- [ ] **7. Pausa e riprendi ("pausa live")** fino a 30 minuti, e registrazione per uso personale
+- [ ] **8. Storico degli ascolti su ListenBrainz o Last.fm** ("scrobbling")
+
+### Altre idee
+- [ ] Ricerca per genere e "più ascoltate in Italia" in Cerca stazioni
+- [ ] Proporre all'archivio Radio Browser le stazioni che mancano
+- [ ] Versione per Windows 10 (piano in `docs/PIANO-WINDOWS.md`, in attesa)

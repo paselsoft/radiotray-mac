@@ -1,5 +1,6 @@
 // Preferiti nel formato di Radiotray-NG (bookmarks.json):
-// [ { "group": "Nome", "image": "...", "stations": [ { "name", "url", "image", "notifications", "direct" } ] } ]
+// [ { "group": "Nome", "image": "...", "stations": [ { "name", "url", "image", "notifications", "direct", "mirrors" } ] } ]
+// "mirrors" (estensione di RadioTray per Mac): altri server dello stesso stream, provati se il primo cade.
 // Il gruppo "root" non diventa un sottomenu: le sue stazioni vanno direttamente nel menu.
 // Solo Foundation: testabile senza interfaccia.
 #import <Foundation/Foundation.h>
@@ -14,6 +15,7 @@ extern NSString *const RTRootGroupName;
 @property (nonatomic, copy, nullable) NSString *image;
 @property (nonatomic) BOOL notifications;   // predefinito YES
 @property (nonatomic) BOOL direct;          // predefinito NO: YES = non è una playlist
+@property (nonatomic, copy) NSArray<NSString *> *mirrors;   // server di riserva (stream diretti), può essere vuoto
 @end
 
 @interface RTGroup : NSObject

@@ -794,6 +794,30 @@ int main(int argc, const char *argv[])
             CHECK([[RTRadioBrowser alternativeNamesFor:@"RMC"] count] == 0);
             CHECK(![[RTRadioBrowser alternativeNamesFor:@"Radio Montecarlo"] containsObject:@"Radio Montecarlo"]);
         }
+        // 1.9.0: server di riserva, ascolti segnalati all'archivio
+        {
+            NSArray *st = [RTPlaylistParser stationsFromPlaylistData:D(@"[playlist]\nFile1=http://a/s\nTitle1=Radio X\n"
+                "File2=http://b/s\nTitle2=Radio X\nFile3=http://c/s\n") fileName:@"x.pls" problem:NULL];
+            CHECK(st.count == 1);
+            CHECK([st.firstObject[@"mirrors"] isEqualToArray:(@[@"http://b/s", @"http://c/s"])]);
+            RTBookmarks *b = [RTBookmarks bookmarksWithData:D(@"[{\"group\":\"g\",\"stations\":[{\"name\":\"X\",\"url\":\"http://a/s\","
+                "\"mirrors\":[\"http://b/s\",\"ftp://no\",\"http://a/s\",3]}]}]") error:NULL];
+            CHECK([[b stationNamed:@"X" inGroup:@"g"].mirrors isEqualToArray:(@[@"http://b/s"])]);
+            RTBookmarksDocument *doc = [RTBookmarksDocument documentWithData:D(@"[{\"group\":\"g\",\"stations\":[{\"name\":\"X\",\"url\":\"http://a/s\"}]}]") error:NULL];
+            RTDocStation *x = doc.groups.firstObject.stations.firstObject;
+            [doc setMirrors:@[@"http://b/s", @"http://b/s", @"http://a/s", @"nonvalido"] forStation:x];
+            NSString *json = [[NSString alloc] initWithData:[doc dataRepresentation] encoding:NSUTF8StringEncoding];
+            CHECK([json containsString:@"\"mirrors\""]);
+            RTBookmarks *again = [RTBookmarks bookmarksWithData:[doc dataRepresentation] error:NULL];
+            CHECK([[again stationNamed:@"X" inGroup:@"g"].mirrors isEqualToArray:(@[@"http://b/s"])]);
+            [doc setURL:@"http://nuovo/s" forStation:x];
+            json = [[NSString alloc] initWithData:[doc dataRepresentation] encoding:NSUTF8StringEncoding];
+            CHECK(![json containsString:@"mirrors"]);
+            CHECK_EQ([RTRadioBrowser stationUUIDFromJSON:D(@"[{\"name\":\"a\",\"stationuuid\":\"9617a958-0601-11e8-ae97-52543be04c81\"}]")],
+                     @"9617a958-0601-11e8-ae97-52543be04c81");
+            CHECK([RTRadioBrowser stationUUIDFromJSON:D(@"[]")] == nil);
+            CHECK([RTRadioBrowser stationUUIDFromJSON:nil] == nil);
+        }
         if (argc > 2) testBundledList([NSString stringWithUTF8String:argv[2]]);
         printf("%d verifiche, %d fallite\n", checks, failures);
     }

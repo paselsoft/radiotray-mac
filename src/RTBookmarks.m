@@ -9,6 +9,7 @@ NSString *const RTRootGroupName = @"root";
         _name = @"";
         _url = @"";
         _notifications = YES;
+        _mirrors = @[];
     }
     return self;
 }
@@ -130,6 +131,14 @@ static BOOL RTBool(id value, BOOL fallback)
             station.image = RTString(s[@"image"]);
             station.notifications = RTBool(s[@"notifications"], YES);
             station.direct = RTBool(s[@"direct"], NO);
+            NSMutableArray<NSString *> *mirrors = [NSMutableArray array];
+            if ([s[@"mirrors"] isKindOfClass:[NSArray class]]) {
+                for (id m in (NSArray *)s[@"mirrors"]) {
+                    NSString *u = RTString(m);
+                    if (([u hasPrefix:@"http://"] || [u hasPrefix:@"https://"]) && ![u isEqualToString:url]) [mirrors addObject:u];
+                }
+            }
+            station.mirrors = mirrors;
             [stations addObject:station];
         }
 

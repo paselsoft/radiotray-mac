@@ -39,6 +39,8 @@ NS_ASSUME_NONNULL_BEGIN
 - (nullable NSString *)renameStation:(RTDocStation *)station to:(NSString *)name;
 - (nullable NSString *)setURL:(NSString *)url forStation:(RTDocStation *)station;
 - (nullable NSString *)removeStation:(RTDocStation *)station;
+/// Server di riserva della stazione (campo "mirrors"); vuoto li toglie.
+- (void)setMirrors:(NSArray<NSString *> *)mirrors forStation:(RTDocStation *)station;
 /// Logo della stazione (campo "image": percorso di un file); nil lo toglie.
 - (void)setImage:(nullable NSString *)image forStation:(RTDocStation *)station;
 /// Sposta la stazione nel gruppo indicato (anche lo stesso), alla posizione index.

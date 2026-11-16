@@ -269,17 +269,22 @@ static NSString *RTNameFromFileName(NSString *fileName)
     // una stazione per titolo; le voci senza titolo vanno con la prima (server di riserva)
     NSMutableArray<NSString *> *names = [NSMutableArray array];
     NSMutableDictionary<NSString *, NSString *> *urlForName = [NSMutableDictionary dictionary];
+    NSMutableDictionary<NSString *, NSMutableArray<NSString *> *> *mirrorsForName = [NSMutableDictionary dictionary];
     NSString *fallback = RTNameFromFileName(fileName);
     for (NSArray<NSString *> *e in entries) {
         NSString *title = RTCleanStationTitle(e[0]);
         if ([title.lowercaseString hasPrefix:@"http://"] || [title.lowercaseString hasPrefix:@"https://"]) title = @"";
         NSString *name = title.length ? title : (names.firstObject ?: fallback);
-        if (urlForName[name]) continue;
+        if (urlForName[name]) {
+            if (![urlForName[name] isEqualToString:e[1]] && ![mirrorsForName[name] containsObject:e[1]]) [mirrorsForName[name] addObject:e[1]];
+            continue;
+        }
         [names addObject:name];
         urlForName[name] = e[1];
+        mirrorsForName[name] = [NSMutableArray array];
     }
     NSMutableArray *out = [NSMutableArray array];
-    for (NSString *n in names) [out addObject:@{ @"name": n, @"url": urlForName[n] }];
+    for (NSString *n in names) [out addObject:@{ @"name": n, @"url": urlForName[n], @"mirrors": [mirrorsForName[n] copy] }];
     return out;
 }
 

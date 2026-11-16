@@ -679,8 +679,12 @@ static NSPasteboardType const RTDragType = @"io.github.paselsoft.radiotray-mac.i
             }
             RTDocStation *created = nil;
             NSString *problem = [self.doc addStationNamed:unique url:st[@"url"] toGroup:group atIndex:group.stations.count station:&created];
-            if (problem) [refused addObject:[NSString stringWithFormat:@"%@: %@", unique, problem]];
-            else last = created;
+            if (problem) {
+                [refused addObject:[NSString stringWithFormat:@"%@: %@", unique, problem]];
+            } else {
+                [self.doc setMirrors:st[@"mirrors"] ?: @[] forStation:created];
+                last = created;
+            }
         }
         // la ricerca potrebbe nascondere le stazioni appena aggiunte
         self.searchField.stringValue = @"";

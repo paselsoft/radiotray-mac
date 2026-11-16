@@ -16,6 +16,8 @@
 #import "RTAlarm.h"
 #import "RTBackup.h"
 #import "RTAudioWatcher.h"
+#import "RTNetworkWatcher.h"
+#import "RTRadioBrowser.h"
 #import "RTNowPlayingWindowController.h"
 #import "RTStationLogo.h"
 #import "RTSettings.h"
@@ -27,7 +29,7 @@
 static const NSUInteger RTMenuLineLength = 48;
 static const NSInteger RTMaxSleepMinutes = 24 * 60;
 
-@interface RTAppDelegate () <NSMenuDelegate, RTPlayerDelegate, RTMediaKeysDelegate, RTSearchWindowDelegate, RTStationEditorDelegate, RTStationCheckDelegate, RTFavoritesWindowDelegate, RTNowPlayingDelegate, RTAudioWatcherDelegate>
+@interface RTAppDelegate () <NSMenuDelegate, RTPlayerDelegate, RTMediaKeysDelegate, RTSearchWindowDelegate, RTStationEditorDelegate, RTStationCheckDelegate, RTFavoritesWindowDelegate, RTNowPlayingDelegate, RTAudioWatcherDelegate, RTNetworkWatcherDelegate>
 @property (nonatomic, strong) NSStatusItem *statusItem;
 @property (nonatomic, strong) NSMenu *menu;
 @property (nonatomic, strong) NSMenuItem *trackItem;
@@ -74,6 +76,8 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
 @property (nonatomic, strong) NSMenuItem *nowPlayingItem;
 @property (nonatomic, strong, nullable) RTNowPlayingWindowController *nowPlayingWindow;
 @property (nonatomic, strong) RTAudioWatcher *audioWatcher;
+@property (nonatomic, strong) RTNetworkWatcher *networkWatcher;
+@property (nonatomic, strong, nullable) NSTimer *fadeOutTimer;     // spegnimento graduale del timer
 @property (nonatomic) BOOL pausedByLock;
 @property (nonatomic, strong, nullable) NSImage *stationLogo;       // logo della stazione corrente
 @property (nonatomic, strong, nullable) NSImage *stationLogoThumb;
@@ -176,6 +180,9 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     self.audioWatcher = [RTAudioWatcher new];
     self.audioWatcher.delegate = self;
     [self.audioWatcher start];
+    self.networkWatcher = [RTNetworkWatcher new];
+    self.networkWatcher.delegate = self;
+    [self.networkWatcher start];
     if (self.settings.nowPlayingVisible || self.settings.nowPlayingAtLaunch) [self showNowPlaying:NO];
 
     // se l'app è stata spostata, l'avvio al login deve puntare al nuovo percorso
@@ -483,6 +490,9 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     [self addItem:@"Copertine degli album" action:@selector(toggleArtwork:) to:prefsMenu].tag = 10;
     [self addItem:@"Loghi delle stazioni nel menu" action:@selector(toggleMenuLogos:) to:prefsMenu].tag = 18;
     [self addItem:@"Apri la finestra In riproduzione all'avvio" action:@selector(toggleNowPlayingAtLaunch:) to:prefsMenu].tag = 19;
+    NSMenuItem *report = [self addItem:@"Segnala gli ascolti all'archivio Radio Browser" action:@selector(toggleReportListening:) to:prefsMenu];
+    report.tag = 20;
+    report.toolTip = @"Come chiede l'archivio: aiuta a ordinare le stazioni per popolarità. Si manda solo l'indirizzo della stazione, una volta al giorno.";
     [self addItem:@"Azzera le stazioni più ascoltate" action:@selector(resetListening:) to:prefsMenu];
 
     [prefsMenu addItem:[NSMenuItem separatorItem]];
@@ -658,7 +668,10 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     }
 
     // timer di spegnimento
-    if (self.sleepTimer) {
+    if (self.fadeOutTimer) {
+        self.sleepItem.title = @"Spegnimento graduale in corso (clic per annullare)";
+        self.sleepItem.state = NSControlStateValueOn;
+    } else if (self.sleepTimer) {
         NSInteger minutes = (NSInteger)ceil(self.sleepTimer.fireDate.timeIntervalSinceNow / 60.0);
         self.sleepItem.title = [NSString stringWithFormat:@"Timer di spegnimento: %ld min (clic per annullare)", (long)MAX(1, minutes)];
         self.sleepItem.state = NSControlStateValueOn;
@@ -682,6 +695,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     [prefs itemWithTag:9].state = self.settings.titleInMenuBar ? NSControlStateValueOn : NSControlStateValueOff;
     [prefs itemWithTag:10].state = self.settings.artwork ? NSControlStateValueOn : NSControlStateValueOff;
     [prefs itemWithTag:18].state = self.settings.menuLogos ? NSControlStateValueOn : NSControlStateValueOff;
+    [prefs itemWithTag:20].state = self.settings.reportListening ? NSControlStateValueOn : NSControlStateValueOff;
     [prefs itemWithTag:19].state = self.settings.nowPlayingAtLaunch ? NSControlStateValueOn : NSControlStateValueOff;
 
     // radiosveglia
@@ -766,6 +780,11 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
         typeof(self) self_ = weakSelf;
         if (!self_ || self_.userStopped) return;
         NSLog(@"RadioTray: %@ → %@", station.url, self_.resolver.lastDecision ?: @"?");
+        // server di riserva salvati con la stazione: si provano dopo quelli della playlist
+        NSMutableArray<NSString *> *all = [NSMutableArray arrayWithArray:streams ?: @[]];
+        for (NSString *m in station.mirrors) if (![all containsObject:m]) [all addObject:m];
+        if (all.count && !streams) NSLog(@"RadioTray: indirizzo principale non valido (%@), provo i server di riserva", error);
+        streams = all.count ? all : nil;
         if (!streams) {
             [self_.player stop];
             [[RTNotifier shared] notifyTitle:@"Errore" message:[NSString stringWithFormat:@"%@: %@", name, error]];
@@ -816,6 +835,8 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
 {
     if (state == RTPlayerStatePlaying && !self.playingNotified) {
         self.playingNotified = YES;
+        RTStation *playing = [self currentStationObject];
+        if (self.settings.reportListening && playing.url.length) [RTRadioBrowser reportListeningToURL:playing.url];
         if (self.settings.notifications) {
             // per un indirizzo aperto a mano si aspetta un attimo il nome vero mandato dal server
             BOOL waitForName = !self.currentGroup && !self.adhocNamed;
@@ -1734,6 +1755,12 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     [self refresh];
 }
 
+- (void)toggleReportListening:(id)sender
+{
+    self.settings.reportListening = !self.settings.reportListening;
+    [self refresh];
+}
+
 - (void)toggleNowPlayingAtLaunch:(id)sender
 {
     self.settings.nowPlayingAtLaunch = !self.settings.nowPlayingAtLaunch;
@@ -1754,6 +1781,15 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     if (self.player.state == RTPlayerStateStopped) return;
     [self stopPlayback];
     if (self.settings.notifications) [[RTNotifier shared] notifyTitle:@"Radio in pausa" message:reason];
+}
+
+#pragma mark - Cambio di rete
+
+- (void)networkWatcherDidChangeNetwork:(RTNetworkWatcher *)watcher
+{
+    // la connessione allo stream era sulla rete di prima: si ricollega subito invece di aspettare che cada
+    if (self.player.state == RTPlayerStateStopped || self.userStopped) return;
+    [self.player reconnectNow];
 }
 
 - (void)audioWatcherScreenLocked
@@ -2088,6 +2124,14 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
 
 - (void)sleepTimerChosen:(id)sender
 {
+    if (self.fadeOutTimer) {
+        // spegnimento graduale in corso: si annulla e si torna al volume di prima
+        [self.fadeOutTimer invalidate];
+        self.fadeOutTimer = nil;
+        self.player.volume = self.settings.volume;
+        [self refresh];
+        return;
+    }
     if (self.sleepTimer) {
         [self.sleepTimer invalidate];
         self.sleepTimer = nil;
@@ -2118,8 +2162,50 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
 - (void)sleepTimerFired:(NSTimer *)timer
 {
     self.sleepTimer = nil;
-    if (self.player.state != RTPlayerStateStopped) [self stopPlayback];
-    if (self.settings.notifications) [[RTNotifier shared] notifyTitle:@"Timer di spegnimento" message:@"La radio è stata spenta"];
+    [self.fadeOutTimer invalidate];
+    self.fadeOutTimer = nil;
+    if (self.player.state == RTPlayerStateStopped) {
+        [self refresh];
+        return;
+    }
+    // spegnimento graduale: il volume scende fino a zero in 60 secondi (30 passi da 2 s), poi la radio si spegne
+    NSInteger start = self.player.volume;
+    __block NSInteger step = 0;
+    __block NSInteger lastSet = start;
+    __weak typeof(self) weakSelf = self;
+    void (^finish)(void) = ^{
+        typeof(self) strongSelf = weakSelf;
+        [strongSelf.fadeOutTimer invalidate];
+        strongSelf.fadeOutTimer = nil;
+        if (strongSelf.player.state != RTPlayerStateStopped) [strongSelf stopPlayback];
+        strongSelf.player.volume = strongSelf.settings.volume;   // la prossima volta si riparte dal volume abituale
+        if (strongSelf.settings.notifications) [[RTNotifier shared] notifyTitle:@"Timer di spegnimento" message:@"La radio è stata spenta"];
+        [strongSelf refresh];
+    };
+    if (start <= 2) {
+        finish();
+        return;
+    }
+    self.fadeOutTimer = [NSTimer scheduledTimerWithTimeInterval:2 repeats:YES block:^(NSTimer *t) {
+        typeof(self) strongSelf = weakSelf;
+        if (!strongSelf) { [t invalidate]; return; }
+        // radio spenta a mano o volume cambiato: lo spegnimento graduale si ferma, la radio resta com'è
+        if (strongSelf.player.state == RTPlayerStateStopped || strongSelf.player.volume != lastSet) {
+            [t invalidate];
+            strongSelf.fadeOutTimer = nil;
+            if (strongSelf.player.state == RTPlayerStateStopped) strongSelf.player.volume = strongSelf.settings.volume;
+            [strongSelf refresh];
+            return;
+        }
+        step++;
+        if (step >= 30) {
+            finish();
+            return;
+        }
+        lastSet = start - start * step / 30;
+        strongSelf.player.volume = lastSet;
+        [strongSelf refresh];
+    }];
     [self refresh];
 }
 

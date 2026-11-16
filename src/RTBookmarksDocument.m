@@ -226,7 +226,19 @@ static BOOL RTValidURL(NSString *url)
     if ([url isEqualToString:station.url]) return nil;
     if (!RTValidURL(url)) return @"L'indirizzo deve iniziare con http:// o https://";
     station.url = url;
+    [station.raw removeObjectForKey:@"mirrors"];   // i server di riserva erano dell'indirizzo vecchio
     return nil;
+}
+
+- (void)setMirrors:(NSArray<NSString *> *)mirrors forStation:(RTDocStation *)station
+{
+    NSMutableArray *clean = [NSMutableArray array];
+    for (NSString *m in mirrors) {
+        NSString *u = RTClean(m);
+        if (RTValidURL(u) && ![u isEqualToString:station.url] && ![clean containsObject:u]) [clean addObject:u];
+    }
+    if (clean.count) station.raw[@"mirrors"] = clean;
+    else [station.raw removeObjectForKey:@"mirrors"];
 }
 
 - (void)setImage:(NSString *)image forStation:(RTDocStation *)station

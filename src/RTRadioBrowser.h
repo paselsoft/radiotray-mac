@@ -29,6 +29,15 @@ typedef void (^RTSearchCompletion)(NSArray<RTFoundStation *> *_Nullable stations
 - (void)searchName:(NSString *)name country:(nullable NSString *)countryCode completion:(RTSearchCompletion)completion;
 - (void)cancel;
 
+/// Segnala all'archivio che la stazione con questo indirizzo è stata ascoltata (il "clic" che
+/// Radio Browser chiede alle app: serve a ordinare le stazioni per popolarità e a segnare quelle che
+/// funzionano). Si cerca la stazione per indirizzo; se non è nell'archivio non si fa nulla.
+/// Al massimo una volta al giorno per indirizzo.
++ (void)reportListeningToURL:(NSString *)url;
+
+/// Estrae lo "stationuuid" del primo risultato (testabile).
++ (nullable NSString *)stationUUIDFromJSON:(nullable NSData *)data;
+
 /// Nomi alternativi da provare quando la ricerca non trova nulla, nell'ordine:
 /// sigle note ("Radio Monte Carlo Hits" → "RMC Hits"), nome senza "Radio", iniziali
 /// ("Radio Dimensione Suono" → "RDS"). Mai il nome di partenza (testabile).

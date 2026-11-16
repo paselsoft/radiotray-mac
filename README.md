@@ -27,6 +27,7 @@ con **macOS High Sierra 10.13** (funziona anche sulle versioni successive).
 | 1.6.0 | ricerca nell'editor delle stazioni, importazione di playlist .pls e .m3u | fatta (provata sull'iMac) |
 | 1.7.0 | "Cerca stazioni" riprova con sigle e nomi corti (RMC, RDS, Deejay…) | fatta (provata sull'iMac) |
 | 1.8.0 | finestra "In riproduzione" aperta all'avvio (facoltativo) | fatta (provata sull'iMac) |
+| 1.9.0 | server di riserva, riconnessione al cambio di rete, spegnimento graduale, ascolti segnalati a Radio Browser | anteprima da provare |
 
 ## Scaricare
 
@@ -64,3 +65,5 @@ make stations           # controlla che le stazioni predefinite rispondano
 - `resources/` Info.plist, icona, stazioni predefinite
 - `mac/` script per bundle, verifica e `.dmg`
 - `tools/make_icon.py` rigenera l'icona (Pillow)
+
+Piano dei miglioramenti, fatti e da fare: [docs/PIANO-MIGLIORAMENTI.md](docs/PIANO-MIGLIORAMENTI.md)

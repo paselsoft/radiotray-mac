@@ -25,6 +25,8 @@ static const NSUInteger RTMaxReconnects = sizeof(RTReconnectDelays) / sizeof(RTR
 @property (nonatomic) BOOL hasPlayed;          // l'URL corrente ha suonato
 @property (nonatomic) BOOL everPlayed;         // la stazione ha suonato almeno una volta: se cade si riconnette
 @property (nonatomic) NSUInteger reconnectAttempt;
+@property (nonatomic) NSUInteger goodIndex;     // ultimo server che ha suonato: le riconnessioni partono da lì
+@property (nonatomic) NSUInteger failovers;     // server di riserva provati dopo una caduta
 @property (nonatomic, strong, nullable) NSTimer *reconnectTimer;
 @property (nonatomic, strong, nullable) NSTimer *stallTimer;
 @property (nonatomic) BOOL avMetadataSeen;   // AVPlayer consegna i metadati: il lettore ICY non serve
@@ -91,6 +93,8 @@ static const NSUInteger RTMaxReconnects = sizeof(RTReconnectDelays) / sizeof(RTR
     self.lastError = nil;
     self.everPlayed = NO;
     self.reconnectAttempt = 0;
+    self.goodIndex = 0;
+    self.failovers = 0;
     [self startCurrent];
 }
 
@@ -183,7 +187,16 @@ static const NSUInteger RTMaxReconnects = sizeof(RTReconnectDelays) / sizeof(RTR
 {
     NSLog(@"RadioTray: %@ (%@)", error, self.currentURL ?: @"?");
     if (self.everPlayed) {
-        // la stazione funzionava: è caduta la connessione, si riprova invece di arrendersi
+        // la stazione funzionava ed è caduta: prima si provano subito gli altri server della stessa radio,
+        // poi si riprova a intervalli crescenti invece di arrendersi
+        if (self.urls.count > 1 && self.failovers + 1 < self.urls.count) {
+            self.failovers++;
+            self.urlIndex = (self.urlIndex + 1) % self.urls.count;
+            NSLog(@"RadioTray: passo al server di riserva %lu/%lu", (unsigned long)self.urlIndex + 1, (unsigned long)self.urls.count);
+            [self startCurrent];
+            return;
+        }
+        self.failovers = 0;
         [self scheduleReconnectAfterError:error];
         return;
     }
@@ -217,7 +230,7 @@ static const NSUInteger RTMaxReconnects = sizeof(RTReconnectDelays) / sizeof(RTR
 {
     if (timer != self.reconnectTimer) return;
     self.reconnectTimer = nil;
-    self.urlIndex = 0;
+    self.urlIndex = self.goodIndex < self.urls.count ? self.goodIndex : 0;
     self.lastError = nil;
     [self startCurrent];
 }
@@ -228,7 +241,8 @@ static const NSUInteger RTMaxReconnects = sizeof(RTReconnectDelays) / sizeof(RTR
     NSLog(@"RadioTray: riavvio dello stream");
     [self cancelReconnect];
     self.reconnectAttempt = 0;
-    self.urlIndex = 0;
+    self.failovers = 0;
+    self.urlIndex = self.goodIndex < self.urls.count ? self.goodIndex : 0;
     self.lastError = nil;
     [self startCurrent];
 }
@@ -432,6 +446,8 @@ static const NSUInteger RTMaxReconnects = sizeof(RTReconnectDelays) / sizeof(RTR
                 self.hasPlayed = YES;
                 self.everPlayed = YES;
                 self.reconnectAttempt = 0;
+                self.failovers = 0;
+                self.goodIndex = self.urlIndex;
                 [self.connectTimer invalidate];
                 self.connectTimer = nil;
                 [self.stallTimer invalidate];
