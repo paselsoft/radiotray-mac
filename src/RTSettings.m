@@ -17,6 +17,7 @@ static NSString *const kArtwork = @"artwork";
 static NSString *const kMenuLogos = @"menu-logos";
 static NSString *const kReportListening = @"report-listening";
 static NSString *const kPreferHTTPS = @"prefer-https";
+static NSString *const kPrograms = @"programs";
 static NSString *const kStationVolumes = @"station-volumes-enabled";
 static NSString *const kVolumeForStation = @"station-volumes";
 static NSString *const kOutputDevice = @"output-device";
@@ -123,6 +124,8 @@ static NSString *const kLastBackup = @"last-backup";
 - (void)setTitleInMenuBar:(BOOL)v { [self.d setBool:v forKey:kTitleInBar]; }
 - (BOOL)artwork { return [self.d boolForKey:kArtwork]; }
 - (void)setArtwork:(BOOL)v { [self.d setBool:v forKey:kArtwork]; }
+- (NSArray<NSDictionary *> *)programs { return [self.d arrayForKey:kPrograms] ?: @[]; }
+- (void)setPrograms:(NSArray<NSDictionary *> *)v { [self.d setObject:v ?: @[] forKey:kPrograms]; }
 - (BOOL)preferHTTPS { return [self.d boolForKey:kPreferHTTPS]; }
 - (void)setPreferHTTPS:(BOOL)v { [self.d setBool:v forKey:kPreferHTTPS]; }
 - (BOOL)stationVolumes { return [self.d boolForKey:kStationVolumes]; }

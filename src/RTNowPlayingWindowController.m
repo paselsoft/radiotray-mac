@@ -10,6 +10,7 @@
 @property (nonatomic, strong) NSButton *playButton;
 @property (nonatomic, strong) NSButton *nextButton;
 @property (nonatomic, strong) NSButton *favoriteButton;
+@property (nonatomic, strong) NSButton *lyricsButton;
 @property (nonatomic, strong) NSSlider *volumeSlider;
 @property (nonatomic, strong) NSTextField *volumeValue;
 @property (nonatomic, strong) NSButton *floatingBox;
@@ -79,7 +80,14 @@
     CGFloat x = 170, w = 256;
     self.titleLabel = [self label:[NSFont boldSystemFontOfSize:15] frame:NSMakeRect(x, 132, w, 20) color:[NSColor labelColor]];
     self.artistLabel = [self label:[NSFont systemFontOfSize:13] frame:NSMakeRect(x, 112, w, 18) color:[NSColor labelColor]];
-    self.stationLabel = [self label:[NSFont systemFontOfSize:11] frame:NSMakeRect(x, 92, w, 16) color:[NSColor secondaryLabelColor]];
+    self.stationLabel = [self label:[NSFont systemFontOfSize:11] frame:NSMakeRect(x, 92, w - 56, 16) color:[NSColor secondaryLabelColor]];
+    self.lyricsButton = [NSButton buttonWithTitle:@"Testo" target:self action:@selector(lyrics:)];
+    self.lyricsButton.bezelStyle = NSBezelStyleRecessed;
+    self.lyricsButton.controlSize = NSControlSizeSmall;
+    self.lyricsButton.font = [NSFont systemFontOfSize:[NSFont smallSystemFontSize]];
+    self.lyricsButton.frame = NSMakeRect(x + w - 52, 91, 52, 18);
+    self.lyricsButton.toolTip = @"Testo della canzone in ascolto";
+    [content addSubview:self.lyricsButton];
 
     self.previousButton = [self button:@"◀︎" action:@selector(previous:) frame:NSMakeRect(x - 6, 52, 52, 32) tip:@"Stazione precedente"];
     self.playButton = [self button:@"▶︎" action:@selector(togglePlay:) frame:NSMakeRect(x + 44, 52, 60, 32) tip:@"Accendi / spegni"];
@@ -145,6 +153,7 @@
     self.nextButton.enabled = hasNext;
     self.favoriteButton.title = favorite ? @"★" : @"☆";
     self.favoriteButton.enabled = canFavorite && !favorite;
+    self.lyricsButton.enabled = canFavorite;
     self.favoriteButton.toolTip = favorite ? @"Già nei brani preferiti" : @"Aggiungi ai brani preferiti (⌃⌥F)";
     if (self.volumeSlider.integerValue != volume) self.volumeSlider.integerValue = volume;
     self.volumeValue.stringValue = [NSString stringWithFormat:@"%ld%%", (long)volume];
@@ -169,6 +178,7 @@
 - (void)togglePlay:(id)sender { [self.delegate nowPlayingTogglePlay]; }
 - (void)next:(id)sender { [self.delegate nowPlayingNext]; }
 - (void)favorite:(id)sender { [self.delegate nowPlayingFavorite]; }
+- (void)lyrics:(id)sender { [self.delegate nowPlayingLyrics]; }
 - (void)volumeChanged:(NSSlider *)sender
 {
     self.volumeValue.stringValue = [NSString stringWithFormat:@"%ld%%", (long)sender.integerValue];   // subito, mentre si trascina

@@ -21,6 +21,9 @@
 #import "RTHttpsUpgrade.h"
 #import "RTAudioOutputs.h"
 #import "RTScrobbler.h"
+#import "RTOnAir.h"
+#import "RTLyricsWindowController.h"
+#import "RTProgramsWindowController.h"
 #import "RTNowPlayingWindowController.h"
 #import "RTStationLogo.h"
 #import "RTSettings.h"
@@ -32,7 +35,7 @@
 static const NSUInteger RTMenuLineLength = 48;
 static const NSInteger RTMaxSleepMinutes = 24 * 60;
 
-@interface RTAppDelegate () <NSMenuDelegate, RTPlayerDelegate, RTMediaKeysDelegate, RTSearchWindowDelegate, RTStationEditorDelegate, RTStationCheckDelegate, RTFavoritesWindowDelegate, RTNowPlayingDelegate, RTAudioWatcherDelegate, RTNetworkWatcherDelegate>
+@interface RTAppDelegate () <NSMenuDelegate, RTPlayerDelegate, RTMediaKeysDelegate, RTSearchWindowDelegate, RTStationEditorDelegate, RTStationCheckDelegate, RTFavoritesWindowDelegate, RTNowPlayingDelegate, RTAudioWatcherDelegate, RTNetworkWatcherDelegate, RTOnAirDelegate, RTProgramsDelegate>
 @property (nonatomic, strong) NSStatusItem *statusItem;
 @property (nonatomic, strong) NSMenu *menu;
 @property (nonatomic, strong) NSMenuItem *trackItem;
@@ -81,6 +84,12 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
 @property (nonatomic, strong, nullable) RTNowPlayingWindowController *nowPlayingWindow;
 @property (nonatomic, strong) RTAudioWatcher *audioWatcher;
 @property (nonatomic, strong) RTNetworkWatcher *networkWatcher;
+@property (nonatomic, strong, nullable) RTLyricsWindowController *lyricsWindow;
+@property (nonatomic, strong, nullable) RTProgramsWindowController *programsWindow;
+@property (nonatomic, strong, nullable) NSDate *programStopAt;       // un programma con durata spegne la radio a quest'ora
+@property (nonatomic, copy, nullable) NSString *programStopStation;
+@property (nonatomic, strong) RTOnAir *onAir;                        // titoli dai siti delle radio
+@property (nonatomic, copy, nullable) NSString *onAirProgram;        // programma in onda (Rai, parlato)
 @property (nonatomic, strong, nullable) NSTimer *fadeOutTimer;     // spegnimento graduale del timer
 @property (nonatomic) BOOL pausedByLock;
 @property (nonatomic, strong, nullable) NSImage *stationLogo;       // logo della stazione corrente
@@ -185,6 +194,8 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     self.audioWatcher = [RTAudioWatcher new];
     self.audioWatcher.delegate = self;
     [self.audioWatcher start];
+    self.onAir = [RTOnAir new];
+    self.onAir.delegate = self;
     self.networkWatcher = [RTNetworkWatcher new];
     self.networkWatcher.delegate = self;
     [self.networkWatcher start];
@@ -460,6 +471,8 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     self.addStationItem = [self addItem:@"Aggiungi alle stazioni…" action:@selector(addCurrentStation:) to:self.menu];
     self.sleepItem = [self addItem:@"Timer di spegnimento…" action:@selector(sleepTimerChosen:) to:self.menu];
     self.alarmItem = [self addItem:@"Radiosveglia…" action:@selector(configureAlarm:) to:self.menu];
+    [self addItem:@"Programmi…" action:@selector(openPrograms:) to:self.menu].toolTip =
+        @"Altre accensioni programmate: per esempio il giornale radio alle 18:00 per 30 minuti";
     [self.menu addItem:[NSMenuItem separatorItem]];
 
     NSMenuItem *prefs = [[NSMenuItem alloc] initWithTitle:@"Preferenze" action:NULL keyEquivalent:@""];
@@ -670,7 +683,8 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
         case RTPlayerStateBuffering:  line1 = @"Caricamento…"; break;
         case RTPlayerStatePlaying:
             if (self.track.isEmpty) {
-                line1 = @"In riproduzione";
+                line1 = self.onAirProgram ?: @"In riproduzione";
+                if (self.onAirProgram) line2 = @"in onda adesso";
             } else if (self.track.title.length) {
                 line1 = self.track.title;
                 if ([self currentTrackIsFavorite]) line1 = [@"★ " stringByAppendingString:line1];
@@ -701,6 +715,8 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
                                  action:@selector(addCurrentTrackToFavorites:) to:sub];
         add.enabled = !favorite;
         [self addItem:@"Copia titolo e artista" action:@selector(copyTrack:) to:sub];
+        NSMenuItem *lyrics = [self addItem:@"Testo della canzone…" action:@selector(showLyrics:) to:sub];
+        lyrics.enabled = self.track.title.length && self.track.artist.length;
         if (self.track.title.length && self.track.artist.length) {
             NSMenuItem *swap = [self addItem:@"Titolo e artista al contrario per questa stazione"
                                       action:@selector(toggleSwapForStation:) to:sub];
@@ -790,6 +806,8 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     [prefs itemWithTag:20].state = self.settings.reportListening ? NSControlStateValueOn : NSControlStateValueOff;
     [prefs itemWithTag:19].state = self.settings.nowPlayingAtLaunch ? NSControlStateValueOn : NSControlStateValueOff;
 
+    [self checkPrograms:now];
+
     // radiosveglia
     if (self.settings.alarmEnabled && self.settings.alarmStation) {
         self.alarmItem.title = [NSString stringWithFormat:@"Radiosveglia: %@ %@…", [RTAlarm describeMinutes:self.settings.alarmMinutes],
@@ -856,6 +874,8 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     self.currentStation = name;
     if (!groupName) self.adhocStation = station;
     [[RTScrobbler shared] stop];   // il brano della stazione di prima finisce qui
+    [self.onAir stop];
+    self.onAirProgram = nil;
     self.track = [RTTrackInfo infoWithTitle:nil artist:nil];
     self.trackArtwork = nil;       // la copertina del brano della stazione precedente non vale più
     self.trackArtworkFull = nil;
@@ -894,7 +914,39 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
             streams = upgraded;
         }
         [self_.player playStreams:streams];
+        // radio che pubblicano i titoli solo sul loro sito
+        NSString *source = [RTOnAir sourceForURLs:[@[station.url] arrayByAddingObjectsFromArray:streams]];
+        if (source && ![self_ currentStationIgnoresTitles]) {
+            NSLog(@"RadioTray: titoli dal sito della radio (%@)", source);
+            [self_.onAir startWithSource:source];
+        }
     }];
+}
+
+#pragma mark - Titoli dai siti delle radio
+
+- (void)onAirSong:(NSString *)title artist:(NSString *)artist cover:(NSString *)cover
+{
+    if (self.player.state == RTPlayerStateStopped) return;
+    self.onAirProgram = nil;
+    NSString *raw = [NSString stringWithFormat:@"%@ - %@", artist, title];
+    if (cover) [self player:self.player didReceiveCoverURL:cover forStreamTitle:raw];
+    [self player:self.player didReceiveStreamTitle:raw];
+}
+
+- (void)onAirProgram:(NSString *)program
+{
+    if (self.player.state == RTPlayerStateStopped) return;
+    if (program && !self.track.isEmpty) {
+        // finito il brano, va in onda un programma
+        [[RTScrobbler shared] stop];
+        self.track = [RTTrackInfo infoWithTitle:nil artist:nil];
+        self.trackArtwork = nil;
+        self.trackArtworkFull = nil;
+    }
+    if ([program isEqualToString:self.onAirProgram ?: @""] || (!program && !self.onAirProgram)) return;
+    self.onAirProgram = program;
+    [self refresh];
 }
 
 - (void)startCurrentStation
@@ -911,6 +963,8 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
 - (void)stopPlayback
 {
     [[RTScrobbler shared] stop];
+    [self.onAir stop];
+    self.onAirProgram = nil;
     self.userStopped = YES;
     [self.resolver cancel];
     [self.player stop];
@@ -1822,7 +1876,8 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
         title = self.track.title.length ? self.track.title : self.track.artist;
         artist = self.track.title.length ? self.track.artist : nil;
     } else if (playing) {
-        title = @"In riproduzione";
+        title = self.onAirProgram ?: @"In riproduzione";
+        if (self.onAirProgram) artist = @"in onda adesso";
     } else if (active) {
         title = @"Connessione in corso…";
     } else {
@@ -1844,6 +1899,22 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
 - (void)nowPlayingNext { [self nextStation:nil]; }
 - (void)nowPlayingTogglePlay { [self togglePlay:nil]; }
 - (void)nowPlayingFavorite { [self addCurrentTrackToFavorites:nil]; }
+- (void)nowPlayingLyrics { [self showLyrics:nil]; }
+
+#pragma mark - Testo della canzone
+
+- (void)setTrack:(RTTrackInfo *)track
+{
+    _track = track;
+    [self.lyricsWindow trackChangedTitle:track.title artist:track.artist];
+}
+
+- (void)showLyrics:(id)sender
+{
+    if (!self.track.title.length || !self.track.artist.length) return;
+    if (!self.lyricsWindow) self.lyricsWindow = [RTLyricsWindowController new];
+    [self.lyricsWindow showTitle:self.track.title artist:self.track.artist];
+}
 
 - (void)nowPlayingVolumeChanged:(NSInteger)volume
 {
@@ -2193,6 +2264,80 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     }
     [self playStationNamed:name inGroup:group];
     [[RTNotifier shared] notifyTitle:@"⏰ Radiosveglia" message:[NSString stringWithFormat:@"Buongiorno! %@", name]];
+}
+
+#pragma mark - Programmi
+
+- (void)openPrograms:(id)sender
+{
+    if (!self.programsWindow) {
+        self.programsWindow = [RTProgramsWindowController new];
+        self.programsWindow.delegate = self;
+    }
+    [self.programsWindow showPrograms:self.settings.programs];
+}
+
+- (RTBookmarks *)programsBookmarks
+{
+    return self.bookmarks;
+}
+
+- (void)programsDidChange:(NSArray<NSDictionary *> *)programs
+{
+    // la finestra può avere una copia vecchia: si tiene l'ultima accensione già registrata
+    NSMutableArray *merged = [NSMutableArray array];
+    for (NSDictionary *p in programs) {
+        NSMutableDictionary *m = [p mutableCopy];
+        for (NSDictionary *old in self.settings.programs) {
+            if ([old[@"name"] isEqual:p[@"name"]] && [old[@"minutes"] isEqual:p[@"minutes"]] && [old[@"station"] isEqual:p[@"station"]]) {
+                NSDate *a = old[@"lastFired"], *b = p[@"lastFired"];
+                if ([a isKindOfClass:[NSDate class]] && (![b isKindOfClass:[NSDate class]] || [a compare:b] == NSOrderedDescending)) m[@"lastFired"] = a;
+            }
+        }
+        [merged addObject:m];
+    }
+    self.settings.programs = merged;
+}
+
+- (void)checkPrograms:(NSDate *)now
+{
+    // fine di un programma con durata: si spegne solo se si sta ancora ascoltando quella stazione
+    if (self.programStopAt && [now compare:self.programStopAt] != NSOrderedAscending) {
+        NSString *station = self.programStopStation;
+        self.programStopAt = nil;
+        self.programStopStation = nil;
+        if (self.player.state != RTPlayerStateStopped && [self.currentStation isEqualToString:station ?: @""]) {
+            NSLog(@"RadioTray: fine del programma, %@", station);
+            [self stopPlayback];
+        }
+    }
+    NSArray<NSDictionary *> *programs = self.settings.programs;
+    NSMutableArray *updated = [programs mutableCopy];
+    BOOL changed = NO;
+    for (NSUInteger i = 0; i < programs.count; i++) {
+        NSDictionary *p = programs[i];
+        if (![p isKindOfClass:[NSDictionary class]] || ![p[@"enabled"] boolValue]) continue;
+        NSDate *last = [p[@"lastFired"] isKindOfClass:[NSDate class]] ? p[@"lastFired"] : nil;
+        if (![RTAlarm shouldFireAt:now minutes:[p[@"minutes"] integerValue] days:(RTAlarmDays)[p[@"days"] unsignedIntegerValue]
+                         lastFired:last calendar:[NSCalendar currentCalendar]]) continue;
+        NSMutableDictionary *m = [p mutableCopy];
+        m[@"lastFired"] = now;
+        updated[i] = m;
+        changed = YES;
+        NSString *group = p[@"group"], *name = p[@"station"];
+        if (![group isKindOfClass:[NSString class]] || ![name isKindOfClass:[NSString class]] || ![self.bookmarks stationNamed:name inGroup:group]) {
+            [[RTNotifier shared] notifyTitle:p[@"name"] ?: @"Programma" message:@"La stazione scelta non è più nell'elenco"];
+            continue;
+        }
+        NSLog(@"RadioTray: programma «%@», %@", p[@"name"], name);
+        [self playStationNamed:name inGroup:group];
+        NSInteger duration = [p[@"duration"] integerValue];
+        self.programStopAt = duration > 0 ? [now dateByAddingTimeInterval:duration * 60] : nil;
+        self.programStopStation = duration > 0 ? name : nil;
+        NSString *message = duration > 0 ? [NSString stringWithFormat:@"%@ per %ld minuti", name, (long)duration] : name;
+        [[RTNotifier shared] notifyTitle:[NSString stringWithFormat:@"🕒 %@", p[@"name"] ?: @"Programma"] message:message];
+    }
+    if (changed) self.settings.programs = updated;
 }
 
 - (void)configureAlarm:(id)sender

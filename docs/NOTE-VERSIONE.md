@@ -4,6 +4,14 @@ Lettore di radio via Internet nella barra dei menu per **macOS 10.13 High Sierra
 **Installazione:** apri `RadioTray-….dmg`, trascina RadioTray in Applicazioni, poi la prima volta
 clic destro sull'app → Apri → Apri. Istruzioni complete nel file LEGGIMI.txt dentro il .dmg.
 
+### Novità della 1.12
+- **Titoli anche per Radio Deejay, Radio Capital e m2o**: titolo, artista e copertina presi dal sito
+  della radio; per le radio Rai si vede il programma in onda
+- **Testo della canzone**: pulsante "Testo" nella finestra In riproduzione e nel sottomenu del brano
+  (testi dall'archivio gratuito LRCLIB); la finestra si aggiorna da sola quando cambia brano
+- **Programmi**: altre accensioni programmate oltre alla radiosveglia (ora, giorni, stazione) che possono
+  anche spegnere la radio dopo qualche minuto, per esempio il giornale radio delle 18:00
+
 ### Novità della 1.11
 - **ListenBrainz**: i brani ascoltati (per almeno un minuto) finiscono nel tuo profilo listenbrainz.org,
   con storico e statistiche. Si collega da Preferenze ▸ ListenBrainz… incollando il tuo «User token»;

@@ -31,10 +31,23 @@ Legenda: `[x]` fatto (versione) · `[ ]` da fare · 🚧 in preparazione nell'an
 - [x] **8. Storico degli ascolti su ListenBrainz** (1.11)
 - [x] **Ricerca per genere e "più ascoltate"** in Cerca stazioni (1.11)
 
+## In preparazione (1.12)
+
+- [ ] 🚧 **10. Titoli per Deejay, Capital, m2o e Rai** presi dai siti delle radio
+- [ ] 🚧 **11. Testi delle canzoni** (LRCLIB)
+- [ ] 🚧 **13. Più radiosveglie e programmi**
+
 ## Da fare
 
 ### Funzioni nuove
 - [ ] **7. Pausa e riprendi ("pausa live")** fino a 30 minuti, e registrazione per uso personale
+
+### Idee nuove
+- [ ] **12. Telecomando dal telefono** (pagina web sulla rete di casa)
+- [ ] **14. Statistiche** (ore per stazione, artisti più sentiti)
+- [ ] **15. Avvisami quando passa…** un artista su una delle stazioni preferite
+- [ ] **16. Condividi il brano** (Messaggi, Mail, AirDrop)
+- [ ] **17. Comandi AppleScript**
 
 ### Altre idee
 - [ ] Proporre all'archivio Radio Browser le stazioni che mancano

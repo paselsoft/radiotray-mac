@@ -9,6 +9,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)nowPlayingTogglePlay;
 - (void)nowPlayingNext;
 - (void)nowPlayingFavorite;
+- (void)nowPlayingLyrics;
 - (void)nowPlayingVolumeChanged:(NSInteger)volume;
 - (void)nowPlayingFloatingChanged:(BOOL)floating;
 - (void)nowPlayingAtLaunchChanged:(BOOL)atLaunch;

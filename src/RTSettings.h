@@ -19,6 +19,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, strong, nullable) NSDate *lastUpdateCheck;
 @property (nonatomic) BOOL titleInMenuBar;                    // "Artista – Titolo" accanto all'icona, predefinito NO
 @property (nonatomic) BOOL artwork;                           // copertine degli album, predefinito YES
+@property (nonatomic, copy) NSArray<NSDictionary *> *programs;   // accensioni programmate (finestra Programmi)
 @property (nonatomic) BOOL preferHTTPS;                       // https quando la radio lo offre, predefinito YES
 @property (nonatomic) BOOL stationVolumes;                    // ricorda il volume di ogni stazione, predefinito YES
 @property (nonatomic, copy) NSDictionary<NSString *, NSNumber *> *volumeForStation;   // chiave stazione → 0–100

@@ -36,6 +36,11 @@ Uso
   Copia indirizzo immagine). I loghi si vedono anche nel menu, accanto a ogni stazione
   (si tolgono da Preferenze > Loghi delle stazioni nel menu).
 - Con RDS titolo, artista e copertina arrivano direttamente dalla radio.
+- Programmi…: altre accensioni programmate (ora, giorni, stazione), anche con spegnimento
+  dopo qualche minuto, per esempio il giornale radio delle 18:00 per 30 minuti.
+- Testo della canzone: pulsante "Testo" nella finestra In riproduzione, o dal sottomenu del brano.
+- Radio Deejay, Capital e m2o: titoli e copertine presi dal sito della radio; per le radio Rai
+  si vede il programma in onda.
 - Radiosveglia…: ora, giorni, stazione e volume crescente. Il Mac deve essere acceso
   (lo stop dello schermo va bene, lo stop del computer no).
 - Più ascoltate: in cima alle stazioni compaiono le 5 che ascolti di più (dopo 10 minuti);

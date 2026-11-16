@@ -17,6 +17,8 @@
 #import "../src/RTStationChecker.h"
 #import "../src/RTHttpsUpgrade.h"
 #import "../src/RTScrobbler.h"
+#import "../src/RTOnAir.h"
+#import "../src/RTLyrics.h"
 
 static int failures = 0;
 static int checks = 0;
@@ -847,6 +849,37 @@ int main(int argc, const char *argv[])
             CHECK([[now[@"payload"] firstObject] objectForKey:@"listened_at"] == nil);
             CHECK([NSJSONSerialization isValidJSONObject:p]);
             CHECK([RTScrobbler minimumListen] >= 30);
+        }
+        // 1.12.0: titoli dai siti delle radio, testi delle canzoni
+        {
+            CHECK_EQ([RTOnAir sourceForURLs:@[@"https://4c4b867c89244861ac216426883d1ad0.msvdn.net/radiodeejay/radiodeejay/master_ma.m3u8"]],
+                     @"gedi:https://www.deejay.it");
+            CHECK_EQ([RTOnAir sourceForURLs:@[@"https://x.msvdn.net/radiocapital/radiocapital/master_ma2.m3u8"]], @"gedi:https://www.capital.it");
+            CHECK_EQ([RTOnAir sourceForURLs:@[@"https://icestreaming.rai.it/2.mp3"]], @"rai:rai-radio-2");
+            CHECK_EQ([RTOnAir sourceForURLs:@[@"https://mediapolis.rai.it/relinker/relinkerServlet.htm?cont=162841"]], @"rai:rai-radio-3");
+            CHECK([RTOnAir sourceForURLs:@[@"http://icecast.unitedradio.it/Virgin.mp3"]] == nil);
+            NSDictionary *song = [RTOnAir songFromGediJSON:D(@"{\"title\":\"Affinché nessuno ci cancelli SARAH TOSCANO\",\"author\":\"Say Waaad?\","
+                                                            "\"image\":\"https://www.deejay.it/api/pub/covers_sorted/x.jpg\"}")];
+            CHECK_EQ(song[@"title"], @"Affinché nessuno ci cancelli");
+            CHECK_EQ(song[@"artist"], @"SARAH TOSCANO");
+            CHECK_EQ(song[@"cover"], @"https://www.deejay.it/api/pub/covers_sorted/x.jpg");
+            song = [RTOnAir songFromGediJSON:D(@"{\"title\":\"Collide (Radio edit) GLOCKENBACH, CALUM SCOTT\"}")];
+            CHECK_EQ(song[@"title"], @"Collide (Radio edit)");
+            CHECK_EQ(song[@"artist"], @"GLOCKENBACH, CALUM SCOTT");
+            song = [RTOnAir songFromGediJSON:D(@"{\"title\":\"Deejay chiama Italia\"}")];
+            CHECK(song[@"artist"] == nil);
+            CHECK_EQ(song[@"title"], @"Deejay chiama Italia");
+            song = [RTOnAir songFromGediJSON:D(@"{\"title\":\"SOLDI\",\"image\":\"https://x/c/MAHMOOD_-_Soldi__AI_44.jpg___th_400_400.jpg\"}")];
+            CHECK_EQ(song[@"artist"], @"MAHMOOD");
+            NSData *pal = D(@"{\"events\":[{\"title\":\"GR 1\",\"start_date\":\"2025-11-16T00:00:00+0000\",\"end_date\":\"2025-11-16T00:05:00+0000\"},"
+                            "{\"title\":\"Radio anch'io\",\"start_date\":\"2025-11-16T00:05:00+0000\",\"end_date\":\"2025-11-16T01:00:00+0000\"}]}");
+            CHECK_EQ([RTOnAir programFromRaiJSON:pal atDate:[NSDate dateWithTimeIntervalSince1970:1763251500]], @"Radio anch'io");   // 00:05 UTC
+            CHECK_EQ([RTOnAir programFromRaiJSON:pal atDate:[NSDate dateWithTimeIntervalSince1970:1763251260]], @"GR 1");           // 00:01 UTC
+            CHECK([RTOnAir programFromRaiJSON:pal atDate:[NSDate dateWithTimeIntervalSince1970:1763300000]] == nil);
+            CHECK_EQ([RTLyrics lyricsFromJSON:D(@"{\"plainLyrics\":\"Riga uno\\nRiga due\"}")], @"Riga uno\nRiga due");
+            CHECK_EQ([RTLyrics lyricsFromJSON:D(@"[{\"plainLyrics\":\"\"},{\"syncedLyrics\":\"[00:01.20] Ciao\\n[00:03.00] mondo\"}]")], @"Ciao\nmondo");
+            CHECK_EQ([RTLyrics lyricsFromJSON:D(@"{\"instrumental\":true}")], @"");
+            CHECK([RTLyrics lyricsFromJSON:D(@"{\"code\":404}")] == nil);
         }
         if (argc > 2) testBundledList([NSString stringWithUTF8String:argv[2]]);
         printf("%d verifiche, %d fallite\n", checks, failures);
