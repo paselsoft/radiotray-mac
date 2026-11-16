@@ -806,8 +806,6 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     [prefs itemWithTag:20].state = self.settings.reportListening ? NSControlStateValueOn : NSControlStateValueOff;
     [prefs itemWithTag:19].state = self.settings.nowPlayingAtLaunch ? NSControlStateValueOn : NSControlStateValueOff;
 
-    [self checkPrograms:now];
-
     // radiosveglia
     if (self.settings.alarmEnabled && self.settings.alarmStation) {
         self.alarmItem.title = [NSString stringWithFormat:@"Radiosveglia: %@ %@…", [RTAlarm describeMinutes:self.settings.alarmMinutes],
@@ -1809,6 +1807,8 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
         if (problem) NSLog(@"RadioTray: backup su iCloud Drive non riuscito: %@", problem);
         else self.settings.lastBackup = now;
     }
+
+    [self checkPrograms:now];
 
     // radiosveglia
     if (self.settings.alarmEnabled && self.settings.alarmStation &&
