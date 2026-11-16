@@ -2,6 +2,7 @@
 #import "RTLyrics.h"
 
 static NSString *const kAttachedKey = @"lyrics-attached";
+static NSString *const kSizeKey = @"lyrics-size";
 static const CGFloat RTSnapDistance = 16;
 
 @interface RTLyricsWindowController () <NSWindowDelegate>
@@ -24,7 +25,6 @@ static const CGFloat RTSnapDistance = 16;
     panel.minSize = NSMakeSize(300, 240);
     panel.releasedWhenClosed = NO;
     panel.hidesOnDeactivate = NO;
-    panel.frameAutosaveName = @"RadioTrayLyrics";
     if ((self = [super initWithWindow:panel])) {
         _key = @"";
         panel.delegate = self;
@@ -54,6 +54,11 @@ static const CGFloat RTSnapDistance = 16;
         source.frame = NSMakeRect(14, 4, w - 28, 14);
         source.autoresizingMask = NSViewWidthSizable | NSViewMaxYMargin;
         [content addSubview:source];
+        NSString *saved = [[NSUserDefaults standardUserDefaults] stringForKey:kSizeKey];
+        NSSize size = saved ? NSSizeFromString(saved) : NSZeroSize;
+        if (size.width >= panel.minSize.width && size.height >= panel.minSize.height) {
+            [panel setFrame:(NSRect){ panel.frame.origin, size } display:NO];
+        }
         [panel center];
     }
     return self;
@@ -117,14 +122,14 @@ static const CGFloat RTSnapDistance = 16;
     NSRect a = anchor.frame, l = self.window.frame;
     BOOL overlapX = NSMaxX(l) > NSMinX(a) + 20 && NSMinX(l) < NSMaxX(a) - 20;
     BOOL overlapY = NSMaxY(l) > NSMinY(a) + 20 && NSMinY(l) < NSMaxY(a) - 20;
-    CGFloat alignX = fabs(NSMinX(l) - NSMinX(a)) < 30 ? NSMinX(a) : NSMinX(l);
     CGFloat alignTop = fabs(NSMaxY(l) - NSMaxY(a)) < 30 ? NSMaxY(a) - NSHeight(l) : NSMinY(l);
     NSPoint origin = l.origin;
+    CGFloat width = NSWidth(l);
     BOOL near = NO;
-    if (overlapX && fabs(NSMaxY(l) - NSMinY(a)) < RTSnapDistance) {         // sotto
-        origin = NSMakePoint(alignX, NSMinY(a) - NSHeight(l)); near = YES;
+    if (overlapX && fabs(NSMaxY(l) - NSMinY(a)) < RTSnapDistance) {         // sotto: larga come In riproduzione
+        origin = NSMakePoint(NSMinX(a), NSMinY(a) - NSHeight(l)); width = NSWidth(a); near = YES;
     } else if (overlapX && fabs(NSMinY(l) - NSMaxY(a)) < RTSnapDistance) {  // sopra
-        origin = NSMakePoint(alignX, NSMaxY(a)); near = YES;
+        origin = NSMakePoint(NSMinX(a), NSMaxY(a)); width = NSWidth(a); near = YES;
     } else if (overlapY && fabs(NSMinX(l) - NSMaxX(a)) < RTSnapDistance) {  // a destra
         origin = NSMakePoint(NSMaxX(a), alignTop); near = YES;
     } else if (overlapY && fabs(NSMaxX(l) - NSMinX(a)) < RTSnapDistance) {  // a sinistra
@@ -134,12 +139,18 @@ static const CGFloat RTSnapDistance = 16;
         [self detach];
         return;
     }
-    if (!NSEqualPoints(origin, l.origin)) {
+    if (!NSEqualPoints(origin, l.origin) || width != NSWidth(l)) {
         self.placing = YES;
-        [self.window setFrameOrigin:origin];
+        [self.window setFrame:NSMakeRect(origin.x, origin.y, width, NSHeight(l)) display:YES];
         self.placing = NO;
     }
     [self attach];
+}
+
+- (void)windowDidResize:(NSNotification *)notification
+{
+    if (self.placing) return;
+    [[NSUserDefaults standardUserDefaults] setObject:NSStringFromSize(self.window.frame.size) forKey:kSizeKey];
 }
 
 - (void)windowDidMove:(NSNotification *)notification
@@ -165,8 +176,9 @@ static const CGFloat RTSnapDistance = 16;
     if (!self.window.isVisible && wantsAttached && self.anchorWindow.isVisible) {
         // si apre attaccata sotto la finestra In riproduzione
         NSRect a = self.anchorWindow.frame;
+        CGFloat h = NSHeight(self.window.frame);
         self.placing = YES;
-        [self.window setFrameOrigin:NSMakePoint(NSMinX(a), NSMinY(a) - NSHeight(self.window.frame))];
+        [self.window setFrame:NSMakeRect(NSMinX(a), NSMinY(a) - h, NSWidth(a), h) display:NO];
         self.placing = NO;
     }
     [NSApp activateIgnoringOtherApps:YES];

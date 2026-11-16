@@ -37,6 +37,13 @@ Legenda: `[x]` fatto (versione) · `[ ]` da fare · 🚧 in preparazione nell'an
 - [x] **Icona nel Dock** con menu dei comandi (1.13)
 - [x] **Finestre attaccate**: testo e In riproduzione si spostano insieme (1.13)
 
+## In preparazione (1.14)
+
+- [ ] 🚧 **15. Avvisami quando passa…**
+- [ ] 🚧 **14. Statistiche**
+- [ ] 🚧 **16. Condividi il brano**
+- [ ] 🚧 Finestra del testo larga come In riproduzione e con l'altezza ricordata
+
 ## Da fare
 
 ### Funzioni nuove
@@ -44,9 +51,6 @@ Legenda: `[x]` fatto (versione) · `[ ]` da fare · 🚧 in preparazione nell'an
 
 ### Idee nuove
 - [ ] **12. Telecomando dal telefono** (pagina web sulla rete di casa)
-- [ ] **14. Statistiche** (ore per stazione, artisti più sentiti)
-- [ ] **15. Avvisami quando passa…** un artista su una delle stazioni preferite
-- [ ] **16. Condividi il brano** (Messaggi, Mail, AirDrop)
 - [ ] **17. Comandi AppleScript**
 
 ### Altre idee

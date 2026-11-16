@@ -19,6 +19,10 @@ static NSString *const kReportListening = @"report-listening";
 static NSString *const kPreferHTTPS = @"prefer-https";
 static NSString *const kPrograms = @"programs";
 static NSString *const kDockIcon = @"dock-icon";
+static NSString *const kWatchArtists = @"watch-artists";
+static NSString *const kArtistPlays = @"artist-plays";
+static NSString *const kArtistNames = @"artist-names";
+static NSString *const kStatsSince = @"stats-since";
 static NSString *const kStationVolumes = @"station-volumes-enabled";
 static NSString *const kVolumeForStation = @"station-volumes";
 static NSString *const kOutputDevice = @"output-device";
@@ -128,6 +132,14 @@ static NSString *const kLastBackup = @"last-backup";
 - (void)setArtwork:(BOOL)v { [self.d setBool:v forKey:kArtwork]; }
 - (NSArray<NSDictionary *> *)programs { return [self.d arrayForKey:kPrograms] ?: @[]; }
 - (void)setPrograms:(NSArray<NSDictionary *> *)v { [self.d setObject:v ?: @[] forKey:kPrograms]; }
+- (NSArray<NSString *> *)watchArtists { return [self.d stringArrayForKey:kWatchArtists] ?: @[]; }
+- (void)setWatchArtists:(NSArray<NSString *> *)v { [self.d setObject:v ?: @[] forKey:kWatchArtists]; }
+- (NSDictionary<NSString *, NSNumber *> *)artistPlays { return [self.d dictionaryForKey:kArtistPlays] ?: @{}; }
+- (void)setArtistPlays:(NSDictionary<NSString *, NSNumber *> *)v { [self.d setObject:v ?: @{} forKey:kArtistPlays]; }
+- (NSDictionary<NSString *, NSString *> *)artistNames { return [self.d dictionaryForKey:kArtistNames] ?: @{}; }
+- (void)setArtistNames:(NSDictionary<NSString *, NSString *> *)v { [self.d setObject:v ?: @{} forKey:kArtistNames]; }
+- (NSDate *)statsSince { return [self.d objectForKey:kStatsSince]; }
+- (void)setStatsSince:(NSDate *)v { if (v) [self.d setObject:v forKey:kStatsSince]; else [self.d removeObjectForKey:kStatsSince]; }
 - (BOOL)dockIcon { return [self.d boolForKey:kDockIcon]; }
 - (void)setDockIcon:(BOOL)v { [self.d setBool:v forKey:kDockIcon]; }
 - (BOOL)preferHTTPS { return [self.d boolForKey:kPreferHTTPS]; }

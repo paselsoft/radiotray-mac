@@ -19,6 +19,8 @@
 #import "../src/RTScrobbler.h"
 #import "../src/RTOnAir.h"
 #import "../src/RTLyrics.h"
+#import "../src/RTStats.h"
+#import "../src/RTArtistWatcher.h"
 
 static int failures = 0;
 static int checks = 0;
@@ -880,6 +882,25 @@ int main(int argc, const char *argv[])
             CHECK_EQ([RTLyrics lyricsFromJSON:D(@"[{\"plainLyrics\":\"\"},{\"syncedLyrics\":\"[00:01.20] Ciao\\n[00:03.00] mondo\"}]")], @"Ciao\nmondo");
             CHECK_EQ([RTLyrics lyricsFromJSON:D(@"{\"instrumental\":true}")], @"");
             CHECK([RTLyrics lyricsFromJSON:D(@"{\"code\":404}")] == nil);
+        }
+        // 1.14.0: statistiche, "Avvisami quando passa…"
+        {
+            NSArray *top = [RTStats top:@{ @"a": @5, @"b": @20, @"c": @5, @"d": @0 } limit:2];
+            CHECK(top.count == 2);
+            CHECK_EQ(top[0][0], @"b");
+            CHECK_EQ(top[1][0], @"a");
+            CHECK_EQ([RTStats describeSeconds:45 * 60], @"45 min");
+            CHECK_EQ([RTStats describeSeconds:3 * 3600 + 20 * 60], @"3 h 20 min");
+            CHECK_EQ([RTStats describeSeconds:12 * 3600], @"12 h");
+            CHECK_EQ([RTStats artistKey:@"  Beyoncé  Knowles "], @"beyonce knowles");
+            CHECK([RTStats barFor:10 max:10 width:14].length == 14);
+            CHECK([RTStats barFor:0 max:10 width:14].length == 0);
+            NSArray *watch = @[@"Vasco Rossi", @"Mina"];
+            CHECK_EQ([RTArtistWatcher artistIn:@"VASCO ROSSI~ALBACHIARA~~1979" matching:watch], @"Vasco Rossi");
+            CHECK_EQ([RTArtistWatcher artistIn:@"Mina - Grande grande grande" matching:watch], @"Mina");
+            CHECK([RTArtistWatcher artistIn:@"Minaccia - Qualcuno" matching:watch] == nil);
+            CHECK([RTArtistWatcher artistIn:@"Sting - Fields Of Gold" matching:watch] == nil);
+            CHECK_EQ([RTArtistWatcher artistIn:@"Beyonce - Halo" matching:@[@"Beyoncé"]], @"Beyoncé");
         }
         if (argc > 2) testBundledList([NSString stringWithUTF8String:argv[2]]);
         printf("%d verifiche, %d fallite\n", checks, failures);

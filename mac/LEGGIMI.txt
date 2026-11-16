@@ -41,6 +41,11 @@ Uso
 - Testo della canzone: pulsante "Testo" nella finestra In riproduzione, o dal sottomenu del brano.
   La finestra del testo si attacca alla finestra In riproduzione quando le avvicini: unite si
   spostano insieme; trascinando via il testo si staccano.
+- Avvisami quando passa…: scrivi gli artisti che ti piacciono (uno per riga); RadioTray controlla
+  a giro i titoli delle tue stazioni e ti avvisa quando ne passa uno ("Ascolta" per andarci subito).
+  Usa un po' di rete: di ogni stazione legge pochi secondi. Non funziona con le radio senza titoli.
+- Statistiche…: ore di ascolto per stazione e artisti più sentiti.
+- Sottomenu del brano > Condividi: Messaggi, Mail, AirDrop, Note…
 - Icona nel Dock: clic per la finestra In riproduzione, clic destro per i comandi e per
   "Opzioni > Mantieni nel Dock" (così RadioTray si apre anche dal Dock). Si toglie da Preferenze.
 - Radio Deejay, Capital e m2o: titoli e copertine presi dal sito della radio; per le radio Rai

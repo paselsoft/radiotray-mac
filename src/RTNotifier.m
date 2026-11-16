@@ -8,6 +8,7 @@
 static NSString *const kKindKey = @"kind";
 static NSString *const kKindTrack = @"track";
 static NSString *const kKindURL = @"url";
+static NSString *const kKindListen = @"listen";
 
 @interface RTNotifier () <NSUserNotificationCenterDelegate>
 @end
@@ -65,6 +66,21 @@ static NSString *const kKindURL = @"url";
     [self deliver:n];
 }
 
+- (void)notifyListenTitle:(NSString *)title message:(NSString *)message info:(NSDictionary<NSString *, NSString *> *)info
+{
+    NSUserNotification *n = [NSUserNotification new];
+    n.title = title;
+    n.informativeText = message;
+    n.hasActionButton = YES;
+    n.actionButtonTitle = @"Ascolta";
+    n.otherButtonTitle = @"Chiudi";
+    NSMutableDictionary *ui = [info mutableCopy];
+    ui[kKindKey] = kKindListen;
+    n.userInfo = ui;
+    n.identifier = [NSUUID UUID].UUIDString;   // non sostituisce le altre notifiche
+    [[NSUserNotificationCenter defaultUserNotificationCenter] deliverNotification:n];
+}
+
 - (void)notifyTitle:(NSString *)title message:(NSString *)message openURL:(NSURL *)url
 {
     NSUserNotification *n = [NSUserNotification new];
@@ -93,6 +109,12 @@ static NSString *const kKindURL = @"url";
             NSMutableDictionary *track = [info mutableCopy];
             [track removeObjectForKey:kKindKey];
             self.favoriteHandler(track);
+        }
+    } else if ([kind isEqualToString:kKindListen]) {
+        if (notification.activationType != NSUserNotificationActivationTypeAdditionalActionClicked && self.listenHandler) {
+            NSMutableDictionary *ui = [info mutableCopy];
+            [ui removeObjectForKey:kKindKey];
+            self.listenHandler(ui);
         }
     } else if ([kind isEqualToString:kKindURL]) {
         NSURL *url = [NSURL URLWithString:info[@"url"] ?: @""];

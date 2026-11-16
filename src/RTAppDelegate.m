@@ -24,6 +24,9 @@
 #import "RTOnAir.h"
 #import "RTLyricsWindowController.h"
 #import "RTProgramsWindowController.h"
+#import "RTArtistWatcher.h"
+#import "RTStats.h"
+#import "RTStatsWindowController.h"
 #import "RTNowPlayingWindowController.h"
 #import "RTStationLogo.h"
 #import "RTSettings.h"
@@ -35,7 +38,7 @@
 static const NSUInteger RTMenuLineLength = 48;
 static const NSInteger RTMaxSleepMinutes = 24 * 60;
 
-@interface RTAppDelegate () <NSMenuDelegate, RTPlayerDelegate, RTMediaKeysDelegate, RTSearchWindowDelegate, RTStationEditorDelegate, RTStationCheckDelegate, RTFavoritesWindowDelegate, RTNowPlayingDelegate, RTAudioWatcherDelegate, RTNetworkWatcherDelegate, RTOnAirDelegate, RTProgramsDelegate>
+@interface RTAppDelegate () <NSMenuDelegate, RTPlayerDelegate, RTMediaKeysDelegate, RTSearchWindowDelegate, RTStationEditorDelegate, RTStationCheckDelegate, RTFavoritesWindowDelegate, RTNowPlayingDelegate, RTAudioWatcherDelegate, RTNetworkWatcherDelegate, RTOnAirDelegate, RTProgramsDelegate, RTArtistWatcherDelegate>
 @property (nonatomic, strong) NSStatusItem *statusItem;
 @property (nonatomic, strong) NSMenu *menu;
 @property (nonatomic, strong) NSMenuItem *trackItem;
@@ -88,6 +91,9 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
 @property (nonatomic, strong, nullable) RTProgramsWindowController *programsWindow;
 @property (nonatomic, strong, nullable) NSDate *programStopAt;       // un programma con durata spegne la radio a quest'ora
 @property (nonatomic, copy, nullable) NSString *programStopStation;
+@property (nonatomic, strong) RTArtistWatcher *artistWatcher;     // "Avvisami quando passa…"
+@property (nonatomic, strong, nullable) RTStatsWindowController *statsWindow;
+@property (nonatomic, strong) NSMenuItem *watchItem;
 @property (nonatomic, strong) RTOnAir *onAir;                        // titoli dai siti delle radio
 @property (nonatomic, copy, nullable) NSString *onAirProgram;        // programma in onda (Rai, parlato)
 @property (nonatomic, strong, nullable) NSTimer *fadeOutTimer;     // spegnimento graduale del timer
@@ -197,6 +203,14 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     [self.audioWatcher start];
     self.onAir = [RTOnAir new];
     self.onAir.delegate = self;
+    self.artistWatcher = [RTArtistWatcher new];
+    self.artistWatcher.delegate = self;
+    self.artistWatcher.artists = self.settings.watchArtists;
+    if (self.settings.watchArtists.count) [self.artistWatcher start];
+    __weak typeof(self) weakSelfForListen = self;
+    [RTNotifier shared].listenHandler = ^(NSDictionary<NSString *, NSString *> *info) {
+        if (info[@"group"] && info[@"station"]) [weakSelfForListen playStationNamed:info[@"station"] inGroup:info[@"group"]];
+    };
     self.networkWatcher = [RTNetworkWatcher new];
     self.networkWatcher.delegate = self;
     [self.networkWatcher start];
@@ -470,6 +484,9 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     self.nextItem = [self addItem:@"Stazione successiva" action:@selector(nextStation:) to:self.menu];
     [self addItem:@"Cerca stazioni…" action:@selector(searchStations:) to:self.menu];
     [self addItem:@"Brani preferiti…" action:@selector(openFavorites:) to:self.menu];
+    [self addItem:@"Statistiche…" action:@selector(openStats:) to:self.menu];
+    self.watchItem = [self addItem:@"Avvisami quando passa…" action:@selector(configureWatch:) to:self.menu];
+    self.watchItem.toolTip = @"Scrivi i tuoi artisti preferiti: quando uno passa su un'altra delle tue stazioni arriva un avviso";
     self.nowPlayingItem = [self addItem:@"Finestra In riproduzione" action:@selector(toggleNowPlaying:) to:self.menu];
     self.historyItem = [[NSMenuItem alloc] initWithTitle:@"Ascoltati di recente" action:NULL keyEquivalent:@""];
     [self.menu addItem:self.historyItem];
@@ -726,6 +743,15 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
         [self addItem:@"Copia titolo e artista" action:@selector(copyTrack:) to:sub];
         NSMenuItem *lyrics = [self addItem:@"Testo della canzone…" action:@selector(showLyrics:) to:sub];
         lyrics.enabled = self.track.title.length && self.track.artist.length;
+        NSMenuItem *share = [self addItem:@"Condividi" action:NULL to:sub];
+        share.submenu = [self shareMenu];
+        if (self.track.artist.length) {
+            BOOL watched = [RTArtistWatcher artistIn:self.track.artist matching:self.settings.watchArtists] != nil;
+            NSMenuItem *watch = [self addItem:[NSString stringWithFormat:@"Avvisami quando passa %@", RTTruncate(self.track.artist, 30)]
+                                       action:@selector(toggleWatchCurrentArtist:) to:sub];
+            watch.state = watched ? NSControlStateValueOn : NSControlStateValueOff;
+            watch.toolTip = @"Arriva un avviso quando questo artista passa su un'altra delle tue stazioni";
+        }
         if (self.track.title.length && self.track.artist.length) {
             NSMenuItem *swap = [self addItem:@"Titolo e artista al contrario per questa stazione"
                                       action:@selector(toggleSwapForStation:) to:sub];
@@ -778,6 +804,11 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     if (adhoc) {
         self.addStationItem.title = [NSString stringWithFormat:@"Aggiungi %@ alle stazioni…", [self currentStationLabel]];
     }
+
+    NSUInteger watching = self.settings.watchArtists.count;
+    self.watchItem.title = watching ? [NSString stringWithFormat:@"Avvisami quando passa… (%lu %@)", (unsigned long)watching,
+                                       watching == 1 ? @"artista" : @"artisti"] : @"Avvisami quando passa…";
+    self.watchItem.state = watching ? NSControlStateValueOn : NSControlStateValueOff;
 
     // timer di spegnimento
     if (self.fadeOutTimer) {
@@ -1178,6 +1209,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
 {
     if (wrong) [[RTScrobbler shared] correctCurrentTitle:info.title ?: @"" artist:info.artist ?: @""];
     else [[RTScrobbler shared] trackStarted:info.title ?: @"" artist:info.artist ?: @"" station:station];
+    [self countArtist:info.artist replacing:wrong.artist];
     if (wrong) {
         RTFavoriteTrack *old = [self.history trackWithTitle:wrong.title artist:wrong.artist];
         if (old && old == self.history.tracks.lastObject) [self.history removeTracks:@[old]];
@@ -2046,6 +2078,168 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     [menu addItem:[NSMenuItem separatorItem]];
     [self addItem:@"Finestra In riproduzione" action:@selector(toggleNowPlaying:) to:menu];
     return menu;
+}
+
+#pragma mark - Avvisami quando passa…
+
+- (void)saveWatchArtists:(NSArray<NSString *> *)artists
+{
+    self.settings.watchArtists = artists;
+    self.artistWatcher.artists = artists;
+    if (artists.count) [self.artistWatcher start];
+    else [self.artistWatcher stop];
+    [self refresh];
+}
+
+- (void)configureWatch:(id)sender
+{
+    [NSApp activateIgnoringOtherApps:YES];
+    NSAlert *alert = [NSAlert new];
+    alert.messageText = @"Avvisami quando passa…";
+    alert.informativeText = @"Un artista (o un titolo) per riga. RadioTray controlla a giro, in sottofondo, i titoli delle tue "
+                            @"stazioni e ti avvisa quando ne passa uno, con il pulsante \"Ascolta\" per andarci subito.\n\n"
+                            @"Funziona con le radio che mandano i titoli (non con Rai e alcune radio HLS). Usa un po' di rete: "
+                            @"di ogni stazione si leggono solo pochi secondi.";
+    NSScrollView *scroll = [[NSScrollView alloc] initWithFrame:NSMakeRect(0, 0, 340, 140)];
+    scroll.hasVerticalScroller = YES;
+    scroll.borderType = NSBezelBorder;
+    NSTextView *text = [[NSTextView alloc] initWithFrame:scroll.bounds];
+    text.font = [NSFont systemFontOfSize:13];
+    text.string = [self.settings.watchArtists componentsJoinedByString:@"\n"];
+    text.richText = NO;
+    text.automaticQuoteSubstitutionEnabled = NO;
+    scroll.documentView = text;
+    alert.accessoryView = scroll;
+    alert.window.initialFirstResponder = text;
+    [alert addButtonWithTitle:@"Salva"];
+    [alert addButtonWithTitle:@"Annulla"];
+    if ([alert runModal] != NSAlertFirstButtonReturn) return;
+    NSMutableArray *list = [NSMutableArray array];
+    for (NSString *line in [text.string componentsSeparatedByCharactersInSet:[NSCharacterSet newlineCharacterSet]]) {
+        NSString *t = [line stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+        if (t.length >= 2 && ![RTArtistWatcher artistIn:t matching:list]) [list addObject:t];
+    }
+    [self saveWatchArtists:list];
+}
+
+- (void)toggleWatchCurrentArtist:(id)sender
+{
+    NSString *artist = self.track.artist;
+    if (!artist.length) return;
+    NSMutableArray *list = [self.settings.watchArtists mutableCopy];
+    NSString *existing = [RTArtistWatcher artistIn:artist matching:list];
+    if (existing) [list removeObject:existing];
+    else [list addObject:artist];
+    [self saveWatchArtists:list];
+    if (!existing) {
+        [[RTNotifier shared] notifyTitle:@"Avvisami quando passa…"
+                                 message:[NSString stringWithFormat:@"Ti avviso quando %@ passa su un'altra delle tue stazioni", artist]];
+    }
+}
+
+- (NSArray<NSArray<NSString *> *> *)stationsToWatch:(RTArtistWatcher *)watcher
+{
+    NSMutableArray *out = [NSMutableArray array];
+    BOOL playing = self.player.state != RTPlayerStateStopped;
+    for (RTGroup *g in self.bookmarks.groups) {
+        for (RTStation *st in g.stations) {
+            if (playing && [g.name isEqualToString:self.currentGroup ?: @""] && [st.name isEqualToString:self.currentStation ?: @""]) continue;
+            [out addObject:@[g.name, st.name, st.url]];
+        }
+    }
+    return out;
+}
+
+- (void)artistWatcher:(RTArtistWatcher *)watcher found:(NSString *)artist title:(NSString *)title station:(NSArray<NSString *> *)station
+{
+    if (self.player.state != RTPlayerStateStopped && [station[0] isEqualToString:self.currentGroup ?: @""] &&
+        [station[1] isEqualToString:self.currentStation ?: @""]) return;   // la stai già ascoltando
+    RTTrackInfo *info = [RTTrackInfo infoWithStreamTitle:title split:YES];
+    NSString *song = info.isEmpty ? title : info.clipboardText;
+    NSLog(@"RadioTray: %@ su %@ (%@)", artist, station[1], song);
+    [[RTNotifier shared] notifyListenTitle:[NSString stringWithFormat:@"🎵 %@ su %@", artist, station[1]]
+                                   message:song info:@{ @"group": station[0], @"station": station[1] }];
+}
+
+#pragma mark - Statistiche
+
+- (void)countArtist:(NSString *)artist replacing:(NSString *)wrong
+{
+    NSMutableDictionary *plays = [self.settings.artistPlays mutableCopy];
+    NSMutableDictionary *names = [self.settings.artistNames mutableCopy];
+    if (wrong.length) {
+        // titolo e artista erano scambiati: si toglie il conteggio sbagliato
+        NSString *wrongName = names[[RTStats artistKey:wrong]];
+        if (wrongName && [plays[wrongName] integerValue] > 0) {
+            NSInteger n = [plays[wrongName] integerValue] - 1;
+            if (n > 0) plays[wrongName] = @(n);
+            else [plays removeObjectForKey:wrongName];
+        }
+    }
+    if (artist.length) {
+        NSString *key = [RTStats artistKey:artist];
+        NSString *name = names[key] ?: artist;
+        names[key] = name;
+        plays[name] = @([plays[name] integerValue] + 1);
+    }
+    self.settings.artistPlays = plays;
+    self.settings.artistNames = names;
+    if (!self.settings.statsSince) self.settings.statsSince = [NSDate date];
+}
+
+- (void)openStats:(id)sender
+{
+    if (!self.statsWindow) {
+        self.statsWindow = [RTStatsWindowController new];
+        __weak typeof(self) weakSelf = self;
+        self.statsWindow.resetHandler = ^{
+            typeof(self) strongSelf = weakSelf;
+            strongSelf.settings.listeningSeconds = @{};
+            strongSelf.settings.artistPlays = @{};
+            strongSelf.settings.artistNames = @{};
+            strongSelf.settings.statsSince = [NSDate date];
+            [strongSelf buildMenu];
+            [strongSelf refresh];
+            [strongSelf openStats:nil];
+        };
+    }
+    [self.statsWindow showListening:self.settings.listeningSeconds artists:self.settings.artistPlays
+                          favorites:self.favorites.tracks.count since:self.settings.statsSince];
+}
+
+#pragma mark - Condividi il brano
+
+- (NSArray *)shareItems
+{
+    NSString *song = self.track.clipboardText ?: @"";
+    NSString *text = self.currentStation ? [NSString stringWithFormat:@"Sto ascoltando %@ su %@ 📻", song, self.currentStation]
+                                         : [NSString stringWithFormat:@"Sto ascoltando %@ 📻", song];
+    NSString *query = [song stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLQueryAllowedCharacterSet]];
+    NSURL *url = [NSURL URLWithString:[@"https://www.youtube.com/results?search_query=" stringByAppendingString:query ?: @""]];
+    return url ? @[text, url] : @[text];
+}
+
+- (NSMenu *)shareMenu
+{
+    NSMenu *menu = [[NSMenu alloc] initWithTitle:@"Condividi"];
+    for (NSSharingService *service in [NSSharingService sharingServicesForItems:[self shareItems]]) {
+        NSMenuItem *item = [self addItem:service.title action:@selector(shareWithService:) to:menu];
+        item.image = service.image;
+        item.representedObject = service;
+    }
+    if (menu.numberOfItems == 0) {
+        NSMenuItem *none = [self addItem:@"Nessun servizio di condivisione" action:NULL to:menu];
+        none.enabled = NO;
+    }
+    return menu;
+}
+
+- (void)shareWithService:(NSMenuItem *)sender
+{
+    NSSharingService *service = sender.representedObject;
+    if (![service isKindOfClass:[NSSharingService class]]) return;
+    [NSApp activateIgnoringOtherApps:YES];
+    [service performWithItems:[self shareItems]];
 }
 
 - (void)togglePreferHTTPS:(id)sender

@@ -4,6 +4,15 @@ Lettore di radio via Internet nella barra dei menu per **macOS 10.13 High Sierra
 **Installazione:** apri `RadioTray-….dmg`, trascina RadioTray in Applicazioni, poi la prima volta
 clic destro sull'app → Apri → Apri. Istruzioni complete nel file LEGGIMI.txt dentro il .dmg.
 
+### Novità della 1.14
+- **Avvisami quando passa…**: scrivi i tuoi artisti preferiti (o "Avvisami quando passa…" dal sottomenu
+  del brano) e RadioTray controlla a giro i titoli delle tue stazioni; quando ne passa uno arriva un avviso
+  con il pulsante "Ascolta"
+- **Statistiche**: ore di ascolto per stazione e artisti più sentiti
+- **Condividi il brano** dal sottomenu del brano: Messaggi, Mail, AirDrop, Note…
+- La finestra del testo attaccata sopra o sotto è larga come la finestra In riproduzione, e ricorda
+  l'altezza che le dai
+
 ### Novità della 1.13
 - **Icona nel Dock**: clic sull'icona per la finestra In riproduzione; clic destro per accendere, spegnere,
   cambiare stazione o scegliere una delle più ascoltate, e per "Mantieni nel Dock". Si toglie da

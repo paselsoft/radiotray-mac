@@ -17,6 +17,10 @@ NS_ASSUME_NONNULL_BEGIN
 /// Come sopra, con la copertina dell'album a destra (image nil: nessuna); withButton NO = senza "★ Preferito".
 - (void)notifyTrackTitle:(NSString *)title message:(nullable NSString *)message
                    track:(NSDictionary<NSString *, NSString *> *)track image:(nullable NSImage *)image withButton:(BOOL)withButton;
+/// "Ascolta" premuto (o clic) in una notifica di notifyListenTitle…: riceve info.
+@property (nonatomic, copy, nullable) void (^listenHandler)(NSDictionary<NSString *, NSString *> *info);
+/// Notifica con il pulsante "Ascolta" (per esempio: un artista che aspettavi passa su un'altra radio).
+- (void)notifyListenTitle:(NSString *)title message:(nullable NSString *)message info:(NSDictionary<NSString *, NSString *> *)info;
 /// Notifica che apre un indirizzo quando ci si fa clic.
 - (void)notifyTitle:(NSString *)title message:(nullable NSString *)message openURL:(NSURL *)url;
 @end
