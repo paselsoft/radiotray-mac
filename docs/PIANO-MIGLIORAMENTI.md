@@ -36,13 +36,10 @@ Legenda: `[x]` fatto (versione) · `[ ]` da fare · 🚧 in preparazione nell'an
 - [x] Finestra In riproduzione al centro a destra, si riapre dove l'hai lasciata (1.12)
 - [x] **Icona nel Dock** con menu dei comandi (1.13)
 - [x] **Finestre attaccate**: testo e In riproduzione si spostano insieme (1.13)
-
-## In preparazione (1.14)
-
-- [ ] 🚧 **15. Avvisami quando passa…**
-- [ ] 🚧 **14. Statistiche**
-- [ ] 🚧 **16. Condividi il brano**
-- [ ] 🚧 Finestra del testo larga come In riproduzione e con l'altezza ricordata
+- [x] **15. Avvisami quando passa…** un artista su una delle tue stazioni (1.14)
+- [x] **14. Statistiche**: ore per stazione, artisti più sentiti (1.14)
+- [x] **16. Condividi il brano** (1.14)
+- [x] Finestra del testo larga come In riproduzione, con l'altezza ricordata (1.14)
 
 ## Da fare
 
