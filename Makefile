@@ -9,7 +9,7 @@
 
 ARCH       ?= x86_64
 MACOS_MIN  ?= 10.13
-VERSION    ?= 1.10.0
+VERSION    ?= 1.11.0
 BUILD      := build
 APP        := $(BUILD)/RadioTray.app
 
@@ -17,10 +17,10 @@ CC         := clang
 WARN       := -Wall -Wextra -Wno-unused-parameter -Werror=unguarded-availability-new
 CFLAGS     := -std=gnu11 -fobjc-arc -fmodules -O2 -g $(WARN) -arch $(ARCH) -mmacosx-version-min=$(MACOS_MIN)
 LDFLAGS    := -arch $(ARCH) -mmacosx-version-min=$(MACOS_MIN)
-FRAMEWORKS := -framework Cocoa -framework AVFoundation -framework CoreMedia -framework MediaPlayer -framework Carbon -framework CoreAudio -framework SystemConfiguration
+FRAMEWORKS := -framework Cocoa -framework AVFoundation -framework CoreMedia -framework MediaPlayer -framework Carbon -framework CoreAudio -framework SystemConfiguration -framework Security
 
 LOGIC_SRC  := src/RTBookmarks.m src/RTPlaylistParser.m src/RTTrackInfo.m src/RTIcyParser.m src/RTRadioBrowser.m src/RTBookmarksDocument.m src/RTLoginItem.m src/RTFavoriteTracks.m src/RTUpdateChecker.m src/RTArtwork.m src/RTAlarm.m src/RTBackup.m src/RTStationLogo.m
-APP_SRC    := $(LOGIC_SRC) src/RTStreamResolver.m src/RTStationChecker.m src/RTHttpsUpgrade.m src/RTIcyMetadataReader.m src/RTPlayer.m src/RTSettings.m src/RTNotifier.m \
+APP_SRC    := $(LOGIC_SRC) src/RTStreamResolver.m src/RTStationChecker.m src/RTHttpsUpgrade.m src/RTScrobbler.m src/RTIcyMetadataReader.m src/RTPlayer.m src/RTSettings.m src/RTNotifier.m \
               src/RTStatusIcon.m src/RTSearchWindowController.m src/RTStationEditorController.m src/RTStationCheckWindowController.m src/RTFavoritesWindowController.m src/RTTableCell.m src/RTHotKeys.m src/RTAudioWatcher.m src/RTNetworkWatcher.m src/RTAudioOutputs.m src/RTNowPlayingWindowController.m src/RTFileWatcher.m src/RTMediaKeys.m src/RTAppDelegate.m src/main.m
 HEADERS    := $(wildcard src/*.h)
 
@@ -36,9 +36,9 @@ $(BUILD)/RadioTray: $(APP_SRC) $(HEADERS) Makefile
 	@mkdir -p $(BUILD)
 	$(CC) $(CFLAGS) $(LDFLAGS) $(APP_SRC) $(FRAMEWORKS) -o $@
 
-$(BUILD)/test_logic: tests/test_logic.m $(LOGIC_SRC) src/RTStreamResolver.m src/RTStationChecker.m src/RTHttpsUpgrade.m $(HEADERS)
+$(BUILD)/test_logic: tests/test_logic.m $(LOGIC_SRC) src/RTStreamResolver.m src/RTStationChecker.m src/RTHttpsUpgrade.m src/RTScrobbler.m $(HEADERS)
 	@mkdir -p $(BUILD)
-	$(CC) $(TEST_FLAGS) tests/test_logic.m $(LOGIC_SRC) src/RTStreamResolver.m src/RTStationChecker.m src/RTHttpsUpgrade.m -framework Foundation -o $@
+	$(CC) $(TEST_FLAGS) tests/test_logic.m $(LOGIC_SRC) src/RTStreamResolver.m src/RTStationChecker.m src/RTHttpsUpgrade.m src/RTScrobbler.m -framework Foundation -framework Security -o $@
 
 test: $(BUILD)/test_logic
 	$(BUILD)/test_logic resources/bookmarks.json resources/stazioni-italiane.json

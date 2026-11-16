@@ -16,6 +16,7 @@
 #import "../src/RTStationLogo.h"
 #import "../src/RTStationChecker.h"
 #import "../src/RTHttpsUpgrade.h"
+#import "../src/RTScrobbler.h"
 
 static int failures = 0;
 static int checks = 0;
@@ -829,6 +830,23 @@ int main(int argc, const char *argv[])
             CHECK([RTHttpsUpgrade httpsCandidateForURL:@"non è un indirizzo"] == nil);
             NSArray *same = [[RTHttpsUpgrade shared] upgradedURLs:@[@"http://mai.provato.example/s", @"https://a/b"]];
             CHECK([same isEqualToArray:(@[@"http://mai.provato.example/s", @"https://a/b"])]);
+        }
+        // 1.11.0: ListenBrainz
+        {
+            NSDictionary *p = [RTScrobbler payloadWithType:@"single"
+                                                   listens:@[@{ @"title": @"Fields Of Gold", @"artist": @"Sting", @"station": @"RMC",
+                                                                @"listened_at": @1763300000 }] version:@"1.11.0"];
+            CHECK_EQ(p[@"listen_type"], @"single");
+            NSDictionary *item = [p[@"payload"] firstObject];
+            CHECK([item[@"listened_at"] isEqual:@1763300000]);
+            CHECK_EQ(item[@"track_metadata"][@"artist_name"], @"Sting");
+            CHECK_EQ(item[@"track_metadata"][@"track_name"], @"Fields Of Gold");
+            CHECK_EQ(item[@"track_metadata"][@"additional_info"][@"music_service_name"], @"RMC");
+            CHECK_EQ(item[@"track_metadata"][@"additional_info"][@"submission_client_version"], @"1.11.0");
+            NSDictionary *now = [RTScrobbler payloadWithType:@"playing_now" listens:@[@{ @"title": @"a", @"artist": @"b", @"listened_at": @1 }] version:@"x"];
+            CHECK([[now[@"payload"] firstObject] objectForKey:@"listened_at"] == nil);
+            CHECK([NSJSONSerialization isValidJSONObject:p]);
+            CHECK([RTScrobbler minimumListen] >= 30);
         }
         if (argc > 2) testBundledList([NSString stringWithUTF8String:argv[2]]);
         printf("%d verifiche, %d fallite\n", checks, failures);

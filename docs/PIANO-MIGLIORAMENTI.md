@@ -29,13 +29,16 @@ Legenda: `[x]` fatto (versione) · `[ ]` da fare · 🚧 in preparazione nell'an
 - [x] **4. Volume ricordato per ogni stazione** (1.10)
 - [x] **6. Scelta dell'uscita audio dal menu** (1.10)
 
+## In preparazione (1.11)
+
+- [ ] 🚧 **8. Storico degli ascolti su ListenBrainz**
+- [ ] 🚧 **Ricerca per genere e "più ascoltate"** in Cerca stazioni
+
 ## Da fare
 
 ### Funzioni nuove
 - [ ] **7. Pausa e riprendi ("pausa live")** fino a 30 minuti, e registrazione per uso personale
-- [ ] **8. Storico degli ascolti su ListenBrainz o Last.fm** ("scrobbling")
 
 ### Altre idee
-- [ ] Ricerca per genere e "più ascoltate in Italia" in Cerca stazioni
 - [ ] Proporre all'archivio Radio Browser le stazioni che mancano
 - [ ] Versione per Windows 10 (piano in `docs/PIANO-WINDOWS.md`, in attesa)

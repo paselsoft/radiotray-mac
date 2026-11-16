@@ -58,6 +58,8 @@ Uso
   di radio, filtro per paese). Doppio clic per ascoltare, "Aggiungi…" per salvarla.
   Se il nome intero non trova nulla, si riprova da soli con le sigle usate nell'archivio
   (per esempio "Radio Monte Carlo Hits" → "RMC Hits").
+  Il menu a sinistra del campo cambia il tipo di ricerca: "Per genere" (jazz, rock, classica,
+  news, anni 80…) oppure "Più ascoltate" del paese scelto.
 - Preferenze > Aggiungi le radio italiane consigliate: aggiunge RTL 102.5, RDS, Deejay, 105,
   Virgin, R101, RMC, Kiss Kiss, Capital, m2o, Radio 24, Radiofreccia, Subasio e le Rai
   (solo quelle che non hai già).
@@ -76,6 +78,9 @@ Uso
   Preferenze > Ricorda il volume di ogni stazione).
 - Preferenze > Usa https quando la radio lo offre: le stazioni http vengono provate anche
   in https (connessione cifrata) e, se funziona, si usa quello.
+- Preferenze > ListenBrainz…: i brani ascoltati per almeno un minuto vanno nel tuo profilo
+  listenbrainz.org (storico e statistiche). Serve il tuo «User token», che trovi su
+  listenbrainz.org > Settings; RadioTray lo tiene nel portachiavi del Mac.
 - Preferenze > Segnala gli ascolti all'archivio Radio Browser: come chiede l'archivio, si manda
   solo l'indirizzo della stazione ascoltata, al massimo una volta al giorno. Si può togliere.
 

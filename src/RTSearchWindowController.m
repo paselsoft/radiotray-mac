@@ -10,6 +10,7 @@ static NSString *const kColTags = @"tags";
 @interface RTSearchWindowController () <NSTableViewDataSource, NSTableViewDelegate, NSSearchFieldDelegate, NSWindowDelegate>
 @property (nonatomic, strong) NSSearchField *searchField;
 @property (nonatomic, strong) NSPopUpButton *countryPopup;
+@property (nonatomic, strong) NSPopUpButton *modePopup;   // 0 nome, 1 genere, 2 più ascoltate
 @property (nonatomic, strong) NSTableView *table;
 @property (nonatomic, strong) NSTextField *statusLabel;
 @property (nonatomic, strong) NSProgressIndicator *spinner;
@@ -54,8 +55,15 @@ static NSString *const kColTags = @"tags";
     CGFloat w = content.bounds.size.width, h = content.bounds.size.height;
 
     // riga di ricerca
-    self.searchField = [[NSSearchField alloc] initWithFrame:NSMakeRect(20, h - 44, w - 210, 24)];
-    self.searchField.placeholderString = @"Nome della stazione (per esempio: Radio 24, RTL, jazz)";
+    self.modePopup = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(18, h - 46, 140, 26) pullsDown:NO];
+    [self.modePopup addItemsWithTitles:@[@"Per nome", @"Per genere", @"Più ascoltate"]];
+    self.modePopup.target = self;
+    self.modePopup.action = @selector(modeChanged:);
+    self.modePopup.autoresizingMask = NSViewMaxXMargin | NSViewMinYMargin;
+    [content addSubview:self.modePopup];
+
+    self.searchField = [[NSSearchField alloc] initWithFrame:NSMakeRect(166, h - 44, w - 356, 24)];
+    self.searchField.placeholderString = @"Nome della stazione (per esempio: Radio 24, RTL, RMC)";
     self.searchField.target = self;
     self.searchField.action = @selector(search:);
     self.searchField.sendsWholeSearchString = YES;
@@ -137,9 +145,47 @@ static NSString *const kColTags = @"tags";
 
 #pragma mark - Ricerca
 
+- (void)modeChanged:(id)sender
+{
+    NSInteger mode = self.modePopup.indexOfSelectedItem;
+    self.searchField.enabled = mode != 2;
+    self.searchField.placeholderString = mode == 0 ? @"Nome della stazione (per esempio: Radio 24, RTL, RMC)"
+                                       : mode == 1 ? @"Genere (per esempio: jazz, rock, classica, news, 80s)"
+                                                   : @"Le stazioni più ascoltate del paese scelto";
+    if (mode == 2 || self.searchField.stringValue.length >= 2) [self search:nil];
+    else [self.window makeFirstResponder:self.searchField];
+}
+
+/// "classica" → "classical": i generi nell'archivio sono quasi tutti in inglese.
+- (NSString *)tagForGenre:(NSString *)genre
+{
+    NSDictionary *it = @{ @"classica": @"classical", @"notizie": @"news", @"musica italiana": @"italian",
+                          @"italiana": @"italian", @"cristiana": @"christian", @"sport": @"sports", @"lirica": @"opera",
+                          @"anni 60": @"60s", @"anni 70": @"70s", @"anni 80": @"80s", @"anni 90": @"90s", @"latina": @"latin",
+                          @"elettronica": @"electronic", @"dance": @"dance", @"bambini": @"children", @"parlato": @"talk" };
+    return it[genre.lowercaseString] ?: genre;
+}
+
 - (void)search:(id)sender
 {
     NSString *text = [self.searchField.stringValue stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    NSInteger mode = self.modePopup.indexOfSelectedItem;
+    if (mode == 2 || mode == 1) {
+        if (mode == 1 && text.length < 2) {
+            self.statusLabel.stringValue = @"Scrivi un genere, per esempio jazz, rock, classica, news.";
+            return;
+        }
+        NSString *country = self.countryPopup.selectedItem.representedObject;
+        [self.spinner startAnimation:nil];
+        self.statusLabel.stringValue = @"Ricerca in corso…";
+        __weak typeof(self) weakSelf = self;
+        RTSearchCompletion done = ^(NSArray<RTFoundStation *> *stations, NSString *error) {
+            [weakSelf showResults:stations error:error label:mode == 2 ? @"più ascoltate" : [NSString stringWithFormat:@"genere «%@»", text]];
+        };
+        if (mode == 2) [self.browser topStationsInCountry:country completion:done];
+        else [self.browser searchTag:[self tagForGenre:text] country:country completion:done];
+        return;
+    }
     if (text.length < 2) {
         self.statusLabel.stringValue = @"Scrivi almeno due lettere del nome.";
         return;
@@ -187,6 +233,23 @@ static NSString *const kColTags = @"tags";
         }
         [strongSelf updateButtons];
     }];
+}
+
+- (void)showResults:(NSArray<RTFoundStation *> *)stations error:(NSString *)error label:(NSString *)label
+{
+    [self.spinner stopAnimation:nil];
+    if (!stations) {
+        self.statusLabel.stringValue = [NSString stringWithFormat:@"Ricerca non riuscita: %@", error];
+        return;
+    }
+    self.results = stations;
+    [self.table reloadData];
+    [self.table scrollRowToVisible:0];
+    if (stations.count) [self.table selectRowIndexes:[NSIndexSet indexSetWithIndex:0] byExtendingSelection:NO];
+    self.statusLabel.stringValue = stations.count == 0
+        ? @"Nessuna stazione trovata. Prova con un altro genere o con \"Tutti i paesi\"."
+        : [NSString stringWithFormat:@"%lu %@ (%@)", (unsigned long)stations.count, stations.count == 1 ? @"stazione" : @"stazioni", label];
+    [self updateButtons];
 }
 
 - (RTFoundStation *)selected

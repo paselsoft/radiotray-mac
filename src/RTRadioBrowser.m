@@ -101,19 +101,32 @@ static NSString *RTStr(id v)
 - (void)searchName:(NSString *)name country:(NSString *)countryCode completion:(RTSearchCompletion)completion
 {
     [self cancel];
-    NSUInteger generation = self.generation;
-    [self searchName:name country:countryCode serverIndex:0 generation:generation completion:completion];
+    [self search:@[[NSURLQueryItem queryItemWithName:@"name" value:name]] country:countryCode serverIndex:0
+      generation:self.generation completion:completion];
 }
 
-- (void)searchName:(NSString *)name country:(NSString *)countryCode serverIndex:(NSUInteger)index
-        generation:(NSUInteger)generation completion:(RTSearchCompletion)completion
+- (void)searchTag:(NSString *)tag country:(NSString *)countryCode completion:(RTSearchCompletion)completion
+{
+    [self cancel];
+    [self search:@[[NSURLQueryItem queryItemWithName:@"tag" value:tag.lowercaseString]] country:countryCode serverIndex:0
+      generation:self.generation completion:completion];
+}
+
+- (void)topStationsInCountry:(NSString *)countryCode completion:(RTSearchCompletion)completion
+{
+    [self cancel];
+    [self search:@[] country:countryCode serverIndex:0 generation:self.generation completion:completion];
+}
+
+- (void)search:(NSArray<NSURLQueryItem *> *)criteria country:(NSString *)countryCode serverIndex:(NSUInteger)index
+    generation:(NSUInteger)generation completion:(RTSearchCompletion)completion
 {
     NSURLComponents *c = [NSURLComponents new];
     c.scheme = @"https";
     c.host = RTServers()[index];
     c.path = @"/json/stations/search";
-    NSMutableArray *query = [NSMutableArray arrayWithArray:@[
-        [NSURLQueryItem queryItemWithName:@"name" value:name],
+    NSMutableArray *query = [NSMutableArray arrayWithArray:criteria];
+    [query addObjectsFromArray:@[
         [NSURLQueryItem queryItemWithName:@"hidebroken" value:@"true"],
         [NSURLQueryItem queryItemWithName:@"order" value:@"clickcount"],
         [NSURLQueryItem queryItemWithName:@"reverse" value:@"true"],
@@ -137,7 +150,7 @@ static NSString *RTStr(id v)
                 } else if (index + 1 < RTServers().count) {
                     NSLog(@"RadioTray: archivio %@ non disponibile (%@), provo il successivo", RTServers()[index],
                           error.localizedDescription ?: [NSString stringWithFormat:@"HTTP %ld", (long)code]);
-                    [strongSelf searchName:name country:countryCode serverIndex:index + 1 generation:generation completion:completion];
+                    [strongSelf search:criteria country:countryCode serverIndex:index + 1 generation:generation completion:completion];
                 } else {
                     strongSelf.task = nil;
                     completion(nil, error.localizedDescription ?: @"L'archivio delle stazioni non risponde");

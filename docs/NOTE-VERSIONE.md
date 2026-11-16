@@ -4,6 +4,12 @@ Lettore di radio via Internet nella barra dei menu per **macOS 10.13 High Sierra
 **Installazione:** apri `RadioTray-….dmg`, trascina RadioTray in Applicazioni, poi la prima volta
 clic destro sull'app → Apri → Apri. Istruzioni complete nel file LEGGIMI.txt dentro il .dmg.
 
+### Novità della 1.11
+- **ListenBrainz**: i brani ascoltati (per almeno un minuto) finiscono nel tuo profilo listenbrainz.org,
+  con storico e statistiche. Si collega da Preferenze ▸ ListenBrainz… incollando il tuo «User token»;
+  il token resta nel portachiavi del Mac. Senza rete gli ascolti aspettano e partono dopo
+- **Cerca stazioni per genere** (jazz, rock, classica, news, anni 80…) e **le più ascoltate** del paese scelto
+
 ### Novità della 1.10
 - **https quando la radio lo offre**: per ogni stazione http si prova da soli la versione https
   (connessione cifrata) e dalla volta dopo si usa quella, con l'http come riserva

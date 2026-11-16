@@ -29,6 +29,7 @@ con **macOS High Sierra 10.13** (funziona anche sulle versioni successive).
 | 1.8.0 | finestra "In riproduzione" aperta all'avvio (facoltativo) | fatta (provata sull'iMac) |
 | 1.9.0 | server di riserva, riconnessione al cambio di rete, spegnimento graduale, ascolti segnalati a Radio Browser | fatta (provata sull'iMac) |
 | 1.10.0 | https quando la radio lo offre, volume ricordato per ogni stazione, uscita audio dal menu | fatta (provata sull'iMac) |
+| 1.11.0 | ListenBrainz, Cerca stazioni per genere e più ascoltate | anteprima da provare |
 
 ## Scaricare
 

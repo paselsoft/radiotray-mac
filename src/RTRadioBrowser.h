@@ -27,6 +27,10 @@ typedef void (^RTSearchCompletion)(NSArray<RTFoundStation *> *_Nullable stations
 /// Cerca per nome (e facoltativamente paese, codice ISO). Completamento sulla coda principale;
 /// una nuova ricerca annulla la precedente. Le stazioni non riproducibili sono in fondo.
 - (void)searchName:(NSString *)name country:(nullable NSString *)countryCode completion:(RTSearchCompletion)completion;
+/// Cerca per genere ("jazz", "rock", "news"…), le più ascoltate per prime.
+- (void)searchTag:(NSString *)tag country:(nullable NSString *)countryCode completion:(RTSearchCompletion)completion;
+/// Le stazioni più ascoltate del paese (tutte se countryCode è vuoto).
+- (void)topStationsInCountry:(nullable NSString *)countryCode completion:(RTSearchCompletion)completion;
 - (void)cancel;
 
 /// Segnala all'archivio che la stazione con questo indirizzo è stata ascoltata (il "clic" che

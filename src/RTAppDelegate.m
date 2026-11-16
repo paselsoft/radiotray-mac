@@ -20,6 +20,7 @@
 #import "RTRadioBrowser.h"
 #import "RTHttpsUpgrade.h"
 #import "RTAudioOutputs.h"
+#import "RTScrobbler.h"
 #import "RTNowPlayingWindowController.h"
 #import "RTStationLogo.h"
 #import "RTSettings.h"
@@ -503,6 +504,9 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     NSMenuItem *volumes = [self addItem:@"Ricorda il volume di ogni stazione" action:@selector(toggleStationVolumes:) to:prefsMenu];
     volumes.tag = 22;
     volumes.toolTip = @"Le radio non hanno tutte lo stesso volume: quello che scegli per una stazione torna ogni volta che la ascolti";
+    NSMenuItem *listenBrainz = [self addItem:@"ListenBrainz…" action:@selector(configureListenBrainz:) to:prefsMenu];
+    listenBrainz.tag = 23;
+    listenBrainz.toolTip = @"Registra i brani ascoltati nel tuo profilo ListenBrainz (storico e statistiche)";
     NSMenuItem *report = [self addItem:@"Segnala gli ascolti all'archivio Radio Browser" action:@selector(toggleReportListening:) to:prefsMenu];
     report.tag = 20;
     report.toolTip = @"Come chiede l'archivio: aiuta a ordinare le stazioni per popolarità. Si manda solo l'indirizzo della stazione, una volta al giorno.";
@@ -778,6 +782,9 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     [prefs itemWithTag:9].state = self.settings.titleInMenuBar ? NSControlStateValueOn : NSControlStateValueOff;
     [prefs itemWithTag:10].state = self.settings.artwork ? NSControlStateValueOn : NSControlStateValueOff;
     [prefs itemWithTag:18].state = self.settings.menuLogos ? NSControlStateValueOn : NSControlStateValueOff;
+    RTScrobbler *scrobbler = [RTScrobbler shared];
+    [prefs itemWithTag:23].title = scrobbler.linked ? [NSString stringWithFormat:@"ListenBrainz: %@…", scrobbler.userName] : @"ListenBrainz…";
+    [prefs itemWithTag:23].state = scrobbler.linked ? NSControlStateValueOn : NSControlStateValueOff;
     [prefs itemWithTag:21].state = self.settings.preferHTTPS ? NSControlStateValueOn : NSControlStateValueOff;
     [prefs itemWithTag:22].state = self.settings.stationVolumes ? NSControlStateValueOn : NSControlStateValueOff;
     [prefs itemWithTag:20].state = self.settings.reportListening ? NSControlStateValueOn : NSControlStateValueOff;
@@ -848,6 +855,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     self.currentGroup = groupName;
     self.currentStation = name;
     if (!groupName) self.adhocStation = station;
+    [[RTScrobbler shared] stop];   // il brano della stazione di prima finisce qui
     self.track = [RTTrackInfo infoWithTitle:nil artist:nil];
     self.trackArtwork = nil;       // la copertina del brano della stazione precedente non vale più
     self.trackArtworkFull = nil;
@@ -902,6 +910,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
 
 - (void)stopPlayback
 {
+    [[RTScrobbler shared] stop];
     self.userStopped = YES;
     [self.resolver cancel];
     [self.player stop];
@@ -956,6 +965,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
         // jingle o pubblicità (la radio manda solo il proprio nome), oppure stazione con titoli
         // sbagliati che l'utente ha scelto di ignorare: si mostra il logo
         if (!self.track.isEmpty) {
+            [[RTScrobbler shared] stop];   // il brano è finito
             self.track = [RTTrackInfo infoWithTitle:nil artist:nil];
             self.trackArtwork = nil;
             self.trackArtworkFull = nil;
@@ -1104,6 +1114,8 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
 /// Mette il brano nella cronologia; replacing: versione sbagliata da togliere (se era l'ultima).
 - (void)recordHistory:(RTTrackInfo *)info replacing:(RTTrackInfo *)wrong station:(NSString *)station
 {
+    if (wrong) [[RTScrobbler shared] correctCurrentTitle:info.title ?: @"" artist:info.artist ?: @""];
+    else [[RTScrobbler shared] trackStarted:info.title ?: @"" artist:info.artist ?: @"" station:station];
     if (wrong) {
         RTFavoriteTrack *old = [self.history trackWithTitle:wrong.title artist:wrong.artist];
         if (old && old == self.history.tracks.lastObject) [self.history removeTracks:@[old]];
@@ -1850,6 +1862,58 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
 {
     self.settings.nowPlayingAtLaunch = atLaunch;
     [self refresh];
+}
+
+#pragma mark - ListenBrainz
+
+- (void)configureListenBrainz:(id)sender
+{
+    RTScrobbler *scrobbler = [RTScrobbler shared];
+    [NSApp activateIgnoringOtherApps:YES];
+    NSAlert *alert = [NSAlert new];
+    alert.messageText = @"ListenBrainz";
+    if (scrobbler.linked) {
+        alert.informativeText = [NSString stringWithFormat:
+            @"Collegato come «%@». I brani ascoltati per almeno un minuto finiscono nel tuo profilo ListenBrainz.", scrobbler.userName];
+        [alert addButtonWithTitle:@"OK"];
+        [alert addButtonWithTitle:@"Apri il profilo"];
+        [alert addButtonWithTitle:@"Scollega"];
+        NSModalResponse r = [alert runModal];
+        if (r == NSAlertSecondButtonReturn) {
+            NSString *path = [scrobbler.userName stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLPathAllowedCharacterSet]];
+            [[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString:[NSString stringWithFormat:@"https://listenbrainz.org/user/%@/", path]]];
+        } else if (r == NSAlertThirdButtonReturn) {
+            [scrobbler unlink];
+            [self refresh];
+        }
+        return;
+    }
+    alert.informativeText = @"Registra nel tuo profilo ListenBrainz i brani che ascolti (titolo e artista, dopo almeno un minuto). "
+                            @"Incolla qui il tuo «User token»: su listenbrainz.org apri Settings, copia il token e incollalo.";
+    NSTextField *field = [[NSTextField alloc] initWithFrame:NSMakeRect(0, 0, 360, 24)];
+    field.placeholderString = @"User token (per esempio 1a2b3c4d-…)";
+    alert.accessoryView = field;
+    alert.window.initialFirstResponder = field;
+    [alert addButtonWithTitle:@"Collega"];
+    [alert addButtonWithTitle:@"Annulla"];
+    [alert addButtonWithTitle:@"Apri le impostazioni di ListenBrainz"];
+    NSModalResponse r = [alert runModal];
+    if (r == NSAlertThirdButtonReturn) {
+        [[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString:@"https://listenbrainz.org/settings/"]];
+        return;
+    }
+    if (r != NSAlertFirstButtonReturn) return;
+    [scrobbler linkWithToken:field.stringValue completion:^(NSString *userName, NSString *error) {
+        if (error) {
+            [self showAlert:@"ListenBrainz non collegato" text:error];
+        } else {
+            [[RTNotifier shared] notifyTitle:@"ListenBrainz collegato"
+                                     message:[NSString stringWithFormat:@"I brani ascoltati andranno nel profilo di %@", userName]];
+            // il brano in ascolto adesso conta già
+            if (!self.track.isEmpty) [scrobbler trackStarted:self.track.title ?: @"" artist:self.track.artist ?: @"" station:self.currentStation];
+        }
+        [self refresh];
+    }];
 }
 
 - (void)togglePreferHTTPS:(id)sender
