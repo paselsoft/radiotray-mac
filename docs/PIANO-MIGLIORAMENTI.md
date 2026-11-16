@@ -20,14 +20,11 @@ Legenda: `[x]` fatto (versione) · `[ ]` da fare · 🚧 in preparazione nell'an
 - [x] Ricerca nell'editor, importazione di playlist .pls e .m3u (1.6)
 - [x] Cerca stazioni riprova con le sigle (RMC, RDS, Deejay…) (1.7)
 - [x] Finestra "In riproduzione" aperta all'avvio (1.8)
-
-## In preparazione (1.9)
-
-- [ ] 🚧 **1. Server di riserva per ogni stazione**: se lo stream cade si passa subito a un altro
-  server della stessa radio; l'importazione delle playlist li salva tutti
-- [ ] 🚧 **2. Riconnessione al cambio di rete** (Wi-Fi che cade e torna, rete diversa)
-- [ ] 🚧 **5. Spegnimento graduale** con il timer di spegnimento (volume che scende nell'ultimo minuto)
-- [ ] 🚧 **9. Segnalare gli ascolti a Radio Browser**, come l'archivio chiede alle app
+- [x] **1. Server di riserva** per ogni stazione, salvati anche importando le playlist (1.9)
+- [x] **2. Riconnessione al cambio di rete** (1.9)
+- [x] **5. Spegnimento graduale** con il timer di spegnimento (1.9)
+- [x] **9. Ascolti segnalati all'archivio Radio Browser** (1.9)
+- [x] Compilazione su Mac Intel di GitHub: niente più code bloccate (1.9)
 
 ## Da fare
 
