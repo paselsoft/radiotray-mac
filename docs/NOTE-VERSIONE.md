@@ -4,6 +4,17 @@ Lettore di radio via Internet nella barra dei menu per **macOS 10.13 High Sierra
 **Installazione:** apri `RadioTray-….dmg`, trascina RadioTray in Applicazioni, poi la prima volta
 clic destro sull'app → Apri → Apri. Istruzioni complete nel file LEGGIMI.txt dentro il .dmg.
 
+### Novità della 1.5
+- **Copertine ufficiali di RDS**: titolo, artista e copertina arrivano direttamente dalla radio
+  (prima del catalogo Apple), anche per i brani italiani che il catalogo non trova
+- **Verifica le stazioni** (Preferenze ▸ Verifica le stazioni…): prova tutte le stazioni, mostra
+  quelle che non rispondono e propone un indirizzo nuovo dall'archivio Radio Browser;
+  "Ascolta la proposta" per provarlo, "Usa l'indirizzo proposto" per sostituirlo con un clic
+- **Loghi nel menu** accanto al nome di ogni stazione, e anche nell'editor delle stazioni
+  (si possono togliere: Preferenze ▸ Loghi delle stazioni nel menu)
+- **Logo da indirizzo web**: nell'editor, "Logo…" accetta l'indirizzo di un'immagine
+  (in Safari: clic destro sul logo ▸ Copia indirizzo immagine) oltre a un file sul Mac
+
 ### Novità della 1.4.2
 - **Logo della stazione** al posto della copertina durante jingle, parlato e con le radio che non
   mandano i titoli: dall'archivio Radio Browser, oppure scelto da te nell'editor (pulsante "Logo…")

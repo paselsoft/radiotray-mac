@@ -31,7 +31,11 @@ Uso
   copertina e da lì in poi li mostra giusti; si può anche indicare a mano dal sottomenu del
   brano: "Titolo e artista al contrario per questa stazione".
 - Quando non c'è la copertina (jingle, parlato, radio senza titoli) si vede il logo della
-  stazione. Si può sceglierne uno proprio da Preferenze > Modifica stazioni… > "Logo…".
+  stazione. Si può sceglierne uno proprio da Preferenze > Modifica stazioni… > "Logo…":
+  un file sul Mac oppure l'indirizzo web di un'immagine (in Safari: clic destro sul logo >
+  Copia indirizzo immagine). I loghi si vedono anche nel menu, accanto a ogni stazione
+  (si tolgono da Preferenze > Loghi delle stazioni nel menu).
+- Con RDS titolo, artista e copertina arrivano direttamente dalla radio.
 - Radiosveglia…: ora, giorni, stazione e volume crescente. Il Mac deve essere acceso
   (lo stop dello schermo va bene, lo stop del computer no).
 - Più ascoltate: in cima alle stazioni compaiono le 5 che ascolti di più (dopo 10 minuti);
@@ -65,6 +69,9 @@ Stazioni
 - Preferenze > Modifica stazioni… apre l'editor: doppio clic su nome o indirizzo per
   modificarli, trascina per spostare (anche da un gruppo all'altro), pulsanti per nuovo
   gruppo, nuova stazione, elimina, su/giù e "Sposta in…". Le modifiche sono salvate subito.
+- Preferenze > Verifica le stazioni… prova tutte le stazioni e mostra quelle che non
+  rispondono; per ognuna cerca un indirizzo nuovo nell'archivio Radio Browser:
+  "Ascolta la proposta" per provarlo, "Usa l'indirizzo proposto" per sostituirlo.
 - Preferenze > Modifica il file JSON in TextEdit… apre direttamente il file bookmarks.json.
   Si trova in ~/Library/Application Support/RadioTray/bookmarks.json
 - Il formato è lo stesso di Radiotray-NG per Linux: puoi copiare lì il tuo

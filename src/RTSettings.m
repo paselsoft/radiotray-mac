@@ -14,6 +14,7 @@ static NSString *const kCheckUpdates = @"check-for-updates";
 static NSString *const kLastUpdateCheck = @"last-update-check";
 static NSString *const kTitleInBar = @"tag-info-in-label";
 static NSString *const kArtwork = @"artwork";
+static NSString *const kMenuLogos = @"menu-logos";
 static NSString *const kAlarmEnabled = @"alarm-enabled";
 static NSString *const kAlarmMinutes = @"alarm-minutes";
 static NSString *const kAlarmDays = @"alarm-days";
@@ -51,6 +52,7 @@ static NSString *const kLastBackup = @"last-backup";
             kCheckUpdates: @YES,
             kTitleInBar: @NO,
             kArtwork: @YES,
+            kMenuLogos: @YES,
             kAlarmEnabled: @NO,
             kAlarmMinutes: @(7 * 60),
             kAlarmDays: @(0x1F),
@@ -111,6 +113,8 @@ static NSString *const kLastBackup = @"last-backup";
 - (void)setTitleInMenuBar:(BOOL)v { [self.d setBool:v forKey:kTitleInBar]; }
 - (BOOL)artwork { return [self.d boolForKey:kArtwork]; }
 - (void)setArtwork:(BOOL)v { [self.d setBool:v forKey:kArtwork]; }
+- (BOOL)menuLogos { return [self.d boolForKey:kMenuLogos]; }
+- (void)setMenuLogos:(BOOL)v { [self.d setBool:v forKey:kMenuLogos]; }
 
 - (BOOL)alarmEnabled { return [self.d boolForKey:kAlarmEnabled]; }
 - (void)setAlarmEnabled:(BOOL)v { [self.d setBool:v forKey:kAlarmEnabled]; }

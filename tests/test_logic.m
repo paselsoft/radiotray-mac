@@ -14,6 +14,7 @@
 #import "../src/RTAlarm.h"
 #import "../src/RTBackup.h"
 #import "../src/RTStationLogo.h"
+#import "../src/RTStationChecker.h"
 
 static int failures = 0;
 static int checks = 0;
@@ -735,6 +736,25 @@ int main(int argc, const char *argv[])
                       "{\"favicon\":\"https://www.facebook.com/a/b\"},{\"favicon\":\"https://www.radioitalia.it/images/logo.png\"}]")],
                      @"https://www.radioitalia.it/images/logo.png");
             CHECK([RTStationLogo bestFaviconFromJSON:D(@"[]")] == nil);
+        }
+        // 1.5.0: copertine ufficiali di RDS (JSON nei metadati HLS, preceduto da byte binari)
+        {
+            NSMutableData *priv = [NSMutableData dataWithBytes:"RDS\0\x01" length:5];
+            [priv appendData:D(@"{\"type\":\"song\",\"titolo\":\"Flowers\",\"artista\":\"Miley Cyrus\","
+                               "\"cover\":\"https://web.rds.it/m/l56169?radio_id=1\"}")];
+            NSDictionary *song = [RTTrackInfo stationSongFromData:priv];
+            CHECK_EQ(song[@"title"], @"Flowers");
+            CHECK_EQ(song[@"artist"], @"Miley Cyrus");
+            CHECK_EQ(song[@"cover"], @"https://web.rds.it/m/l56169?radio_id=1");
+            CHECK([RTTrackInfo stationSongFromData:D(@"{\"type\":\"spot\",\"titolo\":\"Pubblicità\"}")] == nil);
+            CHECK([RTTrackInfo stationSongFromData:D(@"Sting - Fields Of Gold")] == nil);
+            CHECK([RTTrackInfo stationSongFromData:nil] == nil);
+            // verifica delle stazioni
+            CHECK([RTStationChecker isAudioResponseStatus:200 contentType:@"audio/mpeg"]);
+            CHECK([RTStationChecker isAudioResponseStatus:200 contentType:@"application/vnd.apple.mpegurl"]);
+            CHECK([RTStationChecker isAudioResponseStatus:200 contentType:nil]);
+            CHECK(![RTStationChecker isAudioResponseStatus:200 contentType:@"text/html; charset=utf-8"]);
+            CHECK(![RTStationChecker isAudioResponseStatus:404 contentType:@"audio/mpeg"]);
         }
         if (argc > 2) testBundledList([NSString stringWithUTF8String:argv[2]]);
         printf("%d verifiche, %d fallite\n", checks, failures);

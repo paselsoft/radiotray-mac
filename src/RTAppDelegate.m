@@ -6,6 +6,7 @@
 #import "RTPlayer.h"
 #import "RTSearchWindowController.h"
 #import "RTStationEditorController.h"
+#import "RTStationCheckWindowController.h"
 #import "RTLoginItem.h"
 #import "RTFavoriteTracks.h"
 #import "RTFavoritesWindowController.h"
@@ -19,13 +20,14 @@
 #import "RTStationLogo.h"
 #import "RTSettings.h"
 #import "RTStatusIcon.h"
+#import "RTTableCell.h"
 #import "RTStreamResolver.h"
 #import "RTTrackInfo.h"
 
 static const NSUInteger RTMenuLineLength = 48;
 static const NSInteger RTMaxSleepMinutes = 24 * 60;
 
-@interface RTAppDelegate () <NSMenuDelegate, RTPlayerDelegate, RTMediaKeysDelegate, RTSearchWindowDelegate, RTStationEditorDelegate, RTFavoritesWindowDelegate, RTNowPlayingDelegate, RTAudioWatcherDelegate>
+@interface RTAppDelegate () <NSMenuDelegate, RTPlayerDelegate, RTMediaKeysDelegate, RTSearchWindowDelegate, RTStationEditorDelegate, RTStationCheckDelegate, RTFavoritesWindowDelegate, RTNowPlayingDelegate, RTAudioWatcherDelegate>
 @property (nonatomic, strong) NSStatusItem *statusItem;
 @property (nonatomic, strong) NSMenu *menu;
 @property (nonatomic, strong) NSMenuItem *trackItem;
@@ -38,6 +40,9 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
 @property (nonatomic, strong) NSSlider *volumeSlider;
 @property (nonatomic, strong) NSTextField *volumeValue;
 @property (nonatomic, strong) NSMutableArray<NSMenuItem *> *stationItems;
+@property (nonatomic, strong) NSCache<NSString *, NSImage *> *menuLogoCache;     // loghi 16×16 per il menu
+@property (nonatomic, strong) NSMutableArray<RTStation *> *logoQueue;            // loghi da cercare, uno alla volta
+@property (nonatomic) BOOL logoQueueRunning;
 
 @property (nonatomic, strong) RTSettings *settings;
 @property (nonatomic, strong) RTBookmarks *bookmarks;
@@ -47,6 +52,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
 @property (nonatomic, strong) RTMediaKeys *mediaKeys;
 @property (nonatomic, strong, nullable) RTSearchWindowController *searchWindow;
 @property (nonatomic, strong, nullable) RTStationEditorController *stationEditor;
+@property (nonatomic, strong, nullable) RTStationCheckWindowController *stationCheck;
 @property (nonatomic, strong) RTFavoriteTracks *favorites;
 @property (nonatomic, strong, nullable) RTFavoritesWindowController *favoritesWindow;
 @property (nonatomic, strong) RTFavoriteTracks *history;          // brani ascoltati di recente
@@ -71,6 +77,8 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
 @property (nonatomic) BOOL pausedByLock;
 @property (nonatomic, strong, nullable) NSImage *stationLogo;       // logo della stazione corrente
 @property (nonatomic, strong, nullable) NSImage *stationLogoThumb;
+@property (nonatomic, copy, nullable) NSString *stationCoverURL;     // copertina indicata dalla radio (RDS)
+@property (nonatomic, copy, nullable) NSString *stationCoverTitle;   // per quale titolo
 @property (nonatomic) BOOL pausedByHeadphones;
 
 // stazione scelta (anche se spenta). currentGroup nil = indirizzo aperto con "Apri URL…"
@@ -94,6 +102,8 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     self.settings = [RTSettings shared];
     [self installMainMenu];
     self.stationItems = [NSMutableArray array];
+    self.menuLogoCache = [NSCache new];
+    self.logoQueue = [NSMutableArray array];
     self.track = [RTTrackInfo infoWithTitle:nil artist:nil];
     self.resolver = [RTStreamResolver new];
     self.player = [RTPlayer new];
@@ -251,8 +261,77 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     item.target = self;
     item.representedObject = @[group.name, station.name];
     item.toolTip = station.url;
+    if (self.settings.menuLogos) item.image = [self menuLogoForStation:station];
     [self.stationItems addObject:item];
     return item;
+}
+
+#pragma mark - Loghi nel menu
+
+- (NSString *)menuLogoKey:(RTStation *)station
+{
+    return [NSString stringWithFormat:@"%@\n%@", station.url, station.image ?: @""];
+}
+
+/// Logo piccolo della stazione se è già in cache; altrimenti lo si cerca in sottofondo.
+- (nullable NSImage *)menuLogoForStation:(RTStation *)station
+{
+    NSString *key = [self menuLogoKey:station];
+    NSImage *cached = [self.menuLogoCache objectForKey:key];
+    if (cached) return cached;
+    NSData *data = [[RTStationLogo shared] cachedLogoForStationURL:station.url image:station.image];
+    NSImage *image = data ? [[NSImage alloc] initWithData:data] : nil;
+    if (image && image.size.width >= 8) {
+        NSImage *small = [RTTableCell thumbnail:image side:16];
+        [self.menuLogoCache setObject:small forKey:key];
+        return small;
+    }
+    if (!station.image.length && [[RTStationLogo shared] knownMissingForStationURL:station.url]) return nil;
+    [self queueLogoSearch:station];
+    return nil;
+}
+
+- (void)queueLogoSearch:(RTStation *)station
+{
+    for (RTStation *s in self.logoQueue) if ([s.url isEqualToString:station.url]) return;
+    [self.logoQueue addObject:station];
+    if (!self.logoQueueRunning) [self searchNextLogo];
+}
+
+- (void)searchNextLogo
+{
+    RTStation *station = self.logoQueue.firstObject;
+    if (!station) {
+        self.logoQueueRunning = NO;
+        return;
+    }
+    self.logoQueueRunning = YES;
+    __weak typeof(self) weakSelf = self;
+    [[RTStationLogo shared] logoForStation:station.name url:station.url image:station.image completion:^(NSData *data) {
+        typeof(self) strongSelf = weakSelf;
+        if (!strongSelf) return;
+        [strongSelf.logoQueue removeObject:station];
+        NSImage *image = data ? [[NSImage alloc] initWithData:data] : nil;
+        if (image && image.size.width >= 8 && strongSelf.settings.menuLogos) {
+            NSImage *small = [RTTableCell thumbnail:image side:16];
+            [strongSelf.menuLogoCache setObject:small forKey:[strongSelf menuLogoKey:station]];
+            for (NSMenuItem *item in strongSelf.stationItems) {
+                if ([item.toolTip isEqualToString:station.url]) item.image = small;
+            }
+        }
+        // una pausa tra una ricerca e l'altra: l'archivio è gratuito
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.3 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            [weakSelf searchNextLogo];
+        });
+    }];
+}
+
+- (void)toggleMenuLogos:(id)sender
+{
+    self.settings.menuLogos = !self.settings.menuLogos;
+    if (!self.settings.menuLogos) [self.logoQueue removeAllObjects];
+    [self buildMenu];
+    [self refresh];
 }
 
 - (void)addRootStationsTo:(NSMenu *)menu
@@ -372,6 +451,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     NSMenu *prefsMenu = [[NSMenu alloc] initWithTitle:@"Preferenze"];
     prefsMenu.autoenablesItems = NO;
     [self addItem:@"Modifica stazioni…" action:@selector(openStationEditor:) to:prefsMenu];
+    [self addItem:@"Verifica le stazioni…" action:@selector(openStationCheck:) to:prefsMenu];
     [self addItem:@"Modifica il file JSON in TextEdit…" action:@selector(editBookmarks:) to:prefsMenu];
     [self addItem:@"Mostra il file delle stazioni nel Finder" action:@selector(revealBookmarks:) to:prefsMenu];
     [self addItem:@"Ricarica stazioni" action:@selector(reloadBookmarks:) to:prefsMenu];
@@ -401,6 +481,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     [prefsMenu addItem:[NSMenuItem separatorItem]];
     [self addItem:@"Titolo del brano nella barra dei menu" action:@selector(toggleTitleInBar:) to:prefsMenu].tag = 9;
     [self addItem:@"Copertine degli album" action:@selector(toggleArtwork:) to:prefsMenu].tag = 10;
+    [self addItem:@"Loghi delle stazioni nel menu" action:@selector(toggleMenuLogos:) to:prefsMenu].tag = 18;
     [self addItem:@"Azzera le stazioni più ascoltate" action:@selector(resetListening:) to:prefsMenu];
 
     [prefsMenu addItem:[NSMenuItem separatorItem]];
@@ -599,6 +680,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     [prefs itemWithTag:8].state = self.settings.checkForUpdates ? NSControlStateValueOn : NSControlStateValueOff;
     [prefs itemWithTag:9].state = self.settings.titleInMenuBar ? NSControlStateValueOn : NSControlStateValueOff;
     [prefs itemWithTag:10].state = self.settings.artwork ? NSControlStateValueOn : NSControlStateValueOff;
+    [prefs itemWithTag:18].state = self.settings.menuLogos ? NSControlStateValueOn : NSControlStateValueOff;
 
     // radiosveglia
     if (self.settings.alarmEnabled && self.settings.alarmStation) {
@@ -797,6 +879,33 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
         strongSelf.trackArtworkFull = image;
         [strongSelf refresh];
     };
+    // copertina ufficiale mandata dalla radio (RDS): ha la precedenza sul catalogo Apple
+    NSString *officialCover = [self.stationCoverTitle isEqualToString:title] ? self.stationCoverURL : nil;
+    if (officialCover) {
+        NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:[NSURL URLWithString:officialCover]];
+        req.timeoutInterval = 10;
+        [[[NSURLSession sharedSession] dataTaskWithRequest:req completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
+            NSImage *image = d.length > 100 ? [[NSImage alloc] initWithData:d] : nil;
+            dispatch_async(dispatch_get_main_queue(), ^{
+                typeof(self) strongSelf = weakSelf;
+                if (!strongSelf || ![strongSelf.track isEqualToInfo:info]) return;
+                if (image) {
+                    show(image);
+                    deliver(image);
+                    return;
+                }
+                // la copertina della radio non si scarica: si prova il catalogo Apple
+                [[RTArtwork shared] artworkForTitle:info.title artist:info.artist completion:^(NSData *data) {
+                    if (![weakSelf.track isEqualToInfo:info]) return;
+                    NSImage *fallback = data ? [[NSImage alloc] initWithData:data] : nil;
+                    if (fallback) show(fallback);
+                    deliver(fallback);
+                }];
+            });
+        }] resume];
+        [self refresh];
+        return;
+    }
     [[RTArtwork shared] artworkForTitle:info.title artist:info.artist completion:^(NSData *data) {
         typeof(self) strongSelf = weakSelf;
         if (!strongSelf || ![strongSelf.track isEqualToInfo:info]) return;   // nel frattempo è cambiato brano
@@ -952,6 +1061,12 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
         strongSelf.stationLogoThumb = [strongSelf menuThumbnail:image];
         [strongSelf refresh];
     }];
+}
+
+- (void)player:(RTPlayer *)player didReceiveCoverURL:(NSString *)coverURL forStreamTitle:(NSString *)title
+{
+    self.stationCoverURL = coverURL;
+    self.stationCoverTitle = title;
 }
 
 - (void)player:(RTPlayer *)player didUpdateStreamFormat:(NSString *)format bitrate:(NSInteger)kbps
@@ -2024,6 +2139,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     RTBookmarks *b = [RTBookmarks bookmarksWithContentsOfFile:self.settings.bookmarksPath error:NULL];
     if (!b) return;
     self.bookmarks = b;
+    [self.menuLogoCache removeAllObjects];
     // la stazione scelta potrebbe essere stata rinominata o eliminata: si tiene solo se esiste ancora
     if (self.currentGroup && ![b stationNamed:self.currentStation ?: @"" inGroup:self.currentGroup] &&
         self.player.state == RTPlayerStateStopped) {
@@ -2038,6 +2154,31 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
         [self loadStationLogo:current];
     }
     [self refresh];
+}
+
+- (void)openStationCheck:(id)sender
+{
+    [self installDefaultBookmarksIfNeeded];
+    if (!self.stationCheck) {
+        self.stationCheck = [[RTStationCheckWindowController alloc] initWithBookmarksPath:self.settings.bookmarksPath];
+        self.stationCheck.delegate = self;
+    }
+    [self.stationCheck showAndStart];
+}
+
+- (void)stationCheckPlayName:(NSString *)name url:(NSString *)url
+{
+    RTStation *station = [RTStation new];
+    station.name = name;
+    station.url = url;
+    self.adhocNamed = YES;
+    [self playStation:station group:nil];
+}
+
+- (void)stationCheckDidSaveBookmarks
+{
+    [self stationEditorDidSaveBookmarks];
+    [self.stationEditor reloadFromDisk];
 }
 
 - (void)stationEditorPlayStation:(NSString *)name group:(NSString *)group

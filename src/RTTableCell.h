@@ -8,6 +8,10 @@ NS_ASSUME_NONNULL_BEGIN
 /// Colore del testo quando la riga non è selezionata.
 @property (nonatomic, strong) NSColor *normalColor;
 + (instancetype)cellInTable:(NSTableView *)table identifier:(NSString *)identifier owner:(id)owner;
+/// Come sopra, con un'immagine 16×16 prima del testo (imageView).
++ (instancetype)imageCellInTable:(NSTableView *)table identifier:(NSString *)identifier owner:(id)owner;
+/// Logo rimpicciolito in un quadrato di lato side, senza deformarlo.
++ (NSImage *)thumbnail:(NSImage *)image side:(CGFloat)side;
 @end
 
 NS_ASSUME_NONNULL_END

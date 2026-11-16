@@ -1,6 +1,7 @@
 #import "RTPlayer.h"
 #import <AVFoundation/AVFoundation.h>
 #import "RTIcyMetadataReader.h"
+#import "RTTrackInfo.h"
 
 static void *RTItemStatusContext = &RTItemStatusContext;
 static void *RTItemMetadataContext = &RTItemMetadataContext;
@@ -275,6 +276,20 @@ static const NSUInteger RTMaxReconnects = sizeof(RTReconnectDelays) / sizeof(RTR
 {
     NSString *title = nil;
     NSString *artist = nil;
+    // RDS: un JSON con titolo, artista e copertina ufficiale nei metadati ID3 (TXXX / PRIV)
+    for (AVMetadataItem *m in items) {
+        NSData *raw = m.dataValue ?: [m.stringValue dataUsingEncoding:NSUTF8StringEncoding];
+        NSDictionary *song = [RTTrackInfo stationSongFromData:raw];
+        if (!song) continue;
+        NSString *t = song[@"artist"].length ? [NSString stringWithFormat:@"%@ - %@", song[@"artist"], song[@"title"]] : song[@"title"];
+        if (!self.avMetadataSeen) {
+            self.avMetadataSeen = YES;
+            [self.icyReader stop];
+        }
+        if (song[@"cover"]) [self.delegate player:self didReceiveCoverURL:song[@"cover"] forStreamTitle:t];
+        [self.delegate player:self didReceiveStreamTitle:t];
+        return;
+    }
     for (AVMetadataItem *m in items) {
         NSString *key = [m.key isKindOfClass:[NSString class]] ? [(NSString *)m.key lowercaseString] : @"";
         NSString *value = m.stringValue;

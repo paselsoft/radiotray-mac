@@ -20,7 +20,12 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)isEqualToInfo:(nullable RTTrackInfo *)other;
 /// "Titolo\nArtista" (o solo il titolo): per gli appunti.
 - (NSString *)clipboardText;
+/// Dati del brano che alcune radio (RDS) inseriscono nello stream come JSON dentro i metadati ID3:
+/// {"type":"song","titolo":…,"artista":…,"cover":"https://…"}. Restituisce title, artist e, se c'è,
+/// cover; nil se i dati non ci sono o non descrivono una canzone (pubblicità, notiziario).
++ (nullable NSDictionary<NSString *, NSString *> *)stationSongFromData:(nullable NSData *)data;
 @end
+
 
 /// Accorcia un testo a max caratteri aggiungendo "…".
 NSString *RTTruncate(NSString *text, NSUInteger max);

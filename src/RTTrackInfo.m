@@ -19,6 +19,35 @@ NSString *RTTruncate(NSString *text, NSUInteger max)
 
 @implementation RTTrackInfo
 
++ (NSDictionary<NSString *, NSString *> *)stationSongFromData:(NSData *)data
+{
+    if (data.length < 2) return nil;
+    // il JSON può essere preceduto dal nome del proprietario del campo PRIV: si cerca tra la prima { e l'ultima }
+    const char *bytes = data.bytes;
+    NSInteger first = -1, last = -1;
+    for (NSInteger i = 0; i < (NSInteger)data.length; i++) {
+        if (bytes[i] == '{' && first < 0) first = i;
+        if (bytes[i] == '}') last = i;
+    }
+    if (first < 0 || last <= first) return nil;
+    id json = [NSJSONSerialization JSONObjectWithData:[data subdataWithRange:NSMakeRange((NSUInteger)first, (NSUInteger)(last - first + 1))]
+                                              options:0 error:NULL];
+    if (![json isKindOfClass:[NSDictionary class]]) return nil;
+    NSString *(^str)(NSString *) = ^NSString *(NSString *key) {
+        id v = json[key];
+        return [v isKindOfClass:[NSString class]] ? RTTrim(v) : @"";
+    };
+    NSString *type = str(@"type").lowercaseString;
+    if (type.length && ![type isEqualToString:@"song"]) return nil;
+    NSString *title = str(@"titolo").length ? str(@"titolo") : str(@"traccia");
+    NSString *artist = str(@"artista").length ? str(@"artista") : str(@"sottotitolo");
+    if (title.length == 0) return nil;
+    NSMutableDictionary *out = [@{ @"title": title, @"artist": artist } mutableCopy];
+    NSString *cover = str(@"cover");
+    if ([cover.lowercaseString hasPrefix:@"http"]) out[@"cover"] = cover;
+    return out;
+}
+
 /// "PINGUINI TATTICI NUCLEARI" → "Pinguini Tattici Nucleari" (solo se tutto maiuscolo)
 static NSString *RTSoftenCaps(NSString *s)
 {

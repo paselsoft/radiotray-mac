@@ -1,6 +1,7 @@
 #import "RTStationEditorController.h"
 #import "RTBookmarksDocument.h"
 #import "RTTableCell.h"
+#import "RTStationLogo.h"
 
 static NSString *const kColName = @"name";
 static NSString *const kColURL = @"url";
@@ -18,6 +19,8 @@ static NSPasteboardType const RTDragType = @"io.github.paselsoft.radiotray-mac.i
 @property (nonatomic, strong) NSButton *logoButton;
 @property (nonatomic, strong) NSTextField *statusLabel;
 @property (nonatomic, strong, nullable) id draggedItem;
+@property (nonatomic, strong) NSCache<NSString *, NSImage *> *logos;     // loghi 16×16 delle stazioni
+@property (nonatomic, strong) NSMutableSet<NSString *> *loadingLogos;
 @end
 
 @implementation RTStationEditorController
@@ -34,6 +37,8 @@ static NSPasteboardType const RTDragType = @"io.github.paselsoft.radiotray-mac.i
     window.frameAutosaveName = @"RadioTrayStationEditor2";   // nuova misura (pulsante Logo…)
     if ((self = [super initWithWindow:window])) {
         _path = [path copy];
+        _logos = [NSCache new];
+        _loadingLogos = [NSMutableSet set];
         [self buildContent];
         [window center];
         [self reloadFromDisk];
@@ -410,29 +415,50 @@ static NSPasteboardType const RTDragType = @"io.github.paselsoft.radiotray-mac.i
 {
     RTDocStation *s = [self selectedItem];
     if (![s isKindOfClass:[RTDocStation class]]) return;
-    NSOpenPanel *panel = [NSOpenPanel openPanel];
-    panel.allowedFileTypes = @[@"png", @"jpg", @"jpeg", @"gif", @"tif", @"tiff", @"ico", @"icns", @"bmp"];
-    panel.message = [NSString stringWithFormat:@"Logo per «%@» (si vede quando non c'è la copertina del brano)", s.name];
-    panel.prompt = @"Usa come logo";
-    NSButton *remove = nil;
-    if (s.image) {
-        remove = [NSButton checkboxWithTitle:@"Togli il logo scelto (torna a quello dell'archivio, se c'è)" target:nil action:NULL];
-        [remove sizeToFit];
-        panel.accessoryView = remove;
-        panel.accessoryViewDisclosed = YES;
-    }
-    [panel beginSheetModalForWindow:self.window completionHandler:^(NSModalResponse result) {
-        if (remove.state == NSControlStateValueOn) {
+    NSAlert *alert = [NSAlert new];
+    alert.messageText = [NSString stringWithFormat:@"Logo per «%@»", s.name];
+    alert.informativeText = @"Incolla l'indirizzo web di un'immagine (in Safari: clic destro sul logo ▸ Copia indirizzo immagine), "
+                            @"oppure scegli un file sul Mac. Il logo si vede nel menu e quando non c'è la copertina del brano.";
+    NSTextField *field = [[NSTextField alloc] initWithFrame:NSMakeRect(0, 0, 380, 24)];
+    field.placeholderString = @"https://…/logo.png";
+    NSString *clip = [[NSPasteboard generalPasteboard] stringForType:NSPasteboardTypeString];
+    clip = [clip stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    if ([clip.lowercaseString hasPrefix:@"http://"] || [clip.lowercaseString hasPrefix:@"https://"]) field.stringValue = clip;
+    alert.accessoryView = field;
+    [alert addButtonWithTitle:@"Usa l'indirizzo"];      // 1000
+    [alert addButtonWithTitle:@"Scegli un file…"];      // 1001
+    [alert addButtonWithTitle:@"Annulla"];              // 1002
+    if (s.image) [alert addButtonWithTitle:@"Togli il logo"];   // 1003
+    alert.window.initialFirstResponder = field;
+    [alert beginSheetModalForWindow:self.window completionHandler:^(NSModalResponse result) {
+        if (result == NSAlertFirstButtonReturn) {
+            [self downloadLogo:field.stringValue forStation:s];
+        } else if (result == NSAlertSecondButtonReturn) {
+            dispatch_async(dispatch_get_main_queue(), ^{ [self chooseLogoFileForStation:s]; });
+        } else if (result == NSAlertThirdButtonReturn + 1) {
             [self.doc setImage:nil forStation:s];
             [self commit:nil select:s];
-            return;
         }
+    }];
+}
+
+/// Cartella dei loghi scelti, accanto al file delle stazioni: il logo resta anche se l'originale sparisce.
+- (NSString *)newLogoPathWithExtension:(NSString *)ext
+{
+    NSString *dir = [[self.path stringByDeletingLastPathComponent] stringByAppendingPathComponent:@"loghi"];
+    [[NSFileManager defaultManager] createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:NULL];
+    return [dir stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.%@", [NSUUID UUID].UUIDString, ext]];
+}
+
+- (void)chooseLogoFileForStation:(RTDocStation *)s
+{
+    NSOpenPanel *panel = [NSOpenPanel openPanel];
+    panel.allowedFileTypes = @[@"png", @"jpg", @"jpeg", @"gif", @"tif", @"tiff", @"ico", @"icns", @"bmp"];
+    panel.message = [NSString stringWithFormat:@"Logo per «%@»", s.name];
+    panel.prompt = @"Usa come logo";
+    [panel beginSheetModalForWindow:self.window completionHandler:^(NSModalResponse result) {
         if (result != NSModalResponseOK || !panel.URL) return;
-        // copia nella cartella dell'app: il logo resta anche se l'originale viene spostato
-        NSString *dir = [[self.path stringByDeletingLastPathComponent] stringByAppendingPathComponent:@"loghi"];
-        [[NSFileManager defaultManager] createDirectoryAtPath:dir withIntermediateDirectories:YES attributes:nil error:NULL];
-        NSString *dest = [dir stringByAppendingPathComponent:
-                          [NSString stringWithFormat:@"%@.%@", [NSUUID UUID].UUIDString, panel.URL.pathExtension.lowercaseString]];
+        NSString *dest = [self newLogoPathWithExtension:panel.URL.pathExtension.lowercaseString];
         NSError *error = nil;
         if (![[NSFileManager defaultManager] copyItemAtPath:panel.URL.path toPath:dest error:&error]) {
             [self commit:error.localizedDescription ?: @"Impossibile copiare l'immagine" select:s];
@@ -441,6 +467,81 @@ static NSPasteboardType const RTDragType = @"io.github.paselsoft.radiotray-mac.i
         [self.doc setImage:dest forStation:s];
         [self commit:nil select:s];
     }];
+}
+
+- (void)downloadLogo:(NSString *)address forStation:(RTDocStation *)s
+{
+    address = [address stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    NSURL *url = [NSURL URLWithString:address];
+    if (!url || !([url.scheme.lowercaseString isEqualToString:@"http"] || [url.scheme.lowercaseString isEqualToString:@"https"])) {
+        [self commit:@"Scrivi un indirizzo che comincia con http:// o https://" select:s];
+        return;
+    }
+    self.statusLabel.stringValue = @"Scaricamento del logo…";
+    NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:url];
+    req.timeoutInterval = 15;
+    [req setValue:@"RadioTray-Mac/1.5 (https://github.com/paselsoft/radiotray-mac)" forHTTPHeaderField:@"User-Agent"];
+    [[[NSURLSession sharedSession] dataTaskWithRequest:req completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+        NSInteger code = [response isKindOfClass:[NSHTTPURLResponse class]] ? [(NSHTTPURLResponse *)response statusCode] : 200;
+        NSImage *image = data.length ? [[NSImage alloc] initWithData:data] : nil;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self showHint];
+            NSString *problem = nil;
+            if (error) problem = [NSString stringWithFormat:@"Logo non scaricato: %@", error.localizedDescription];
+            else if (code >= 400) problem = [NSString stringWithFormat:@"Logo non scaricato: il sito risponde HTTP %ld", (long)code];
+            else if (!image || image.size.width < 8)
+                problem = @"L'indirizzo non porta a un'immagine che il Mac sa leggere (le pagine web e le immagini SVG non vanno bene: "
+                          @"serve l'indirizzo di un file PNG, JPG, GIF o ICO).";
+            if (problem) {
+                [self commit:problem select:s];
+                return;
+            }
+            NSString *ext = url.pathExtension.lowercaseString;
+            if (![@[@"png", @"jpg", @"jpeg", @"gif", @"ico", @"bmp", @"tif", @"tiff", @"webp"] containsObject:ext]) ext = @"img";
+            NSString *dest = [self newLogoPathWithExtension:ext];
+            NSError *writeError = nil;
+            if (![data writeToFile:dest options:NSDataWritingAtomic error:&writeError]) {
+                [self commit:writeError.localizedDescription ?: @"Impossibile salvare il logo" select:s];
+                return;
+            }
+            [self.doc setImage:dest forStation:s];
+            [self commit:nil select:s];
+        });
+    }] resume];
+}
+
+#pragma mark - Loghi nella tabella
+
+- (nullable NSImage *)logoForStation:(RTDocStation *)s
+{
+    NSString *key = [NSString stringWithFormat:@"%@\n%@", s.url, s.image ?: @""];
+    NSImage *cached = [self.logos objectForKey:key];
+    if (cached) return cached;
+    RTStationLogo *store = [RTStationLogo shared];
+    NSData *data = [store cachedLogoForStationURL:s.url image:s.image];
+    NSImage *image = data ? [[NSImage alloc] initWithData:data] : nil;
+    if (image && image.size.width >= 8) {
+        NSImage *small = [RTTableCell thumbnail:image side:16];
+        [self.logos setObject:small forKey:key];
+        return small;
+    }
+    if ((!s.image.length && [store knownMissingForStationURL:s.url]) || [self.loadingLogos containsObject:key]) return nil;
+    [self.loadingLogos addObject:key];
+    __weak typeof(self) weakSelf = self;
+    [store logoForStation:s.name url:s.url image:s.image completion:^(NSData *d) {
+        typeof(self) strongSelf = weakSelf;
+        if (!strongSelf) return;
+        NSImage *img = d ? [[NSImage alloc] initWithData:d] : nil;
+        if (!img || img.size.width < 8) return;   // resta in loadingLogos: non si riprova a ogni ridisegno
+        [strongSelf.loadingLogos removeObject:key];
+        [strongSelf.logos setObject:[RTTableCell thumbnail:img side:16] forKey:key];
+        NSInteger row = [strongSelf.outline rowForItem:s];
+        if (row >= 0) {
+            [strongSelf.outline reloadDataForRowIndexes:[NSIndexSet indexSetWithIndex:(NSUInteger)row]
+                                          columnIndexes:[NSIndexSet indexSetWithIndex:0]];
+        }
+    }];
+    return nil;
 }
 
 - (void)play:(id)sender
@@ -489,11 +590,14 @@ static NSPasteboardType const RTDragType = @"io.github.paselsoft.radiotray-mac.i
 
 - (NSView *)outlineView:(NSOutlineView *)outlineView viewForTableColumn:(NSTableColumn *)column item:(id)item
 {
-    RTTableCell *view = [RTTableCell cellInTable:outlineView identifier:column.identifier owner:self];
-    NSTextField *cell = view.textField;
-    cell.delegate = self;
     BOOL isGroup = [item isKindOfClass:[RTDocGroup class]];
     BOOL nameColumn = [column.identifier isEqualToString:kColName];
+    RTTableCell *view = !isGroup && nameColumn
+        ? [RTTableCell imageCellInTable:outlineView identifier:@"nameLogo" owner:self]
+        : [RTTableCell cellInTable:outlineView identifier:column.identifier owner:self];
+    if (!isGroup && nameColumn) view.imageView.image = [self logoForStation:item];
+    NSTextField *cell = view.textField;
+    cell.delegate = self;
     NSString *value;
     if (isGroup) {
         RTDocGroup *g = item;

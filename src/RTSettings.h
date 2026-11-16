@@ -19,6 +19,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, strong, nullable) NSDate *lastUpdateCheck;
 @property (nonatomic) BOOL titleInMenuBar;                    // "Artista – Titolo" accanto all'icona, predefinito NO
 @property (nonatomic) BOOL artwork;                           // copertine degli album, predefinito YES
+@property (nonatomic) BOOL menuLogos;                         // loghi accanto alle stazioni nel menu, predefinito YES
 
 // radiosveglia
 @property (nonatomic) BOOL alarmEnabled;

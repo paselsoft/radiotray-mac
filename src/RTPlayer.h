@@ -16,6 +16,8 @@ typedef NS_ENUM(NSInteger, RTPlayerState) {
 @protocol RTPlayerDelegate <NSObject>
 - (void)player:(RTPlayer *)player didChangeState:(RTPlayerState)state;
 - (void)player:(RTPlayer *)player didReceiveStreamTitle:(NSString *)title;
+/// Copertina indicata dalla radio stessa per il titolo che segue (RDS); arriva prima del titolo.
+- (void)player:(RTPlayer *)player didReceiveCoverURL:(NSString *)coverURL forStreamTitle:(NSString *)title;
 /// Nome della stazione dichiarato dal server (icy-name).
 - (void)player:(RTPlayer *)player didReceiveStationName:(NSString *)name;
 /// Formato ("MP3", "AAC", "HE-AAC"…) e bitrate (kbps, 0 se sconosciuto) dello stream in ascolto.

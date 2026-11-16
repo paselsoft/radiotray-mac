@@ -13,6 +13,10 @@ typedef void (^RTLogoCompletion)(NSData *_Nullable imageData);
 /// Completamento sulla coda principale; nil se non c'è nessun logo.
 - (void)logoForStation:(NSString *)name url:(NSString *)url image:(nullable NSString *)image
             completion:(RTLogoCompletion)completion;
+/// Logo già in cache (o file scelto dall'utente), senza rete: per i menu. nil se non c'è ancora.
+- (nullable NSData *)cachedLogoForStationURL:(NSString *)url image:(nullable NSString *)image;
+/// YES se è già noto che la stazione non ha un logo (ricerca fatta di recente, nessun risultato).
+- (BOOL)knownMissingForStationURL:(NSString *)url;
 /// Dimentica il logo in cache di una stazione (per esempio dopo averne scelto uno nuovo).
 - (void)forgetStationURL:(NSString *)url;
 

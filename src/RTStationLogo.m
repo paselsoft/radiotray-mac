@@ -64,11 +64,44 @@ static NSString *const RTRadioBrowserHost = @"de1.api.radio-browser.info";
     return [self.cacheDir stringByAppendingPathComponent:hex];
 }
 
+- (NSString *)missingFileForKey:(NSString *)key
+{
+    return [[self fileForKey:key] stringByAppendingPathExtension:@"nessuno"];
+}
+
 - (void)forgetStationURL:(NSString *)url
 {
     [self.memory removeObjectForKey:url];
     [self.missing removeObject:url];
     [[NSFileManager defaultManager] removeItemAtPath:[self fileForKey:url] error:NULL];
+    [[NSFileManager defaultManager] removeItemAtPath:[self missingFileForKey:url] error:NULL];
+}
+
+- (BOOL)knownMissingForStationURL:(NSString *)url
+{
+    if ([self.missing containsObject:url]) return YES;
+    // la ricerca senza risultati si ripete dopo una settimana (l'archivio si arricchisce)
+    NSDate *date = [[NSFileManager defaultManager] attributesOfItemAtPath:[self missingFileForKey:url] error:NULL].fileModificationDate;
+    if (date && -date.timeIntervalSinceNow < 7 * 24 * 3600) {
+        [self.missing addObject:url];
+        return YES;
+    }
+    return NO;
+}
+
+- (NSData *)cachedLogoForStationURL:(NSString *)url image:(NSString *)image
+{
+    if (image.length) {
+        NSString *lower = image.lowercaseString;
+        BOOL web = [lower hasPrefix:@"http://"] || [lower hasPrefix:@"https://"];
+        NSData *d = [self.memory objectForKey:image] ?: (web ? [NSData dataWithContentsOfFile:[self fileForKey:image]]
+                                                            : [NSData dataWithContentsOfFile:image.stringByExpandingTildeInPath]);
+        if (d) [self.memory setObject:d forKey:image];
+        return d;
+    }
+    NSData *d = [self.memory objectForKey:url] ?: [NSData dataWithContentsOfFile:[self fileForKey:url]];
+    if (d) [self.memory setObject:d forKey:url];
+    return d;
 }
 
 - (void)get:(NSURL *)url completion:(void (^)(NSData *data))completion
@@ -80,7 +113,7 @@ static NSString *const RTRadioBrowserHost = @"de1.api.radio-browser.info";
     NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:url];
     req.timeoutInterval = 12;
     // alcuni siti (Wikipedia) rifiutano i programmi che non si presentano con nome e indirizzo
-    [req setValue:@"RadioTray-Mac/1.4 (https://github.com/paselsoft/radiotray-mac)" forHTTPHeaderField:@"User-Agent"];
+    [req setValue:@"RadioTray-Mac/1.5 (https://github.com/paselsoft/radiotray-mac)" forHTTPHeaderField:@"User-Agent"];
     [[[NSURLSession sharedSession] dataTaskWithRequest:req completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
         NSInteger code = [r isKindOfClass:[NSHTTPURLResponse class]] ? [(NSHTTPURLResponse *)r statusCode] : 0;
         completion(code == 200 && d.length ? d : nil);
@@ -95,7 +128,19 @@ static NSString *const RTRadioBrowserHost = @"de1.api.radio-browser.info";
     if (image.length) {
         NSString *lower = image.lowercaseString;
         if ([lower hasPrefix:@"http://"] || [lower hasPrefix:@"https://"]) {
-            [self get:[NSURL URLWithString:image] completion:done];
+            NSData *cachedImage = [self cachedLogoForStationURL:url image:image];
+            if (cachedImage) {
+                done(cachedImage);
+                return;
+            }
+            __weak typeof(self) weakSelf = self;
+            [self get:[NSURL URLWithString:image] completion:^(NSData *d) {
+                if (d.length) {
+                    [d writeToFile:[weakSelf fileForKey:image] atomically:YES];
+                    dispatch_async(dispatch_get_main_queue(), ^{ [weakSelf.memory setObject:d forKey:image]; });
+                }
+                done(d);
+            }];
         } else {
             done([NSData dataWithContentsOfFile:image.stringByExpandingTildeInPath]);
         }
@@ -104,7 +149,7 @@ static NSString *const RTRadioBrowserHost = @"de1.api.radio-browser.info";
 
     // 2. cache
     NSData *cached = [self.memory objectForKey:url] ?: [NSData dataWithContentsOfFile:[self fileForKey:url]];
-    if (cached || [self.missing containsObject:url]) {
+    if (cached || [self knownMissingForStationURL:url]) {
         if (cached) [self.memory setObject:cached forKey:url];
         done(cached);
         return;
@@ -120,6 +165,7 @@ static NSString *const RTRadioBrowserHost = @"de1.api.radio-browser.info";
                 [logo writeToFile:[strongSelf fileForKey:url] atomically:YES];
             } else {
                 [strongSelf.missing addObject:url];
+                [[NSData data] writeToFile:[strongSelf missingFileForKey:url] atomically:YES];
             }
             completion(logo);
         });
