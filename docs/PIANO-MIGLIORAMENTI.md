@@ -34,11 +34,8 @@ Legenda: `[x]` fatto (versione) · `[ ]` da fare · 🚧 in preparazione nell'an
 - [x] **11. Testi delle canzoni** (LRCLIB) (1.12)
 - [x] **13. Programmi**: accensioni programmate oltre alla radiosveglia (1.12)
 - [x] Finestra In riproduzione al centro a destra, si riapre dove l'hai lasciata (1.12)
-
-## In preparazione (1.13)
-
-- [ ] 🚧 **Icona nel Dock** con menu dei comandi
-- [ ] 🚧 **Finestre attaccate**: testo e In riproduzione si spostano insieme
+- [x] **Icona nel Dock** con menu dei comandi (1.13)
+- [x] **Finestre attaccate**: testo e In riproduzione si spostano insieme (1.13)
 
 ## Da fare
 
