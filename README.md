@@ -25,6 +25,7 @@ con **macOS High Sierra 10.13** (funziona anche sulle versioni successive).
 | 1.4.2 | loghi delle stazioni, jingle ignorati, "Ignora i titoli" per stazione, radio http, volume in percentuale | fatta (provata sull'iMac) |
 | 1.5.0 | copertine ufficiali RDS, verifica delle stazioni con proposta di indirizzi nuovi, loghi nel menu e nell'editor, logo da indirizzo web | fatta (provata sull'iMac) |
 | 1.6.0 | ricerca nell'editor delle stazioni, importazione di playlist .pls e .m3u | fatta (provata sull'iMac) |
+| 1.7.0 | "Cerca stazioni" riprova con sigle e nomi corti (RMC, RDS, Deejay…) | anteprima da provare |
 
 ## Scaricare
 

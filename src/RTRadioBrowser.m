@@ -148,4 +148,69 @@ static NSString *RTStr(id v)
     [task resume];
 }
 
++ (NSArray<NSString *> *)alternativeNamesFor:(NSString *)name
+{
+    NSString *clean = [[name stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]]
+                       stringByFoldingWithOptions:NSDiacriticInsensitiveSearch locale:nil];
+    while ([clean containsString:@"  "]) clean = [clean stringByReplacingOccurrencesOfString:@"  " withString:@" "];
+    NSString *lower = clean.lowercaseString;
+    NSMutableArray<NSString *> *out = [NSMutableArray array];
+    void (^add)(NSString *) = ^(NSString *candidate) {
+        candidate = [candidate stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+        if (candidate.length < 2 || [candidate caseInsensitiveCompare:clean] == NSOrderedSame) return;
+        for (NSString *x in out) if ([x caseInsensitiveCompare:candidate] == NSOrderedSame) return;
+        [out addObject:candidate];
+    };
+
+    // 1. sigle e nomi corti con cui le radio italiane sono nell'archivio (si sostituisce l'inizio del nome)
+    NSArray<NSArray<NSString *> *> *aliases = @[
+        @[@"radio monte carlo", @"RMC"], @[@"radio montecarlo", @"RMC"], @[@"radiomontecarlo", @"RMC"], @[@"monte carlo", @"RMC"],
+        @[@"radio dimensione suono", @"RDS"], @[@"dimensione suono", @"RDS"],
+        @[@"radio deejay", @"Deejay"], @[@"radio dee jay", @"Deejay"], @[@"radio dj", @"Deejay"],
+        @[@"radio 105 network", @"Radio 105"], @[@"rete 105", @"Radio 105"],
+        @[@"radio capital", @"Capital"], @[@"radio kiss kiss", @"Kiss Kiss"],
+        @[@"radio italia solo musica italiana", @"Radio Italia"],
+        @[@"radio freccia", @"Radiofreccia"], @[@"radio subasio", @"Subasio"],
+        @[@"radio m2o", @"m2o"], @[@"radio virgin", @"Virgin Radio"], @[@"radio r101", @"R101"], @[@"radio 101", @"R101"],
+        @[@"rtl 102,5", @"RTL 102.5"], @[@"rtl1025", @"RTL 102.5"], @[@"radio rtl", @"RTL 102.5"],
+        @[@"radio rai", @"Rai Radio"], @[@"radio uno", @"Rai Radio 1"], @[@"radio due", @"Rai Radio 2"], @[@"radio tre", @"Rai Radio 3"],
+        @[@"radio 24 il sole 24 ore", @"Radio 24"], @[@"radio ventiquattro", @"Radio 24"],
+    ];
+    for (NSArray<NSString *> *a in aliases) {
+        NSString *key = a[0];
+        if ([lower isEqualToString:key] ||
+            ([lower hasPrefix:key] && [lower characterAtIndex:key.length] == ' ')) {
+            add([a[1] stringByAppendingString:[clean substringFromIndex:key.length]]);
+        }
+    }
+
+    NSArray<NSString *> *words = [clean componentsSeparatedByString:@" "];
+    // 2. senza "Radio" all'inizio ("Radio Subasio" → "Subasio")
+    if (words.count >= 2 && [words[0].lowercaseString isEqualToString:@"radio"]) {
+        add([[words subarrayWithRange:NSMakeRange(1, words.count - 1)] componentsJoinedByString:@" "]);
+    }
+    // 3. iniziali dei primi 3 o più nomi, il resto invariato ("Radio Dimensione Suono Top" → "RDS Top")
+    if (words.count >= 3) {
+        NSMutableString *initials = [NSMutableString string];
+        NSUInteger n = 0;
+        for (NSString *w in words) {
+            unichar c = w.length ? [w characterAtIndex:0] : 0;
+            if (![[NSCharacterSet letterCharacterSet] characterIsMember:c]) break;
+            [initials appendString:[w substringToIndex:1].uppercaseString];
+            n++;
+        }
+        if (n >= 3) {
+            add(initials);
+            if (n > 3) add([[initials substringToIndex:3] stringByAppendingFormat:@" %@",
+                            [[words subarrayWithRange:NSMakeRange(3, words.count - 3)] componentsJoinedByString:@" "]]);
+        }
+    }
+    // 4. con e senza spazio tra "Radio" e il nome ("Radio Freccia" ↔ "Radiofreccia")
+    if (words.count == 2 && [words[0].lowercaseString isEqualToString:@"radio"]) add([@"Radio" stringByAppendingString:words[1].lowercaseString]);
+    if (words.count == 1 && [lower hasPrefix:@"radio"] && lower.length > 6) {
+        add([NSString stringWithFormat:@"Radio %@", [clean substringFromIndex:5]]);
+    }
+    return out;
+}
+
 @end

@@ -29,6 +29,11 @@ typedef void (^RTSearchCompletion)(NSArray<RTFoundStation *> *_Nullable stations
 - (void)searchName:(NSString *)name country:(nullable NSString *)countryCode completion:(RTSearchCompletion)completion;
 - (void)cancel;
 
+/// Nomi alternativi da provare quando la ricerca non trova nulla, nell'ordine:
+/// sigle note ("Radio Monte Carlo Hits" → "RMC Hits"), nome senza "Radio", iniziali
+/// ("Radio Dimensione Suono" → "RDS"). Mai il nome di partenza (testabile).
++ (NSArray<NSString *> *)alternativeNamesFor:(NSString *)name;
+
 /// Decodifica la risposta JSON dell'archivio (testabile senza rete).
 + (nullable NSArray<RTFoundStation *> *)stationsFromJSON:(NSData *)data;
 

@@ -55,6 +55,8 @@ Uso
   Se il server lo dichiara, al posto dell'indirizzo compare il nome vero della stazione.
 - Cerca stazioni…: cerca per nome nell'archivio pubblico Radio Browser (decine di migliaia
   di radio, filtro per paese). Doppio clic per ascoltare, "Aggiungi…" per salvarla.
+  Se il nome intero non trova nulla, si riprova da soli con le sigle usate nell'archivio
+  (per esempio "Radio Monte Carlo Hits" → "RMC Hits").
 - Preferenze > Aggiungi le radio italiane consigliate: aggiunge RTL 102.5, RDS, Deejay, 105,
   Virgin, R101, RMC, Kiss Kiss, Capital, m2o, Radio 24, Radiofreccia, Subasio e le Rai
   (solo quelle che non hai già).

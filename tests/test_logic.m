@@ -781,6 +781,19 @@ int main(int argc, const char *argv[])
             CHECK([problem containsString:@"HLS"]);
             CHECK([RTPlaylistParser stationsFromPlaylistData:D(@"[playlist]\nNumberOfEntries=0\n") fileName:@"x.pls" problem:&problem] == nil);
         }
+        // 1.7.0: nomi alternativi per la ricerca
+        {
+            NSArray *alt = [RTRadioBrowser alternativeNamesFor:@"Radio Monte Carlo Hits"];
+            CHECK_EQ(alt.firstObject, @"RMC Hits");
+            CHECK([alt containsObject:@"Monte Carlo Hits"]);
+            CHECK_EQ([RTRadioBrowser alternativeNamesFor:@"radio deejay"].firstObject, @"Deejay");
+            CHECK_EQ([RTRadioBrowser alternativeNamesFor:@"Radio Dimensione Suono"].firstObject, @"RDS");
+            CHECK([[RTRadioBrowser alternativeNamesFor:@"Radio Freccia"] containsObject:@"Radiofreccia"]);
+            CHECK([[RTRadioBrowser alternativeNamesFor:@"Radiofreccia"] containsObject:@"Radio freccia"]);
+            CHECK_EQ([RTRadioBrowser alternativeNamesFor:@"Radio Subasio"].firstObject, @"Subasio");
+            CHECK([[RTRadioBrowser alternativeNamesFor:@"RMC"] count] == 0);
+            CHECK(![[RTRadioBrowser alternativeNamesFor:@"Radio Montecarlo"] containsObject:@"Radio Montecarlo"]);
+        }
         if (argc > 2) testBundledList([NSString stringWithUTF8String:argv[2]]);
         printf("%d verifiche, %d fallite\n", checks, failures);
     }

@@ -147,10 +147,23 @@ static NSString *const kColTags = @"tags";
     NSString *country = self.countryPopup.selectedItem.representedObject;
     [self.spinner startAnimation:nil];
     self.statusLabel.stringValue = @"Ricerca in corso…";
+    [self searchText:text original:text alternatives:[RTRadioBrowser alternativeNamesFor:text] country:country];
+}
+
+/// Se il nome non dà risultati si riprova con i nomi alternativi (sigle, senza "Radio"…), uno alla volta.
+- (void)searchText:(NSString *)text original:(NSString *)original alternatives:(NSArray<NSString *> *)alternatives
+           country:(NSString *)country
+{
     __weak typeof(self) weakSelf = self;
     [self.browser searchName:text country:country completion:^(NSArray<RTFoundStation *> *stations, NSString *error) {
         typeof(self) strongSelf = weakSelf;
         if (!strongSelf) return;
+        if (stations.count == 0 && alternatives.count) {
+            strongSelf.statusLabel.stringValue = [NSString stringWithFormat:@"Nessun risultato per «%@», provo «%@»…", original, alternatives[0]];
+            [strongSelf searchText:alternatives[0] original:original
+                      alternatives:[alternatives subarrayWithRange:NSMakeRange(1, alternatives.count - 1)] country:country];
+            return;
+        }
         [strongSelf.spinner stopAnimation:nil];
         if (!stations) {
             strongSelf.statusLabel.stringValue = [NSString stringWithFormat:@"Ricerca non riuscita: %@", error];
@@ -162,13 +175,14 @@ static NSString *const kColTags = @"tags";
         if (stations.count) [strongSelf.table selectRowIndexes:[NSIndexSet indexSetWithIndex:0] byExtendingSelection:NO];
         NSUInteger unplayable = 0;
         for (RTFoundStation *s in stations) if (!s.playable) unplayable++;
+        NSString *how = [text isEqualToString:original] ? @"" : [NSString stringWithFormat:@" per «%@»", text];
         if (stations.count == 0) {
             strongSelf.statusLabel.stringValue = @"Nessuna stazione trovata. Prova con un nome più corto o con \"Tutti i paesi\".";
         } else if (unplayable) {
-            strongSelf.statusLabel.stringValue = [NSString stringWithFormat:@"%lu stazioni (%lu in grigio: formato non supportato da macOS)",
-                                                  (unsigned long)stations.count, (unsigned long)unplayable];
+            strongSelf.statusLabel.stringValue = [NSString stringWithFormat:@"%lu stazioni%@ (%lu in grigio: formato non supportato da macOS)",
+                                                  (unsigned long)stations.count, how, (unsigned long)unplayable];
         } else {
-            strongSelf.statusLabel.stringValue = [NSString stringWithFormat:@"%lu stazioni", (unsigned long)stations.count];
+            strongSelf.statusLabel.stringValue = [NSString stringWithFormat:@"%lu stazioni%@", (unsigned long)stations.count, how];
         }
         [strongSelf updateButtons];
     }];
