@@ -26,14 +26,13 @@ Legenda: `[x]` fatto (versione) · `[ ]` da fare · 🚧 in preparazione nell'an
 - [x] **9. Ascolti segnalati all'archivio Radio Browser** (1.9)
 - [x] Compilazione su Mac Intel di GitHub: niente più code bloccate (1.9)
 
+## In preparazione (1.10)
+
+- [ ] 🚧 **3. Preferire https** quando la radio lo offre
+- [ ] 🚧 **4. Volume uniforme tra le stazioni**: volume ricordato per ogni stazione
+- [ ] 🚧 **6. Scelta dell'uscita audio dal menu**
+
 ## Da fare
-
-### Stabilità
-- [ ] **3. Preferire https**: se una stazione http risponde anche in https, usare quello
-
-### Ascolto
-- [ ] **4. Volume uniforme tra le stazioni**: correzione di volume ricordata per ogni stazione
-- [ ] **6. Scelta dell'uscita audio dal menu** (altoparlanti, cuffie, AirPlay, casse USB)
 
 ### Funzioni nuove
 - [ ] **7. Pausa e riprendi ("pausa live")** fino a 30 minuti, e registrazione per uso personale

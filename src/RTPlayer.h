@@ -34,6 +34,8 @@ typedef NS_ENUM(NSInteger, RTPlayerState) {
 @property (nonatomic) NSInteger volume;   // 0–100
 /// NO: non si apre la seconda connessione che legge i titoli (stazioni con titoli ignorati).
 @property (nonatomic) BOOL readsTitles;
+/// Uscita audio (identificativo CoreAudio); nil = quella scelta in Preferenze di Sistema.
+@property (nonatomic, copy, nullable) NSString *outputDeviceUID;
 @property (nonatomic, copy, readonly, nullable) NSString *currentURL;
 @property (nonatomic, copy, readonly, nullable) NSString *streamFormat;
 @property (nonatomic, readonly) NSInteger streamBitrate;

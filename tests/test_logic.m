@@ -15,6 +15,7 @@
 #import "../src/RTBackup.h"
 #import "../src/RTStationLogo.h"
 #import "../src/RTStationChecker.h"
+#import "../src/RTHttpsUpgrade.h"
 
 static int failures = 0;
 static int checks = 0;
@@ -817,6 +818,17 @@ int main(int argc, const char *argv[])
                      @"9617a958-0601-11e8-ae97-52543be04c81");
             CHECK([RTRadioBrowser stationUUIDFromJSON:D(@"[]")] == nil);
             CHECK([RTRadioBrowser stationUUIDFromJSON:nil] == nil);
+        }
+        // 1.10.0: https quando la radio lo offre
+        {
+            CHECK_EQ([RTHttpsUpgrade httpsCandidateForURL:@"http://icecast.unitedradio.it/Virgin.mp3"], @"https://icecast.unitedradio.it/Virgin.mp3");
+            CHECK_EQ([RTHttpsUpgrade httpsCandidateForURL:@"http://edge.radiomontecarlo.net:80/RMC.mp3?x=1"], @"https://edge.radiomontecarlo.net/RMC.mp3?x=1");
+            CHECK([RTHttpsUpgrade httpsCandidateForURL:@"http://ice07.fluidstream.net:8080/KissKiss.mp3"] == nil);
+            CHECK([RTHttpsUpgrade httpsCandidateForURL:@"https://stream.radioparadise.com/aac-128"] == nil);
+            CHECK([RTHttpsUpgrade httpsCandidateForURL:@"http://185.33.21.112/stream"] == nil);
+            CHECK([RTHttpsUpgrade httpsCandidateForURL:@"non è un indirizzo"] == nil);
+            NSArray *same = [[RTHttpsUpgrade shared] upgradedURLs:@[@"http://mai.provato.example/s", @"https://a/b"]];
+            CHECK([same isEqualToArray:(@[@"http://mai.provato.example/s", @"https://a/b"])]);
         }
         if (argc > 2) testBundledList([NSString stringWithUTF8String:argv[2]]);
         printf("%d verifiche, %d fallite\n", checks, failures);

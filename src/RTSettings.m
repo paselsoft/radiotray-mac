@@ -16,6 +16,10 @@ static NSString *const kTitleInBar = @"tag-info-in-label";
 static NSString *const kArtwork = @"artwork";
 static NSString *const kMenuLogos = @"menu-logos";
 static NSString *const kReportListening = @"report-listening";
+static NSString *const kPreferHTTPS = @"prefer-https";
+static NSString *const kStationVolumes = @"station-volumes-enabled";
+static NSString *const kVolumeForStation = @"station-volumes";
+static NSString *const kOutputDevice = @"output-device";
 static NSString *const kAlarmEnabled = @"alarm-enabled";
 static NSString *const kAlarmMinutes = @"alarm-minutes";
 static NSString *const kAlarmDays = @"alarm-days";
@@ -56,6 +60,8 @@ static NSString *const kLastBackup = @"last-backup";
             kArtwork: @YES,
             kMenuLogos: @YES,
             kReportListening: @YES,
+            kPreferHTTPS: @YES,
+            kStationVolumes: @YES,
             kAlarmEnabled: @NO,
             kAlarmMinutes: @(7 * 60),
             kAlarmDays: @(0x1F),
@@ -117,6 +123,14 @@ static NSString *const kLastBackup = @"last-backup";
 - (void)setTitleInMenuBar:(BOOL)v { [self.d setBool:v forKey:kTitleInBar]; }
 - (BOOL)artwork { return [self.d boolForKey:kArtwork]; }
 - (void)setArtwork:(BOOL)v { [self.d setBool:v forKey:kArtwork]; }
+- (BOOL)preferHTTPS { return [self.d boolForKey:kPreferHTTPS]; }
+- (void)setPreferHTTPS:(BOOL)v { [self.d setBool:v forKey:kPreferHTTPS]; }
+- (BOOL)stationVolumes { return [self.d boolForKey:kStationVolumes]; }
+- (void)setStationVolumes:(BOOL)v { [self.d setBool:v forKey:kStationVolumes]; }
+- (NSDictionary<NSString *, NSNumber *> *)volumeForStation { return [self.d dictionaryForKey:kVolumeForStation] ?: @{}; }
+- (void)setVolumeForStation:(NSDictionary<NSString *, NSNumber *> *)v { [self.d setObject:v ?: @{} forKey:kVolumeForStation]; }
+- (NSString *)outputDeviceUID { return [self.d stringForKey:kOutputDevice]; }
+- (void)setOutputDeviceUID:(NSString *)v { if (v) [self.d setObject:v forKey:kOutputDevice]; else [self.d removeObjectForKey:kOutputDevice]; }
 - (BOOL)reportListening { return [self.d boolForKey:kReportListening]; }
 - (void)setReportListening:(BOOL)v { [self.d setBool:v forKey:kReportListening]; }
 - (BOOL)menuLogos { return [self.d boolForKey:kMenuLogos]; }

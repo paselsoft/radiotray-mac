@@ -18,6 +18,8 @@
 #import "RTAudioWatcher.h"
 #import "RTNetworkWatcher.h"
 #import "RTRadioBrowser.h"
+#import "RTHttpsUpgrade.h"
+#import "RTAudioOutputs.h"
 #import "RTNowPlayingWindowController.h"
 #import "RTStationLogo.h"
 #import "RTSettings.h"
@@ -73,6 +75,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
 @property (nonatomic, strong, nullable) NSImage *trackArtworkFull;  // copertina grande, per la finestra
 @property (nonatomic, strong) NSMenuItem *qualityItem;
 @property (nonatomic, strong) NSMenuItem *ignoreTitlesItem;
+@property (nonatomic, strong) NSMenuItem *outputItem;
 @property (nonatomic, strong) NSMenuItem *nowPlayingItem;
 @property (nonatomic, strong, nullable) RTNowPlayingWindowController *nowPlayingWindow;
 @property (nonatomic, strong) RTAudioWatcher *audioWatcher;
@@ -113,6 +116,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     self.player = [RTPlayer new];
     self.player.delegate = self;
     self.player.volume = self.settings.volume;
+    self.player.outputDeviceUID = [self availableOutputUID];
     [RTNotifier shared];
 
     [self installDefaultBookmarksIfNeeded];
@@ -398,6 +402,9 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     self.ignoreTitlesItem = [self addItem:@"Ignora i titoli di questa stazione" action:@selector(toggleIgnoreTitles:) to:self.menu];
     self.ignoreTitlesItem.indentationLevel = 1;
     self.ignoreTitlesItem.toolTip = @"Per le radio che mandano titoli sbagliati o vecchi: al loro posto si vede il logo";
+    self.outputItem = [self addItem:@"Uscita audio" action:NULL to:self.menu];
+    self.outputItem.indentationLevel = 1;
+    self.outputItem.submenu = [[NSMenu alloc] initWithTitle:@"Uscita audio"];
     [self.menu addItem:[NSMenuItem separatorItem]];
 
     // le stazioni più ascoltate, sempre a portata di mano
@@ -490,6 +497,12 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     [self addItem:@"Copertine degli album" action:@selector(toggleArtwork:) to:prefsMenu].tag = 10;
     [self addItem:@"Loghi delle stazioni nel menu" action:@selector(toggleMenuLogos:) to:prefsMenu].tag = 18;
     [self addItem:@"Apri la finestra In riproduzione all'avvio" action:@selector(toggleNowPlayingAtLaunch:) to:prefsMenu].tag = 19;
+    NSMenuItem *https = [self addItem:@"Usa https quando la radio lo offre" action:@selector(togglePreferHTTPS:) to:prefsMenu];
+    https.tag = 21;
+    https.toolTip = @"Connessione cifrata: si prova da soli la versione https di ogni stazione http e la si usa se funziona";
+    NSMenuItem *volumes = [self addItem:@"Ricorda il volume di ogni stazione" action:@selector(toggleStationVolumes:) to:prefsMenu];
+    volumes.tag = 22;
+    volumes.toolTip = @"Le radio non hanno tutte lo stesso volume: quello che scegli per una stazione torna ogni volta che la ascolti";
     NSMenuItem *report = [self addItem:@"Segnala gli ascolti all'archivio Radio Browser" action:@selector(toggleReportListening:) to:prefsMenu];
     report.tag = 20;
     report.toolTip = @"Come chiede l'archivio: aiuta a ordinare le stazioni per popolarità. Si manda solo l'indirizzo della stazione, una volta al giorno.";
@@ -529,7 +542,77 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
 
 - (void)menuWillOpen:(NSMenu *)menu
 {
+    [self buildOutputMenu];
     [self refresh];
+}
+
+#pragma mark - Uscita audio
+
+/// L'uscita scelta, se è ancora collegata; altrimenti nil (quella di sistema).
+- (NSString *)availableOutputUID
+{
+    NSString *uid = self.settings.outputDeviceUID;
+    if (!uid) return nil;
+    for (RTAudioOutput *o in [RTAudioOutputs outputs]) if ([o.uid isEqualToString:uid]) return uid;
+    return nil;
+}
+
+- (void)buildOutputMenu
+{
+    NSMenu *menu = self.outputItem.submenu;
+    [menu removeAllItems];
+    NSArray<RTAudioOutput *> *outputs = [RTAudioOutputs outputs];
+    NSString *chosen = [self availableOutputUID];
+    NSString *systemUID = [RTAudioOutputs defaultOutputUID];
+    NSString *systemName = nil;
+    for (RTAudioOutput *o in outputs) if ([o.uid isEqualToString:systemUID]) systemName = o.name;
+    NSMenuItem *system = [self addItem:systemName ? [NSString stringWithFormat:@"Come il Mac (%@)", systemName] : @"Come il Mac"
+                                action:@selector(outputChosen:) to:menu];
+    system.toolTip = @"L'uscita scelta in Preferenze di Sistema ▸ Suono";
+    system.state = chosen ? NSControlStateValueOff : NSControlStateValueOn;
+    [menu addItem:[NSMenuItem separatorItem]];
+    for (RTAudioOutput *o in outputs) {
+        NSMenuItem *item = [self addItem:o.name action:@selector(outputChosen:) to:menu];
+        item.representedObject = o.uid;
+        item.state = [o.uid isEqualToString:chosen] ? NSControlStateValueOn : NSControlStateValueOff;
+    }
+    NSString *chosenName = nil;
+    for (RTAudioOutput *o in outputs) if ([o.uid isEqualToString:chosen]) chosenName = o.name;
+    self.outputItem.title = chosenName ? [NSString stringWithFormat:@"Uscita audio: %@", RTTruncate(chosenName, 28)] : @"Uscita audio";
+}
+
+- (void)outputChosen:(NSMenuItem *)sender
+{
+    NSString *uid = sender.representedObject;
+    self.settings.outputDeviceUID = uid;
+    self.player.outputDeviceUID = uid;
+    NSLog(@"RadioTray: uscita audio %@", uid ? sender.title : @"di sistema");
+    [self buildOutputMenu];
+    [self refresh];
+}
+
+#pragma mark - Volume di ogni stazione
+
+- (void)rememberStationVolume
+{
+    NSString *key = [self currentStationKey];
+    if (!self.settings.stationVolumes || !key || self.fadeTimer || self.fadeOutTimer) return;
+    NSMutableDictionary *d = [self.settings.volumeForStation mutableCopy];
+    d[key] = @(self.player.volume);
+    self.settings.volumeForStation = d;
+}
+
+/// Volume ricordato per la stazione appena scelta (non durante il volume crescente della sveglia).
+- (void)applyStationVolume
+{
+    NSString *key = [self currentStationKey];
+    if (!self.settings.stationVolumes || !key || self.fadeTimer) return;
+    NSNumber *v = self.settings.volumeForStation[key];
+    if (![v isKindOfClass:[NSNumber class]]) return;
+    NSInteger volume = MAX(0, MIN(100, v.integerValue));
+    if (volume == self.player.volume) return;
+    self.player.volume = volume;
+    self.settings.volume = volume;
 }
 
 - (NSString *)currentStationLabel
@@ -695,6 +778,8 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     [prefs itemWithTag:9].state = self.settings.titleInMenuBar ? NSControlStateValueOn : NSControlStateValueOff;
     [prefs itemWithTag:10].state = self.settings.artwork ? NSControlStateValueOn : NSControlStateValueOff;
     [prefs itemWithTag:18].state = self.settings.menuLogos ? NSControlStateValueOn : NSControlStateValueOff;
+    [prefs itemWithTag:21].state = self.settings.preferHTTPS ? NSControlStateValueOn : NSControlStateValueOff;
+    [prefs itemWithTag:22].state = self.settings.stationVolumes ? NSControlStateValueOn : NSControlStateValueOff;
     [prefs itemWithTag:20].state = self.settings.reportListening ? NSControlStateValueOn : NSControlStateValueOff;
     [prefs itemWithTag:19].state = self.settings.nowPlayingAtLaunch ? NSControlStateValueOn : NSControlStateValueOff;
 
@@ -769,6 +854,8 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     [self loadStationLogo:station];
     self.playingNotified = NO;
     self.userStopped = NO;
+    [self applyStationVolume];
+    self.player.outputDeviceUID = [self availableOutputUID];   // la cassa scelta potrebbe essere stata scollegata
 
     [self.player markConnecting];
     self.player.readsTitles = ![self currentStationIgnoresTitles];   // niente seconda connessione se i titoli sono ignorati
@@ -790,6 +877,13 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
             [[RTNotifier shared] notifyTitle:@"Errore" message:[NSString stringWithFormat:@"%@: %@", name, error]];
             [self_ refresh];
             return;
+        }
+        if (self_.settings.preferHTTPS) {
+            RTHttpsUpgrade *https = [RTHttpsUpgrade shared];
+            NSArray *upgraded = [https upgradedURLs:streams];
+            if (![upgraded isEqualToArray:streams]) NSLog(@"RadioTray: uso https dove la radio lo offre");
+            [https probeURLs:streams];   // per la prossima volta
+            streams = upgraded;
         }
         [self_.player playStreams:streams];
     }];
@@ -1167,6 +1261,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
 {
     self.player.volume = sender.integerValue;
     self.settings.volume = self.player.volume;
+    [self rememberStationVolume];
     self.volumeValue.stringValue = [NSString stringWithFormat:@"%ld%%", (long)self.player.volume];
 }
 
@@ -1310,6 +1405,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     NSInteger before = self.player.volume;
     self.player.volume = before + delta;
     self.settings.volume = self.player.volume;
+    [self rememberStationVolume];
     if (notify && self.player.volume != before) {
         [[RTNotifier shared] notifyTitle:[NSString stringWithFormat:@"Volume %ld%%", (long)self.player.volume] message:nil];
     }
@@ -1741,6 +1837,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
 {
     self.player.volume = volume;
     self.settings.volume = self.player.volume;
+    [self rememberStationVolume];
     [self refresh];
 }
 
@@ -1752,6 +1849,19 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
 - (void)nowPlayingAtLaunchChanged:(BOOL)atLaunch
 {
     self.settings.nowPlayingAtLaunch = atLaunch;
+    [self refresh];
+}
+
+- (void)togglePreferHTTPS:(id)sender
+{
+    self.settings.preferHTTPS = !self.settings.preferHTTPS;
+    [self refresh];
+}
+
+- (void)toggleStationVolumes:(id)sender
+{
+    self.settings.stationVolumes = !self.settings.stationVolumes;
+    if (self.settings.stationVolumes) [self rememberStationVolume];   // si parte dal volume attuale
     [self refresh];
 }
 

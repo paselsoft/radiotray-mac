@@ -70,6 +70,12 @@ Uso
   ha più server (playlist, file .pls importati) passa subito a un altro. Si ricollega da sola anche
   quando cambia la rete (Wi-Fi che cade e torna, rete diversa).
 - Timer di spegnimento: nell'ultimo minuto il volume scende piano fino a zero.
+- Uscita audio (nel menu, sotto il volume): altoparlanti, cuffie, casse USB o AirPlay.
+  "Come il Mac" segue l'uscita scelta in Preferenze di Sistema > Suono.
+- Il volume scelto per una stazione torna ogni volta che la riascolti (si toglie da
+  Preferenze > Ricorda il volume di ogni stazione).
+- Preferenze > Usa https quando la radio lo offre: le stazioni http vengono provate anche
+  in https (connessione cifrata) e, se funziona, si usa quello.
 - Preferenze > Segnala gli ascolti all'archivio Radio Browser: come chiede l'archivio, si manda
   solo l'indirizzo della stazione ascoltata, al massimo una volta al giorno. Si può togliere.
 

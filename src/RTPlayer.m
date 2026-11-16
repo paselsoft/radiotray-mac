@@ -329,6 +329,12 @@ static const NSUInteger RTMaxReconnects = sizeof(RTReconnectDelays) / sizeof(RTR
     }
 }
 
+- (void)setOutputDeviceUID:(NSString *)outputDeviceUID
+{
+    _outputDeviceUID = [outputDeviceUID copy];
+    self.player.audioOutputDeviceUniqueID = _outputDeviceUID;
+}
+
 - (void)setReadsTitles:(BOOL)readsTitles
 {
     if (_readsTitles == readsTitles) return;

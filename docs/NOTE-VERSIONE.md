@@ -4,6 +4,13 @@ Lettore di radio via Internet nella barra dei menu per **macOS 10.13 High Sierra
 **Installazione:** apri `RadioTray-….dmg`, trascina RadioTray in Applicazioni, poi la prima volta
 clic destro sull'app → Apri → Apri. Istruzioni complete nel file LEGGIMI.txt dentro il .dmg.
 
+### Novità della 1.10
+- **https quando la radio lo offre**: per ogni stazione http si prova da soli la versione https
+  (connessione cifrata) e dalla volta dopo si usa quella, con l'http come riserva
+- **Volume di ogni stazione**: le radio non hanno tutte lo stesso volume; quello che scegli per
+  una stazione torna ogni volta che la riascolti (Preferenze ▸ Ricorda il volume di ogni stazione)
+- **Uscita audio dal menu**: altoparlanti, cuffie, casse USB o AirPlay, senza aprire Preferenze di Sistema
+
 ### Novità della 1.9
 - **Server di riserva**: se lo stream cade, RadioTray passa subito a un altro server della stessa
   radio (quelli della playlist, e quelli salvati importando i file .pls e .m3u) prima di riprovare
