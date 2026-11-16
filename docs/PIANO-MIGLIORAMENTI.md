@@ -30,12 +30,10 @@ Legenda: `[x]` fatto (versione) · `[ ]` da fare · 🚧 in preparazione nell'an
 - [x] **6. Scelta dell'uscita audio dal menu** (1.10)
 - [x] **8. Storico degli ascolti su ListenBrainz** (1.11)
 - [x] **Ricerca per genere e "più ascoltate"** in Cerca stazioni (1.11)
-
-## In preparazione (1.12)
-
-- [ ] 🚧 **10. Titoli per Deejay, Capital, m2o e Rai** presi dai siti delle radio
-- [ ] 🚧 **11. Testi delle canzoni** (LRCLIB)
-- [ ] 🚧 **13. Più radiosveglie e programmi**
+- [x] **10. Titoli per Deejay, Capital, m2o** e programma in onda per la Rai (1.12)
+- [x] **11. Testi delle canzoni** (LRCLIB) (1.12)
+- [x] **13. Programmi**: accensioni programmate oltre alla radiosveglia (1.12)
+- [x] Finestra In riproduzione al centro a destra, si riapre dove l'hai lasciata (1.12)
 
 ## Da fare
 
