@@ -4,6 +4,10 @@ Lettore di radio via Internet nella barra dei menu per **macOS 10.13 High Sierra
 **Installazione:** apri `RadioTray-….dmg`, trascina RadioTray in Applicazioni, poi la prima volta
 clic destro sull'app → Apri → Apri. Istruzioni complete nel file LEGGIMI.txt dentro il .dmg.
 
+### Novità della 1.8
+- **Finestra "In riproduzione" all'avvio**: casella "Apri all'avvio" nella finestra (oppure
+  Preferenze ▸ Apri la finestra In riproduzione all'avvio) per averla sempre aperta quando parte RadioTray
+
 ### Novità della 1.7
 - **"Cerca stazioni" più furba**: se il nome intero non trova nulla, riprova da sola con le sigle
   e i nomi corti dell'archivio (Radio Monte Carlo Hits → RMC Hits, Radio Deejay → Deejay,

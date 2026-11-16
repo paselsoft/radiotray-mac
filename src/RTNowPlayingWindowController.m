@@ -13,6 +13,7 @@
 @property (nonatomic, strong) NSSlider *volumeSlider;
 @property (nonatomic, strong) NSTextField *volumeValue;
 @property (nonatomic, strong) NSButton *floatingBox;
+@property (nonatomic, strong) NSButton *atLaunchBox;
 @end
 
 @implementation RTNowPlayingWindowController
@@ -99,8 +100,18 @@
     self.floatingBox = [NSButton checkboxWithTitle:@"Sempre in primo piano" target:self action:@selector(floatingChanged:)];
     self.floatingBox.controlSize = NSControlSizeSmall;
     self.floatingBox.font = [NSFont systemFontOfSize:[NSFont smallSystemFontSize]];
-    self.floatingBox.frame = NSMakeRect(x, 6, w, 18);
+    [self.floatingBox sizeToFit];
+    self.floatingBox.frame = NSMakeRect(x, 6, self.floatingBox.frame.size.width + 4, 18);
     [content addSubview:self.floatingBox];
+
+    self.atLaunchBox = [NSButton checkboxWithTitle:@"Apri all'avvio" target:self action:@selector(atLaunchChanged:)];
+    self.atLaunchBox.controlSize = NSControlSizeSmall;
+    self.atLaunchBox.font = [NSFont systemFontOfSize:[NSFont smallSystemFontSize]];
+    self.atLaunchBox.toolTip = @"Apri questa finestra ogni volta che parte RadioTray";
+    [self.atLaunchBox sizeToFit];
+    CGFloat bx = NSMaxX(self.floatingBox.frame) + 12;
+    self.atLaunchBox.frame = NSMakeRect(bx, 6, MAX(40, x + w - bx), 18);
+    [content addSubview:self.atLaunchBox];
 }
 
 - (void)setFloating:(BOOL)floating
@@ -162,6 +173,16 @@
 {
     self.volumeValue.stringValue = [NSString stringWithFormat:@"%ld%%", (long)sender.integerValue];   // subito, mentre si trascina
     [self.delegate nowPlayingVolumeChanged:sender.integerValue];
+}
+
+- (void)setOpensAtLaunch:(BOOL)atLaunch
+{
+    self.atLaunchBox.state = atLaunch ? NSControlStateValueOn : NSControlStateValueOff;
+}
+
+- (void)atLaunchChanged:(NSButton *)sender
+{
+    [self.delegate nowPlayingAtLaunchChanged:sender.state == NSControlStateValueOn];
 }
 
 - (void)floatingChanged:(NSButton *)sender

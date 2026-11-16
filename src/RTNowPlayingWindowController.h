@@ -11,6 +11,7 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)nowPlayingFavorite;
 - (void)nowPlayingVolumeChanged:(NSInteger)volume;
 - (void)nowPlayingFloatingChanged:(BOOL)floating;
+- (void)nowPlayingAtLaunchChanged:(BOOL)atLaunch;
 - (void)nowPlayingClosed;
 @end
 
@@ -18,6 +19,8 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, weak, nullable) id<RTNowPlayingDelegate> delegate;
 - (instancetype)initFloating:(BOOL)floating;
 - (void)showWithoutActivating;
+/// Stato della casella "Apri all'avvio".
+- (void)setOpensAtLaunch:(BOOL)atLaunch;
 - (void)updateTitle:(NSString *)title artist:(nullable NSString *)artist station:(nullable NSString *)station
             quality:(nullable NSString *)quality artwork:(nullable NSImage *)artwork playing:(BOOL)playing
              active:(BOOL)active favorite:(BOOL)favorite canFavorite:(BOOL)canFavorite

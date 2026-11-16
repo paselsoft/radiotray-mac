@@ -179,10 +179,11 @@ static NSString *const kColTags = @"tags";
         if (stations.count == 0) {
             strongSelf.statusLabel.stringValue = @"Nessuna stazione trovata. Prova con un nome più corto o con \"Tutti i paesi\".";
         } else if (unplayable) {
-            strongSelf.statusLabel.stringValue = [NSString stringWithFormat:@"%lu stazioni%@ (%lu in grigio: formato non supportato da macOS)",
-                                                  (unsigned long)stations.count, how, (unsigned long)unplayable];
+            strongSelf.statusLabel.stringValue = [NSString stringWithFormat:@"%lu %@%@ (%lu in grigio: formato non supportato da macOS)",
+                                                  (unsigned long)stations.count, stations.count == 1 ? @"stazione" : @"stazioni", how, (unsigned long)unplayable];
         } else {
-            strongSelf.statusLabel.stringValue = [NSString stringWithFormat:@"%lu stazioni%@", (unsigned long)stations.count, how];
+            strongSelf.statusLabel.stringValue = [NSString stringWithFormat:@"%lu %@%@", (unsigned long)stations.count,
+                                                  stations.count == 1 ? @"stazione" : @"stazioni", how];
         }
         [strongSelf updateButtons];
     }];

@@ -176,7 +176,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     self.audioWatcher = [RTAudioWatcher new];
     self.audioWatcher.delegate = self;
     [self.audioWatcher start];
-    if (self.settings.nowPlayingVisible) [self showNowPlaying:NO];
+    if (self.settings.nowPlayingVisible || self.settings.nowPlayingAtLaunch) [self showNowPlaying:NO];
 
     // se l'app è stata spostata, l'avvio al login deve puntare al nuovo percorso
     [RTLoginItem refreshAppPath:[NSBundle mainBundle].bundlePath];
@@ -482,6 +482,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     [self addItem:@"Titolo del brano nella barra dei menu" action:@selector(toggleTitleInBar:) to:prefsMenu].tag = 9;
     [self addItem:@"Copertine degli album" action:@selector(toggleArtwork:) to:prefsMenu].tag = 10;
     [self addItem:@"Loghi delle stazioni nel menu" action:@selector(toggleMenuLogos:) to:prefsMenu].tag = 18;
+    [self addItem:@"Apri la finestra In riproduzione all'avvio" action:@selector(toggleNowPlayingAtLaunch:) to:prefsMenu].tag = 19;
     [self addItem:@"Azzera le stazioni più ascoltate" action:@selector(resetListening:) to:prefsMenu];
 
     [prefsMenu addItem:[NSMenuItem separatorItem]];
@@ -681,6 +682,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     [prefs itemWithTag:9].state = self.settings.titleInMenuBar ? NSControlStateValueOn : NSControlStateValueOff;
     [prefs itemWithTag:10].state = self.settings.artwork ? NSControlStateValueOn : NSControlStateValueOff;
     [prefs itemWithTag:18].state = self.settings.menuLogos ? NSControlStateValueOn : NSControlStateValueOff;
+    [prefs itemWithTag:19].state = self.settings.nowPlayingAtLaunch ? NSControlStateValueOn : NSControlStateValueOff;
 
     // radiosveglia
     if (self.settings.alarmEnabled && self.settings.alarmStation) {
@@ -1660,6 +1662,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
         self.nowPlayingWindow = [[RTNowPlayingWindowController alloc] initFloating:self.settings.nowPlayingFloating];
         self.nowPlayingWindow.delegate = self;
     }
+    [self.nowPlayingWindow setOpensAtLaunch:self.settings.nowPlayingAtLaunch];
     self.settings.nowPlayingVisible = YES;
     [self updateNowPlaying];
     if (activate) {
@@ -1723,6 +1726,19 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
 - (void)nowPlayingFloatingChanged:(BOOL)floating
 {
     self.settings.nowPlayingFloating = floating;
+}
+
+- (void)nowPlayingAtLaunchChanged:(BOOL)atLaunch
+{
+    self.settings.nowPlayingAtLaunch = atLaunch;
+    [self refresh];
+}
+
+- (void)toggleNowPlayingAtLaunch:(id)sender
+{
+    self.settings.nowPlayingAtLaunch = !self.settings.nowPlayingAtLaunch;
+    [self.nowPlayingWindow setOpensAtLaunch:self.settings.nowPlayingAtLaunch];
+    [self refresh];
 }
 
 - (void)nowPlayingClosed

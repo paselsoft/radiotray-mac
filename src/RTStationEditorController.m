@@ -199,8 +199,8 @@ static NSPasteboardType const RTDragType = @"io.github.paselsoft.radiotray-mac.i
         for (RTDocGroup *g in [self visibleGroups]) found += [self visibleStationsOf:g].count;
         self.statusLabel.stringValue = found == 0
             ? [NSString stringWithFormat:@"Nessuna stazione trovata per «%@» (su %lu).", self.filter, (unsigned long)count]
-            : [NSString stringWithFormat:@"%lu stazioni trovate su %lu. Cancella la ricerca per spostarle o riordinarle.",
-                                         (unsigned long)found, (unsigned long)count];
+            : [NSString stringWithFormat:@"%lu %@ su %lu. Cancella la ricerca per spostarle o riordinarle.",
+                                         (unsigned long)found, found == 1 ? @"stazione trovata" : @"stazioni trovate", (unsigned long)count];
         return;
     }
     self.statusLabel.stringValue = [NSString stringWithFormat:

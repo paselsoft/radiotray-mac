@@ -27,6 +27,7 @@ static NSString *const kSwapped = @"swapped-title-artist-stations";
 static NSString *const kIgnoredTitles = @"ignored-title-stations";
 static NSString *const kNowPlayingVisible = @"now-playing-visible";
 static NSString *const kNowPlayingFloating = @"now-playing-floating";
+static NSString *const kNowPlayingAtLaunch = @"now-playing-at-launch";
 static NSString *const kPauseOnLock = @"pause-on-lock";
 static NSString *const kPauseOnHeadphones = @"pause-on-headphones";
 static NSString *const kResumeAfterPause = @"resume-after-pause";
@@ -59,6 +60,7 @@ static NSString *const kLastBackup = @"last-backup";
             kAlarmFadeIn: @YES,
             kNowPlayingVisible: @NO,
             kNowPlayingFloating: @YES,
+            kNowPlayingAtLaunch: @NO,
             kPauseOnLock: @YES,
             kPauseOnHeadphones: @YES,
             kResumeAfterPause: @YES,
@@ -135,6 +137,8 @@ static NSString *const kLastBackup = @"last-backup";
 - (void)setNowPlayingVisible:(BOOL)v { [self.d setBool:v forKey:kNowPlayingVisible]; }
 - (BOOL)nowPlayingFloating { return [self.d boolForKey:kNowPlayingFloating]; }
 - (void)setNowPlayingFloating:(BOOL)v { [self.d setBool:v forKey:kNowPlayingFloating]; }
+- (BOOL)nowPlayingAtLaunch { return [self.d boolForKey:kNowPlayingAtLaunch]; }
+- (void)setNowPlayingAtLaunch:(BOOL)v { [self.d setBool:v forKey:kNowPlayingAtLaunch]; }
 - (BOOL)pauseOnLock { return [self.d boolForKey:kPauseOnLock]; }
 - (void)setPauseOnLock:(BOOL)v { [self.d setBool:v forKey:kPauseOnLock]; }
 - (BOOL)pauseOnHeadphones { return [self.d boolForKey:kPauseOnHeadphones]; }

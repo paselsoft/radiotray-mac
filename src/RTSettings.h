@@ -33,6 +33,7 @@ NS_ASSUME_NONNULL_BEGIN
 // finestra "In riproduzione"
 @property (nonatomic) BOOL nowPlayingVisible;                 // predefinito NO
 @property (nonatomic) BOOL nowPlayingFloating;                // sempre in primo piano, predefinito YES
+@property (nonatomic) BOOL nowPlayingAtLaunch;                // si apre sempre all'avvio, predefinito NO
 // pausa automatica
 @property (nonatomic) BOOL pauseOnLock;                       // predefinito YES
 @property (nonatomic) BOOL pauseOnHeadphones;                 // predefinito YES
