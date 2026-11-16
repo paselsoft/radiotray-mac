@@ -281,7 +281,7 @@ static const NSUInteger RTMaxReconnects = sizeof(RTReconnectDelays) / sizeof(RTR
         NSData *raw = m.dataValue ?: [m.stringValue dataUsingEncoding:NSUTF8StringEncoding];
         NSDictionary *song = [RTTrackInfo stationSongFromData:raw];
         if (!song) continue;
-        NSString *t = song[@"artist"].length ? [NSString stringWithFormat:@"%@ - %@", song[@"artist"], song[@"title"]] : song[@"title"];
+        NSString *t = [song[@"artist"] length] ? [NSString stringWithFormat:@"%@ - %@", song[@"artist"], song[@"title"]] : song[@"title"];
         if (!self.avMetadataSeen) {
             self.avMetadataSeen = YES;
             [self.icyReader stop];
