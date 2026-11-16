@@ -42,7 +42,7 @@ Uso
   si azzerano da Preferenze.
 - Preferenze > Titolo del brano nella barra dei menu: "Artista – Titolo" accanto all'icona.
 - Finestra In riproduzione: copertina grande, titolo, stazione, formato, ◀︎ ⏯ ▶︎ ★ e volume;
-  può restare sempre in primo piano.
+  può restare sempre in primo piano;
   con "Apri all'avvio" si apre da sola ogni volta che parte RadioTray.
 - Sotto il volume, nel menu, il formato e la qualità dello stream (per esempio "MP3 · 128 kbps").
 - Preferenze > Pausa automatica: quando blocchi lo schermo e quando stacchi le cuffie
