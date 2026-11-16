@@ -22,8 +22,9 @@ permissions:
 
 jobs:
   macos:
-    # Runner Apple Silicon: l'app si compila per x86_64 (iMac 2009) con target 10.13.
-    runs-on: macos-15
+    # Runner Intel: come l'iMac 2009 (x86_64), i test girano sullo stesso tipo di processore, e la coda
+    # è di solito più corta di quella dei Mac Apple Silicon. L'app si compila con target macOS 10.13.
+    runs-on: macos-15-intel
     env:
       MACOSX_DEPLOYMENT_TARGET: "10.13"
       GH_TOKEN: ${{ github.token }}
