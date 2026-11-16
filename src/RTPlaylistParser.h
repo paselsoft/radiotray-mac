@@ -22,6 +22,14 @@ NS_ASSUME_NONNULL_BEGIN
                                        baseURL:(nullable NSURL *)baseURL
                                     formatName:(NSString *_Nullable *_Nullable)formatName;
 
+/// Stazioni da importare da un file .pls / .m3u scaricato dal sito di una radio: [{"name", "url"}].
+/// Le voci con lo stesso titolo (o senza titolo) sono server di riserva della stessa radio: una stazione sola.
+/// fileName: nome del file, usato come nome quando la playlist non ne ha. nil se non è una playlist;
+/// *problem spiega il motivo in italiano.
++ (nullable NSArray<NSDictionary<NSString *, NSString *> *> *)stationsFromPlaylistData:(NSData *)data
+                                                                               fileName:(NSString *)fileName
+                                                                                problem:(NSString *_Nullable *_Nullable)problem;
+
 @end
 
 NS_ASSUME_NONNULL_END

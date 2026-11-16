@@ -69,6 +69,10 @@ Stazioni
 - Preferenze > Modifica stazioni… apre l'editor: doppio clic su nome o indirizzo per
   modificarli, trascina per spostare (anche da un gruppo all'altro), pulsanti per nuovo
   gruppo, nuova stazione, elimina, su/giù e "Sposta in…". Le modifiche sono salvate subito.
+- Nell'editor il campo "Cerca" in alto a destra mostra solo le stazioni che corrispondono
+  (nome, gruppo o indirizzo). Per spostarle o riordinarle cancella prima la ricerca.
+- "Importa playlist…" (o trascinare i file nell'elenco): aggiunge le stazioni dei file .pls e
+  .m3u scaricati dai siti delle radio. Le stazioni già presenti vengono saltate.
 - Preferenze > Verifica le stazioni… prova tutte le stazioni e mostra quelle che non
   rispondono; per ognuna cerca un indirizzo nuovo nell'archivio Radio Browser:
   "Ascolta la proposta" per provarlo, "Usa l'indirizzo proposto" per sostituirlo.

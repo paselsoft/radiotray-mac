@@ -756,6 +756,31 @@ int main(int argc, const char *argv[])
             CHECK(![RTStationChecker isAudioResponseStatus:200 contentType:@"text/html; charset=utf-8"]);
             CHECK(![RTStationChecker isAudioResponseStatus:404 contentType:@"audio/mpeg"]);
         }
+        // 1.6.0: importazione di playlist scaricate
+        {
+            NSString *problem = nil;
+            NSArray *st = [RTPlaylistParser stationsFromPlaylistData:D(@"[playlist]\nNumberOfEntries=3\n"
+                "File1=http://a.example/stream\nTitle1=(#1 - 12/500) Radio Paradise\n"
+                "File2=http://b.example/stream\nTitle2=(#2 - 3/500) Radio Paradise\n"
+                "File3=http://c.example/stream\nVersion=2\n") fileName:@"radioparadise.pls" problem:&problem];
+            CHECK(st.count == 1);
+            CHECK_EQ(st.firstObject[@"name"], @"Radio Paradise");
+            CHECK_EQ(st.firstObject[@"url"], @"http://a.example/stream");
+            st = [RTPlaylistParser stationsFromPlaylistData:D(@"#EXTM3U\n#EXTINF:-1,Radio Uno\nhttp://x/1\n"
+                "#EXTINF:-1,Radio Due\nhttps://x/2\n") fileName:@"lista.m3u" problem:NULL];
+            CHECK(st.count == 2);
+            CHECK_EQ(st[1][@"name"], @"Radio Due");
+            CHECK_EQ(st[1][@"url"], @"https://x/2");
+            st = [RTPlaylistParser stationsFromPlaylistData:D(@"http://y/live.mp3\r\nhttp://y/backup.mp3\r\n")
+                                                   fileName:@"radio_italia-anni_60.m3u" problem:NULL];
+            CHECK(st.count == 1);
+            CHECK_EQ(st.firstObject[@"name"], @"radio italia anni 60");
+            CHECK_EQ(st.firstObject[@"url"], @"http://y/live.mp3");
+            problem = nil;
+            CHECK([RTPlaylistParser stationsFromPlaylistData:D(@"#EXTM3U\n#EXT-X-VERSION:3\nseg1.ts\n") fileName:@"a.m3u8" problem:&problem] == nil);
+            CHECK([problem containsString:@"HLS"]);
+            CHECK([RTPlaylistParser stationsFromPlaylistData:D(@"[playlist]\nNumberOfEntries=0\n") fileName:@"x.pls" problem:&problem] == nil);
+        }
         if (argc > 2) testBundledList([NSString stringWithUTF8String:argv[2]]);
         printf("%d verifiche, %d fallite\n", checks, failures);
     }

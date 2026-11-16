@@ -4,6 +4,13 @@ Lettore di radio via Internet nella barra dei menu per **macOS 10.13 High Sierra
 **Installazione:** apri `RadioTray-….dmg`, trascina RadioTray in Applicazioni, poi la prima volta
 clic destro sull'app → Apri → Apri. Istruzioni complete nel file LEGGIMI.txt dentro il .dmg.
 
+### Novità della 1.6
+- **Ricerca nell'editor delle stazioni**: scrivi una parte del nome, del gruppo o dell'indirizzo
+  e restano solo le stazioni che corrispondono (maiuscole e accenti non contano)
+- **Importa playlist…**: aggiunge le stazioni dei file .pls e .m3u scaricati dai siti delle radio,
+  anche trascinandoli nell'elenco; nome preso dalla playlist, scelta del gruppo, niente doppioni
+  (i server di riserva della stessa radio diventano una stazione sola)
+
 ### Novità della 1.5
 - **Copertine ufficiali di RDS**: titolo, artista e copertina arrivano direttamente dalla radio
   (prima del catalogo Apple), anche per i brani italiani che il catalogo non trova

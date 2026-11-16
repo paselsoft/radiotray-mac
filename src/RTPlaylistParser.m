@@ -187,4 +187,100 @@ static NSArray<NSString *> *RTUnique(NSArray<NSString *> *urls)
     return RTUnique(urls);
 }
 
+/// "(#1 - 3/1000) Radio Paradise" (SHOUTcast) → "Radio Paradise"; "Radio_Italia-anni_60" → "Radio Italia anni 60"
+static NSString *RTCleanStationTitle(NSString *title)
+{
+    NSString *t = [title stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    NSRegularExpression *re = [NSRegularExpression regularExpressionWithPattern:@"^\\(#\\d+[^)]*\\)\\s*" options:0 error:NULL];
+    t = [re stringByReplacingMatchesInString:t options:0 range:NSMakeRange(0, t.length) withTemplate:@""];
+    return [t stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+}
+
+static NSString *RTNameFromFileName(NSString *fileName)
+{
+    NSString *n = fileName.lastPathComponent.stringByDeletingPathExtension;
+    n = [[n stringByReplacingOccurrencesOfString:@"_" withString:@" "] stringByReplacingOccurrencesOfString:@"-" withString:@" "];
+    while ([n containsString:@"  "]) n = [n stringByReplacingOccurrencesOfString:@"  " withString:@" "];
+    n = [n stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+    return n.length ? n : @"Stazione importata";
+}
+
++ (NSArray<NSDictionary<NSString *, NSString *> *> *)stationsFromPlaylistData:(NSData *)data fileName:(NSString *)fileName
+                                                                       problem:(NSString **)problem
+{
+    NSString *text = RTTextFromData(data);
+    if (!text) {
+        if (problem) *problem = @"Il file non è una playlist (sembra audio o un file binario).";
+        return nil;
+    }
+    NSString *lower = text.lowercaseString;
+    if ([lower containsString:@"#ext-x-"]) {
+        if (problem) *problem = @"È una playlist HLS (.m3u8): va aggiunta con il suo indirizzo web, con «Nuova stazione…».";
+        return nil;
+    }
+    // coppie [titolo, indirizzo] nell'ordine del file
+    NSMutableArray<NSArray<NSString *> *> *entries = [NSMutableArray array];
+    if ([lower containsString:@"[playlist]"]) {
+        NSMutableDictionary<NSString *, NSString *> *files = [NSMutableDictionary dictionary], *titles = [NSMutableDictionary dictionary];
+        NSMutableArray<NSString *> *order = [NSMutableArray array];
+        for (NSString *line in RTLines(text)) {
+            NSRange eq = [line rangeOfString:@"="];
+            if (eq.location == NSNotFound) continue;
+            NSString *key = [line substringToIndex:eq.location].lowercaseString;
+            NSString *value = [[line substringFromIndex:eq.location + 1] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+            if ([key hasPrefix:@"file"]) {
+                NSString *n = [key substringFromIndex:4];
+                NSString *u = RTResolve(value, nil);
+                if (u) {
+                    files[n] = u;
+                    [order addObject:n];
+                }
+            } else if ([key hasPrefix:@"title"]) {
+                titles[[key substringFromIndex:5]] = value;
+            }
+        }
+        for (NSString *n in order) [entries addObject:@[titles[n] ?: @"", files[n]]];
+    } else {
+        NSString *pendingTitle = @"";
+        BOOL anyURL = NO;
+        for (NSString *line in RTLines(text)) {
+            if ([line.lowercaseString hasPrefix:@"#extinf"]) {
+                NSRange comma = [line rangeOfString:@","];
+                pendingTitle = comma.location == NSNotFound ? @"" : [line substringFromIndex:comma.location + 1];
+                continue;
+            }
+            if ([line hasPrefix:@"#"]) continue;
+            NSString *u = RTResolve(line, nil);
+            if (!u) continue;
+            anyURL = YES;
+            [entries addObject:@[pendingTitle, u]];
+            pendingTitle = @"";
+        }
+        if (!anyURL) {
+            // forse ASX o XSPF: gli indirizzi senza titoli
+            for (NSString *u in [self urlsFromData:data contentType:nil baseURL:nil formatName:NULL] ?: @[]) [entries addObject:@[@"", u]];
+        }
+    }
+    if (entries.count == 0) {
+        if (problem) *problem = @"Nel file non c'è nessun indirizzo web di una radio.";
+        return nil;
+    }
+
+    // una stazione per titolo; le voci senza titolo vanno con la prima (server di riserva)
+    NSMutableArray<NSString *> *names = [NSMutableArray array];
+    NSMutableDictionary<NSString *, NSString *> *urlForName = [NSMutableDictionary dictionary];
+    NSString *fallback = RTNameFromFileName(fileName);
+    for (NSArray<NSString *> *e in entries) {
+        NSString *title = RTCleanStationTitle(e[0]);
+        if ([title.lowercaseString hasPrefix:@"http://"] || [title.lowercaseString hasPrefix:@"https://"]) title = @"";
+        NSString *name = title.length ? title : (names.firstObject ?: fallback);
+        if (urlForName[name]) continue;
+        [names addObject:name];
+        urlForName[name] = e[1];
+    }
+    NSMutableArray *out = [NSMutableArray array];
+    for (NSString *n in names) [out addObject:@{ @"name": n, @"url": urlForName[n] }];
+    return out;
+}
+
 @end

@@ -2,6 +2,7 @@
 #import "RTBookmarksDocument.h"
 #import "RTTableCell.h"
 #import "RTStationLogo.h"
+#import "RTPlaylistParser.h"
 
 static NSString *const kColName = @"name";
 static NSString *const kColURL = @"url";
@@ -21,6 +22,8 @@ static NSPasteboardType const RTDragType = @"io.github.paselsoft.radiotray-mac.i
 @property (nonatomic, strong, nullable) id draggedItem;
 @property (nonatomic, strong) NSCache<NSString *, NSImage *> *logos;     // loghi 16×16 delle stazioni
 @property (nonatomic, strong) NSMutableSet<NSString *> *loadingLogos;
+@property (nonatomic, strong) NSSearchField *searchField;
+@property (nonatomic, copy) NSString *filter;                            // testo cercato ("" = tutto)
 @end
 
 @implementation RTStationEditorController
@@ -39,6 +42,7 @@ static NSPasteboardType const RTDragType = @"io.github.paselsoft.radiotray-mac.i
         _path = [path copy];
         _logos = [NSCache new];
         _loadingLogos = [NSMutableSet set];
+        _filter = @"";
         [self buildContent];
         [window center];
         [self reloadFromDisk];
@@ -64,7 +68,22 @@ static NSPasteboardType const RTDragType = @"io.github.paselsoft.radiotray-mac.i
     NSView *content = self.window.contentView;
     CGFloat w = content.bounds.size.width, h = content.bounds.size.height;
 
-    NSScrollView *scroll = [[NSScrollView alloc] initWithFrame:NSMakeRect(20, 84, w - 40, h - 104)];
+    NSButton *import = [NSButton buttonWithTitle:@"Importa playlist…" target:self action:@selector(importPlaylist:)];
+    import.bezelStyle = NSBezelStyleRounded;
+    import.frame = NSMakeRect(14, h - 46, 170, 32);
+    import.toolTip = @"Aggiunge le stazioni di un file .pls o .m3u scaricato dal sito di una radio (puoi anche trascinarlo nell'elenco)";
+    import.autoresizingMask = NSViewMaxXMargin | NSViewMinYMargin;
+    [content addSubview:import];
+
+    NSSearchField *search = [[NSSearchField alloc] initWithFrame:NSMakeRect(w - 280, h - 40, 260, 22)];
+    search.placeholderString = @"Cerca per nome, gruppo o indirizzo";
+    search.target = self;
+    search.action = @selector(searchChanged:);
+    search.autoresizingMask = NSViewMinXMargin | NSViewMinYMargin;
+    [content addSubview:search];
+    self.searchField = search;
+
+    NSScrollView *scroll = [[NSScrollView alloc] initWithFrame:NSMakeRect(20, 84, w - 40, h - 138)];
     scroll.hasVerticalScroller = YES;
     scroll.borderType = NSBezelBorder;
     scroll.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
@@ -86,7 +105,7 @@ static NSPasteboardType const RTDragType = @"io.github.paselsoft.radiotray-mac.i
     outline.delegate = self;
     outline.target = self;
     outline.doubleAction = @selector(editClicked:);
-    [outline registerForDraggedTypes:@[RTDragType]];
+    [outline registerForDraggedTypes:@[RTDragType, NSPasteboardTypeFileURL]];
     [outline setDraggingSourceOperationMask:NSDragOperationMove forLocal:YES];
     scroll.documentView = outline;
     [content addSubview:scroll];
@@ -175,6 +194,15 @@ static NSPasteboardType const RTDragType = @"io.github.paselsoft.radiotray-mac.i
 {
     NSUInteger count = 0;
     for (RTDocGroup *g in self.doc.groups) count += g.stations.count;
+    if ([self filtering]) {
+        NSUInteger found = 0;
+        for (RTDocGroup *g in [self visibleGroups]) found += [self visibleStationsOf:g].count;
+        self.statusLabel.stringValue = found == 0
+            ? [NSString stringWithFormat:@"Nessuna stazione trovata per «%@» (su %lu).", self.filter, (unsigned long)count]
+            : [NSString stringWithFormat:@"%lu stazioni trovate su %lu. Cancella la ricerca per spostarle o riordinarle.",
+                                         (unsigned long)found, (unsigned long)count];
+        return;
+    }
     self.statusLabel.stringValue = [NSString stringWithFormat:
         @"%lu stazioni. Doppio clic per modificare nome o indirizzo, trascina per spostare. Le modifiche sono salvate subito.",
         (unsigned long)count];
@@ -257,8 +285,8 @@ static NSPasteboardType const RTDragType = @"io.github.paselsoft.radiotray-mac.i
         index = [self.doc.groups indexOfObject:item];
         count = self.doc.groups.count;
     }
-    self.upButton.enabled = ok && item && index > 0;
-    self.downButton.enabled = ok && item && index + 1 < count;
+    self.upButton.enabled = ok && item && index > 0 && ![self filtering];
+    self.downButton.enabled = ok && item && index + 1 < count && ![self filtering];
 
     // "Sposta in…": gli altri gruppi, più uno nuovo
     [self.movePopup removeAllItems];
@@ -510,6 +538,159 @@ static NSPasteboardType const RTDragType = @"io.github.paselsoft.radiotray-mac.i
     }] resume];
 }
 
+#pragma mark - Importazione di playlist
+
+- (NSArray<NSURL *> *)playlistFilesIn:(id<NSDraggingInfo>)info
+{
+    NSMutableArray *out = [NSMutableArray array];
+    NSArray<NSURL *> *urls = [info.draggingPasteboard readObjectsForClasses:@[[NSURL class]]
+                                                                     options:@{NSPasteboardURLReadingFileURLsOnlyKey: @YES}];
+    for (NSURL *u in urls) {
+        if ([@[@"pls", @"m3u", @"asx", @"xspf"] containsObject:u.pathExtension.lowercaseString]) [out addObject:u];
+    }
+    return out;
+}
+
+- (void)importPlaylist:(id)sender
+{
+    if (!self.doc) return;
+    NSOpenPanel *panel = [NSOpenPanel openPanel];
+    panel.allowedFileTypes = @[@"pls", @"m3u", @"asx", @"xspf"];
+    panel.allowsMultipleSelection = YES;
+    panel.message = @"Scegli i file .pls o .m3u scaricati dai siti delle radio (di solito nella cartella Download)";
+    panel.prompt = @"Importa";
+    panel.directoryURL = [[NSFileManager defaultManager] URLsForDirectory:NSDownloadsDirectory inDomains:NSUserDomainMask].firstObject;
+    id selected = [self selectedItem];
+    RTDocGroup *group = [selected isKindOfClass:[RTDocStation class]] ? [(RTDocStation *)selected group] : selected;
+    [panel beginSheetModalForWindow:self.window completionHandler:^(NSModalResponse result) {
+        if (result != NSModalResponseOK || !panel.URLs.count) return;
+        dispatch_async(dispatch_get_main_queue(), ^{ [self importFiles:panel.URLs intoGroup:group]; });
+    }];
+}
+
+/// Legge i file, mostra le stazioni trovate e chiede il gruppo; poi le aggiunge (senza doppioni).
+- (void)importFiles:(NSArray<NSURL *> *)files intoGroup:(nullable RTDocGroup *)preferred
+{
+    NSMutableArray<NSDictionary<NSString *, NSString *> *> *found = [NSMutableArray array];
+    NSMutableArray<NSString *> *problems = [NSMutableArray array];
+    NSMutableSet<NSString *> *known = [NSMutableSet set];
+    for (RTDocGroup *g in self.doc.groups) for (RTDocStation *st in g.stations) [known addObject:st.url];
+    NSUInteger duplicates = 0;
+    for (NSURL *file in files) {
+        NSData *data = [NSData dataWithContentsOfURL:file];
+        NSString *problem = nil;
+        NSArray *stations = data ? [RTPlaylistParser stationsFromPlaylistData:data fileName:file.lastPathComponent problem:&problem] : nil;
+        if (!stations) {
+            [problems addObject:[NSString stringWithFormat:@"%@: %@", file.lastPathComponent, problem ?: @"file non leggibile"]];
+            continue;
+        }
+        for (NSDictionary *st in stations) {
+            if ([known containsObject:st[@"url"]]) {
+                duplicates++;
+                continue;
+            }
+            [known addObject:st[@"url"]];
+            [found addObject:st];
+        }
+    }
+    if (found.count == 0) {
+        NSMutableArray *lines = [problems mutableCopy];
+        if (duplicates) [lines addObject:duplicates == 1 ? @"La stazione è già nell'elenco." :
+                         [NSString stringWithFormat:@"Le %lu stazioni sono già nell'elenco.", (unsigned long)duplicates]];
+        [self commit:[lines componentsJoinedByString:@"\n"] select:nil];
+        return;
+    }
+
+    NSAlert *alert = [NSAlert new];
+    alert.messageText = found.count == 1 ? @"Importa la stazione"
+                                         : [NSString stringWithFormat:@"Importa %lu stazioni", (unsigned long)found.count];
+    NSMutableString *info = [NSMutableString string];
+    if (found.count > 1) {
+        NSUInteger shown = 0;
+        for (NSDictionary *st in found) {
+            if (shown++ == 8) {
+                [info appendFormat:@"… e altre %lu\n", (unsigned long)(found.count - 8)];
+                break;
+            }
+            [info appendFormat:@"• %@\n", st[@"name"]];
+        }
+    } else {
+        [info appendFormat:@"%@\n", found[0][@"url"]];
+    }
+    if (duplicates) [info appendFormat:@"(%lu già nell'elenco: saltate)\n", (unsigned long)duplicates];
+    for (NSString *p in problems) [info appendFormat:@"%@\n", p];
+    alert.informativeText = info;
+
+    CGFloat width = 380;
+    BOOL single = found.count == 1;
+    NSView *view = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, width, single ? 60 : 28)];
+    NSTextField *nameField = nil;
+    if (single) {
+        NSTextField *label = [NSTextField labelWithString:@"Nome:"];
+        label.alignment = NSTextAlignmentRight;
+        label.frame = NSMakeRect(0, 36, 70, 18);
+        [view addSubview:label];
+        nameField = [[NSTextField alloc] initWithFrame:NSMakeRect(76, 32, width - 76, 24)];
+        nameField.stringValue = found[0][@"name"];
+        [view addSubview:nameField];
+    }
+    NSTextField *groupLabel = [NSTextField labelWithString:@"Gruppo:"];
+    groupLabel.alignment = NSTextAlignmentRight;
+    groupLabel.frame = NSMakeRect(0, 4, 70, 18);
+    [view addSubview:groupLabel];
+    NSPopUpButton *groups = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(74, 0, width - 74, 26) pullsDown:NO];
+    for (RTDocGroup *g in self.doc.groups) {
+        [groups addItemWithTitle:[RTBookmarksDocument displayNameForGroup:g]];
+        groups.lastItem.representedObject = g;
+    }
+    NSString *newGroupName = @"Importate";
+    for (NSUInteger n = 2; [self.doc groupNamed:newGroupName]; n++) newGroupName = [NSString stringWithFormat:@"Importate %lu", (unsigned long)n];
+    [groups addItemWithTitle:[NSString stringWithFormat:@"Nuovo gruppo «%@»", newGroupName]];
+    if (preferred && [self.doc.groups containsObject:preferred]) [groups selectItemAtIndex:(NSInteger)[self.doc.groups indexOfObject:preferred]];
+    else if (!single) [groups selectItem:groups.lastItem];
+    [view addSubview:groups];
+    alert.accessoryView = view;
+    [alert addButtonWithTitle:@"Importa"];
+    [alert addButtonWithTitle:@"Annulla"];
+    if (nameField) alert.window.initialFirstResponder = nameField;
+    [alert beginSheetModalForWindow:self.window completionHandler:^(NSModalResponse result) {
+        if (result != NSAlertFirstButtonReturn) return;
+        RTDocGroup *group = groups.selectedItem.representedObject;
+        if (!group) {
+            NSUInteger index = self.doc.groups.count;
+            if (index > 0 && self.doc.groups.lastObject.isRoot) index--;
+            NSString *problem = [self.doc addGroupNamed:newGroupName atIndex:index group:&group];
+            if (problem) {
+                [self commit:problem select:nil];
+                return;
+            }
+        }
+        RTDocStation *last = nil;
+        NSMutableArray<NSString *> *refused = [NSMutableArray array];
+        for (NSDictionary *st in found) {
+            NSString *name = nameField ? [nameField.stringValue stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]] : st[@"name"];
+            // nomi doppi nello stesso gruppo: "Nome (2)"
+            NSString *unique = name.length ? name : @"Stazione importata";
+            for (NSUInteger n = 2; ; n++) {
+                BOOL taken = NO;
+                for (RTDocStation *x in group.stations) if ([x.name caseInsensitiveCompare:unique] == NSOrderedSame) taken = YES;
+                if (!taken) break;
+                unique = [NSString stringWithFormat:@"%@ (%lu)", name, (unsigned long)n];
+            }
+            RTDocStation *created = nil;
+            NSString *problem = [self.doc addStationNamed:unique url:st[@"url"] toGroup:group atIndex:group.stations.count station:&created];
+            if (problem) [refused addObject:[NSString stringWithFormat:@"%@: %@", unique, problem]];
+            else last = created;
+        }
+        // la ricerca potrebbe nascondere le stazioni appena aggiunte
+        self.searchField.stringValue = @"";
+        self.filter = @"";
+        if ([self commit:nil select:last] && refused.count) {
+            [self commit:[refused componentsJoinedByString:@"\n"] select:last];
+        }
+    }];
+}
+
 #pragma mark - Loghi nella tabella
 
 - (nullable NSImage *)logoForStation:(RTDocStation *)s
@@ -568,17 +749,67 @@ static NSPasteboardType const RTDragType = @"io.github.paselsoft.radiotray-mac.i
 
 #pragma mark - NSOutlineViewDataSource
 
+static BOOL RTMatchesFilter(NSString *text, NSString *filter)
+{
+    return [text rangeOfString:filter options:NSCaseInsensitiveSearch | NSDiacriticInsensitiveSearch].location != NSNotFound;
+}
+
+- (BOOL)filtering
+{
+    return self.filter.length > 0;
+}
+
+/// Stazioni del gruppo da mostrare: tutte se il nome del gruppo corrisponde alla ricerca.
+- (NSArray<RTDocStation *> *)visibleStationsOf:(RTDocGroup *)group
+{
+    if (![self filtering] || RTMatchesFilter([RTBookmarksDocument displayNameForGroup:group], self.filter)) return group.stations;
+    NSMutableArray *out = [NSMutableArray array];
+    for (RTDocStation *st in group.stations) {
+        if (RTMatchesFilter(st.name, self.filter) || RTMatchesFilter(st.url, self.filter)) [out addObject:st];
+    }
+    return out;
+}
+
+- (NSArray<RTDocGroup *> *)visibleGroups
+{
+    if (![self filtering]) return self.doc.groups;
+    NSMutableArray *out = [NSMutableArray array];
+    for (RTDocGroup *g in self.doc.groups) if ([self visibleStationsOf:g].count) [out addObject:g];
+    return out;
+}
+
+- (void)searchChanged:(id)sender
+{
+    self.filter = [self.searchField.stringValue stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+    id selected = [self selectedItem];
+    [self.outline reloadData];
+    [self.outline expandItem:nil expandChildren:YES];
+    if (selected && [self.outline rowForItem:selected] >= 0) [self selectItem:selected];
+    else if ([self filtering]) {
+        // si seleziona la prima stazione trovata: "Ascolta" la fa partire
+        for (NSInteger row = 0; row < self.outline.numberOfRows; row++) {
+            if ([[self.outline itemAtRow:row] isKindOfClass:[RTDocStation class]]) {
+                [self.outline selectRowIndexes:[NSIndexSet indexSetWithIndex:(NSUInteger)row] byExtendingSelection:NO];
+                [self.outline scrollRowToVisible:row];
+                break;
+            }
+        }
+    }
+    [self showHint];
+    [self updateControls];
+}
+
 - (NSInteger)outlineView:(NSOutlineView *)outlineView numberOfChildrenOfItem:(id)item
 {
-    if (!item) return (NSInteger)self.doc.groups.count;
-    if ([item isKindOfClass:[RTDocGroup class]]) return (NSInteger)[(RTDocGroup *)item stations].count;
+    if (!item) return (NSInteger)[self visibleGroups].count;
+    if ([item isKindOfClass:[RTDocGroup class]]) return (NSInteger)[self visibleStationsOf:item].count;
     return 0;
 }
 
 - (id)outlineView:(NSOutlineView *)outlineView child:(NSInteger)index ofItem:(id)item
 {
-    if (!item) return self.doc.groups[(NSUInteger)index];
-    return [(RTDocGroup *)item stations][(NSUInteger)index];
+    if (!item) return [self visibleGroups][(NSUInteger)index];
+    return [self visibleStationsOf:item][(NSUInteger)index];
 }
 
 - (BOOL)outlineView:(NSOutlineView *)outlineView isItemExpandable:(id)item
@@ -673,7 +904,14 @@ static NSPasteboardType const RTDragType = @"io.github.paselsoft.radiotray-mac.i
                   proposedItem:(id)item proposedChildIndex:(NSInteger)index
 {
     id dragged = self.draggedItem;
-    if (!dragged) return NSDragOperationNone;
+    if (!dragged) {
+        if (![self playlistFilesIn:info].count || !self.doc) return NSDragOperationNone;
+        // si importa nel gruppo su cui si lascia il file (o in quello della stazione)
+        id target = [item isKindOfClass:[RTDocStation class]] ? [(RTDocStation *)item group] : item;
+        [outlineView setDropItem:target dropChildIndex:NSOutlineViewDropOnItemIndex];
+        return NSDragOperationCopy;
+    }
+    if ([self filtering]) return NSDragOperationNone;
     if ([dragged isKindOfClass:[RTDocGroup class]]) {
         // i gruppi si riordinano solo al primo livello
         if (item != nil || index == NSOutlineViewDropOnItemIndex) return NSDragOperationNone;
@@ -687,6 +925,13 @@ static NSPasteboardType const RTDragType = @"io.github.paselsoft.radiotray-mac.i
 - (BOOL)outlineView:(NSOutlineView *)outlineView acceptDrop:(id<NSDraggingInfo>)info item:(id)item childIndex:(NSInteger)index
 {
     id dragged = self.draggedItem;
+    if (!dragged) {
+        NSArray<NSURL *> *files = [self playlistFilesIn:info];
+        if (!files.count) return NO;
+        RTDocGroup *group = [item isKindOfClass:[RTDocGroup class]] ? item : nil;
+        dispatch_async(dispatch_get_main_queue(), ^{ [self importFiles:files intoGroup:group]; });
+        return YES;
+    }
     if ([dragged isKindOfClass:[RTDocGroup class]]) {
         NSUInteger from = [self.doc.groups indexOfObject:dragged];
         NSUInteger to = (NSUInteger)MAX(0, index);
