@@ -28,11 +28,8 @@ Legenda: `[x]` fatto (versione) · `[ ]` da fare · 🚧 in preparazione nell'an
 - [x] **3. https quando la radio lo offre** (1.10)
 - [x] **4. Volume ricordato per ogni stazione** (1.10)
 - [x] **6. Scelta dell'uscita audio dal menu** (1.10)
-
-## In preparazione (1.11)
-
-- [ ] 🚧 **8. Storico degli ascolti su ListenBrainz**
-- [ ] 🚧 **Ricerca per genere e "più ascoltate"** in Cerca stazioni
+- [x] **8. Storico degli ascolti su ListenBrainz** (1.11)
+- [x] **Ricerca per genere e "più ascoltate"** in Cerca stazioni (1.11)
 
 ## Da fare
 
