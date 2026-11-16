@@ -29,18 +29,41 @@
     panel.releasedWhenClosed = NO;
     panel.hidesOnDeactivate = NO;   // resta visibile anche quando si usa un'altra app
     panel.becomesKeyOnlyIfNeeded = YES;
-    panel.frameAutosaveName = @"RadioTrayNowPlaying";
     panel.collectionBehavior = NSWindowCollectionBehaviorCanJoinAllSpaces;
     if ((self = [super initWithWindow:panel])) {
         panel.delegate = self;
         [self buildContent];
         [self setFloating:floating];
-        if (![panel setFrameUsingName:@"RadioTrayNowPlaying"]) {
-            NSRect screen = NSScreen.mainScreen.visibleFrame;
-            [panel setFrameTopLeftPoint:NSMakePoint(NSMaxX(screen) - 460, NSMaxY(screen) - 20)];
-        }
+        [self placeWindow];
     }
     return self;
+}
+
+static NSString *const kOriginKey = @"now-playing-origin";
+
+/// Dove l'hai lasciata l'ultima volta; la prima volta al centro, sul lato sinistro dello schermo.
+- (void)placeWindow
+{
+    NSWindow *w = self.window;
+    NSString *saved = [[NSUserDefaults standardUserDefaults] stringForKey:kOriginKey];
+    if (saved.length) {
+        NSPoint origin = NSPointFromString(saved);
+        NSRect frame = (NSRect){ origin, w.frame.size };
+        for (NSScreen *screen in [NSScreen screens]) {
+            // solo se è ancora su uno schermo collegato (almeno in parte)
+            if (NSIntersectsRect(NSInsetRect(screen.visibleFrame, 40, 40), frame)) {
+                [w setFrameOrigin:origin];
+                return;
+            }
+        }
+    }
+    NSRect screen = (NSScreen.mainScreen ?: NSScreen.screens.firstObject).visibleFrame;
+    [w setFrameOrigin:NSMakePoint(NSMinX(screen) + 20, NSMidY(screen) - NSHeight(w.frame) / 2)];
+}
+
+- (void)windowDidMove:(NSNotification *)notification
+{
+    [[NSUserDefaults standardUserDefaults] setObject:NSStringFromPoint(self.window.frame.origin) forKey:kOriginKey];
 }
 
 - (NSTextField *)label:(NSFont *)font frame:(NSRect)frame color:(NSColor *)color
