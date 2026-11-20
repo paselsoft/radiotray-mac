@@ -40,6 +40,7 @@ Legenda: `[x]` fatto (versione) · `[ ]` da fare · 🚧 in preparazione nell'an
 - [x] **14. Statistiche**: ore per stazione, artisti più sentiti (1.14)
 - [x] **16. Condividi il brano** (1.14)
 - [x] Finestra del testo larga come In riproduzione, con l'altezza ricordata (1.14)
+- [x] https solo se il server manda anche i titoli (Radio Monte Carlo) (1.14.1)
 
 ## Da fare
 
