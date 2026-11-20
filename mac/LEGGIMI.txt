@@ -88,6 +88,8 @@ Uso
 - Timer di spegnimento: nell'ultimo minuto il volume scende piano fino a zero.
 - Palinsesto di …: con le radio principali (Radio 24, Rai, Deejay, RMC, RDS…) nel menu, sotto il
   volume, si apre la pagina ufficiale del palinsesto.
+- Palinsesto personale…: scrivi i programmi che segui (stazione, giorni, orari come "12:15-13:00,
+  23:10-24:00", foto del conduttore). Quando vanno in onda si vedono nome e foto al posto del logo.
 - Uscita audio (nel menu, sotto il volume): altoparlanti, cuffie, casse USB o AirPlay.
   "Come il Mac" segue l'uscita scelta in Preferenze di Sistema > Suono.
 - Il volume scelto per una stazione torna ogni volta che la riascolti (si toglie da

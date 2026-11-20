@@ -20,6 +20,7 @@
 #import "../src/RTOnAir.h"
 #import "../src/RTLyrics.h"
 #import "../src/RTStats.h"
+#import "../src/RTShows.h"
 #import "../src/RTArtistWatcher.h"
 
 static int failures = 0;
@@ -918,6 +919,31 @@ int main(int argc, const char *argv[])
             CHECK_EQ([RTOnAir scheduleURLForStationURL:@"https://altro.example/x" name:@" Radio 24 "].absoluteString,
                      @"https://www.radio24.ilsole24ore.com/palinsesto");
             CHECK([RTOnAir scheduleURLForStationURL:@"https://stream.radioparadise.com/aac-128" name:@"Radio Paradise"] == nil);
+            // palinsesto personale
+            NSArray *slots = [RTShows slotsFromString:@"12:15-13:00, 23:10-24:00"];
+            CHECK(slots.count == 2);
+            CHECK([slots[0] isEqualToArray:(@[@735, @780])]);
+            CHECK([slots[1] isEqualToArray:(@[@1390, @1440])]);
+            CHECK([RTShows slotsFromString:@"12:15"] == nil);
+            CHECK([RTShows slotsFromString:@"25:00-26:00"] == nil);
+            CHECK([RTShows slotsFromString:@""] == nil);
+            NSCalendar *cal = [[NSCalendar alloc] initWithCalendarIdentifier:NSCalendarIdentifierGregorian];
+            cal.timeZone = [NSTimeZone timeZoneWithName:@"Europe/Rome"];
+            NSDate *(^at)(NSInteger, NSInteger, NSInteger) = ^NSDate *(NSInteger day, NSInteger h, NSInteger m) {
+                NSDateComponents *c = [NSDateComponents new];
+                c.year = 2026; c.month = 11; c.day = day; c.hour = h; c.minute = m;   // 16/11/2026 lunedì, 21 sabato
+                return [cal dateFromComponents:c];
+            };
+            NSArray *shows = @[@{ @"name": @"Melog", @"group": @"Radio italiane", @"station": @"Radio 24",
+                                  @"days": @(0x1F), @"slots": @"12:15-13:00, 23:10-24:00" },
+                               @{ @"name": @"Notte", @"group": @"Radio italiane", @"station": @"Radio 24",
+                                  @"days": @(1u << 4), @"slots": @"23:30-01:00" }];
+            CHECK_EQ([RTShows showOnAir:shows group:@"Radio italiane" station:@"Radio 24" date:at(16, 12, 30) calendar:cal][@"name"], @"Melog");
+            CHECK_EQ([RTShows showOnAir:shows group:@"Radio italiane" station:@"Radio 24" date:at(16, 23, 15) calendar:cal][@"name"], @"Melog");
+            CHECK([RTShows showOnAir:shows group:@"Radio italiane" station:@"Radio 24" date:at(16, 13, 0) calendar:cal] == nil);
+            CHECK([RTShows showOnAir:shows group:@"Radio italiane" station:@"Radio 24" date:at(21, 12, 30) calendar:cal] == nil);   // sabato
+            CHECK([RTShows showOnAir:shows group:@"Radio italiane" station:@"RMC" date:at(16, 12, 30) calendar:cal] == nil);
+            CHECK_EQ([RTShows showOnAir:shows group:@"Radio italiane" station:@"Radio 24" date:at(21, 0, 30) calendar:cal][@"name"], @"Notte");  // venerdì notte
         }
         if (argc > 2) testBundledList([NSString stringWithUTF8String:argv[2]]);
         printf("%d verifiche, %d fallite\n", checks, failures);

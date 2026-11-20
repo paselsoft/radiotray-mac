@@ -24,6 +24,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, copy) NSDictionary<NSString *, NSNumber *> *artistPlays;   // artista → brani ascoltati
 @property (nonatomic, copy) NSDictionary<NSString *, NSString *> *artistNames;   // chiave normalizzata → nome mostrato
 @property (nonatomic, strong, nullable) NSDate *statsSince;
+@property (nonatomic, copy) NSArray<NSDictionary *> *shows;   // palinsesto personale
 @property (nonatomic) BOOL dockIcon;                          // icona nel Dock, predefinito YES
 @property (nonatomic) BOOL preferHTTPS;                       // https quando la radio lo offre, predefinito YES
 @property (nonatomic) BOOL stationVolumes;                    // ricorda il volume di ogni stazione, predefinito YES

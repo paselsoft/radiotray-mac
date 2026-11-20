@@ -27,6 +27,8 @@
 #import "RTArtistWatcher.h"
 #import "RTStats.h"
 #import "RTStatsWindowController.h"
+#import "RTShows.h"
+#import "RTShowsWindowController.h"
 #import "RTNowPlayingWindowController.h"
 #import "RTStationLogo.h"
 #import "RTSettings.h"
@@ -38,7 +40,7 @@
 static const NSUInteger RTMenuLineLength = 48;
 static const NSInteger RTMaxSleepMinutes = 24 * 60;
 
-@interface RTAppDelegate () <NSMenuDelegate, RTPlayerDelegate, RTMediaKeysDelegate, RTSearchWindowDelegate, RTStationEditorDelegate, RTStationCheckDelegate, RTFavoritesWindowDelegate, RTNowPlayingDelegate, RTAudioWatcherDelegate, RTNetworkWatcherDelegate, RTOnAirDelegate, RTProgramsDelegate, RTArtistWatcherDelegate>
+@interface RTAppDelegate () <NSMenuDelegate, RTPlayerDelegate, RTMediaKeysDelegate, RTSearchWindowDelegate, RTStationEditorDelegate, RTStationCheckDelegate, RTFavoritesWindowDelegate, RTNowPlayingDelegate, RTAudioWatcherDelegate, RTNetworkWatcherDelegate, RTOnAirDelegate, RTProgramsDelegate, RTArtistWatcherDelegate, RTShowsDelegate>
 @property (nonatomic, strong) NSStatusItem *statusItem;
 @property (nonatomic, strong) NSMenu *menu;
 @property (nonatomic, strong) NSMenuItem *trackItem;
@@ -94,6 +96,10 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
 @property (nonatomic, copy, nullable) NSString *programStopStation;
 @property (nonatomic, strong) RTArtistWatcher *artistWatcher;     // "Avvisami quando passa…"
 @property (nonatomic, strong, nullable) RTStatsWindowController *statsWindow;
+@property (nonatomic, strong, nullable) RTShowsWindowController *showsWindow;
+@property (nonatomic, copy, nullable) NSDictionary *currentShow;          // programma del palinsesto personale in onda
+@property (nonatomic, strong, nullable) NSImage *showImage;
+@property (nonatomic, strong, nullable) NSImage *showImageThumb;
 @property (nonatomic, strong) NSMenuItem *watchItem;
 @property (nonatomic, strong) RTOnAir *onAir;                        // titoli dai siti delle radio
 @property (nonatomic, copy, nullable) NSString *onAirProgram;        // programma in onda (Rai, parlato)
@@ -498,6 +504,8 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     self.addStationItem = [self addItem:@"Aggiungi alle stazioni…" action:@selector(addCurrentStation:) to:self.menu];
     self.sleepItem = [self addItem:@"Timer di spegnimento…" action:@selector(sleepTimerChosen:) to:self.menu];
     self.alarmItem = [self addItem:@"Radiosveglia…" action:@selector(configureAlarm:) to:self.menu];
+    [self addItem:@"Palinsesto personale…" action:@selector(openShows:) to:self.menu].toolTip =
+        @"I programmi che segui, con orari e foto: si vedono al posto del logo quando vanno in onda";
     [self addItem:@"Programmi…" action:@selector(openPrograms:) to:self.menu].toolTip =
         @"Altre accensioni programmate: per esempio il giornale radio alle 18:00 per 30 minuti";
     [self.menu addItem:[NSMenuItem separatorItem]];
@@ -712,7 +720,10 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
         case RTPlayerStateConnecting: line1 = @"Connessione in corso…"; break;
         case RTPlayerStateBuffering:  line1 = @"Caricamento…"; break;
         case RTPlayerStatePlaying:
-            if (self.track.isEmpty) {
+            if (self.track.isEmpty && self.currentShow) {
+                line1 = self.currentShow[@"name"];
+                line2 = [self.currentShow[@"host"] length] ? [@"con " stringByAppendingString:self.currentShow[@"host"]] : @"in onda adesso";
+            } else if (self.track.isEmpty) {
                 line1 = self.onAirProgram ?: @"In riproduzione";
                 if (self.onAirProgram) line2 = @"in onda adesso";
             } else if (self.track.title.length) {
@@ -733,7 +744,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
                 attributes:@{ NSFontAttributeName: [NSFont menuFontOfSize:0] }]];
     }
     self.trackItem.attributedTitle = status;
-    self.trackItem.image = state == RTPlayerStatePlaying ? (self.trackArtwork ?: self.stationLogoThumb) : nil;
+    self.trackItem.image = state == RTPlayerStatePlaying ? (self.trackArtwork ?: self.showImageThumb ?: self.stationLogoThumb) : nil;
     self.trackItem.enabled = state == RTPlayerStatePlaying && !self.track.isEmpty;
     self.trackItem.toolTip = nil;
     if (self.trackItem.enabled) {
@@ -924,6 +935,9 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     [[RTScrobbler shared] stop];   // il brano della stazione di prima finisce qui
     [self.onAir stop];
     self.onAirProgram = nil;
+    self.currentShow = nil;
+    self.showImage = nil;
+    self.showImageThumb = nil;
     self.track = [RTTrackInfo infoWithTitle:nil artist:nil];
     self.trackArtwork = nil;       // la copertina del brano della stazione precedente non vale più
     self.trackArtworkFull = nil;
@@ -931,6 +945,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     self.playingNotified = NO;
     self.userStopped = NO;
     [self applyStationVolume];
+    [self updateCurrentShow];
     self.player.outputDeviceUID = [self availableOutputUID];   // la cassa scelta potrebbe essere stata scollegata
 
     [self.player markConnecting];
@@ -1867,6 +1882,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     }
 
     [self checkPrograms:now];
+    [self updateCurrentShow];
 
     // radiosveglia
     if (self.settings.alarmEnabled && self.settings.alarmStation &&
@@ -1933,6 +1949,9 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     if (playing && !self.track.isEmpty) {
         title = self.track.title.length ? self.track.title : self.track.artist;
         artist = self.track.title.length ? self.track.artist : nil;
+    } else if (playing && self.currentShow) {
+        title = self.currentShow[@"name"];
+        artist = [self.currentShow[@"host"] length] ? [@"con " stringByAppendingString:self.currentShow[@"host"]] : @"in onda adesso";
     } else if (playing) {
         title = self.onAirProgram ?: @"In riproduzione";
         if (self.onAirProgram) artist = @"in onda adesso";
@@ -1945,7 +1964,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     NSArray *stations = [self currentGroupStations:&index];
     [self.nowPlayingWindow updateTitle:title artist:artist station:self.currentStation
                                quality:playing ? [self qualityText] : nil
-                               artwork:(playing ? self.trackArtworkFull : nil) ?: self.stationLogo playing:playing active:active
+                               artwork:(playing ? (self.trackArtworkFull ?: self.showImage) : nil) ?: self.stationLogo playing:playing active:active
                               favorite:playing && [self currentTrackIsFavorite]
                            canFavorite:playing && !self.track.isEmpty
                            hasPrevious:index != NSNotFound && index > 0
@@ -2538,6 +2557,51 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
 }
 
 #pragma mark - Programmi
+
+#pragma mark - Palinsesto personale
+
+- (void)openShows:(id)sender
+{
+    if (!self.showsWindow) {
+        self.showsWindow = [RTShowsWindowController new];
+        self.showsWindow.delegate = self;
+    }
+    [self.showsWindow showShows:self.settings.shows];
+}
+
+- (RTBookmarks *)showsBookmarks
+{
+    return self.bookmarks;
+}
+
+- (NSString *)showsImageFolder
+{
+    return [[self.settings.bookmarksPath stringByDeletingLastPathComponent] stringByAppendingPathComponent:@"programmi"];
+}
+
+- (void)showsDidChange:(NSArray<NSDictionary *> *)shows
+{
+    self.settings.shows = shows;
+    self.currentShow = nil;   // la foto potrebbe essere cambiata
+    [self updateCurrentShow];
+}
+
+/// Il programma del palinsesto personale in onda adesso sulla stazione scelta (con la sua foto).
+- (void)updateCurrentShow
+{
+    NSDictionary *show = nil;
+    if (self.currentGroup && self.currentStation) {
+        show = [RTShows showOnAir:self.settings.shows group:self.currentGroup station:self.currentStation
+                             date:[NSDate date] calendar:[NSCalendar currentCalendar]];
+    }
+    if ((show == nil && self.currentShow == nil) || [show isEqualToDictionary:self.currentShow ?: @{}]) return;
+    self.currentShow = show;
+    NSString *path = show[@"image"];
+    NSImage *image = path.length ? [[NSImage alloc] initWithContentsOfFile:path] : nil;
+    self.showImage = image.size.width >= 8 ? image : nil;
+    self.showImageThumb = self.showImage ? [self menuThumbnail:self.showImage] : nil;
+    [self refresh];
+}
 
 - (void)openPrograms:(id)sender
 {

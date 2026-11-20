@@ -8,6 +8,9 @@ clic destro sull'app → Apri → Apri. Istruzioni complete nel file LEGGIMI.txt
 - **Palinsesto della radio**: con Radio 24, le radio Rai, Deejay, Capital, m2o, RDS, RMC, Virgin, 105, R101,
   Kiss Kiss, Subasio e Radio Italia, nel menu (sotto il volume) compare "Palinsesto di …", che apre
   la pagina ufficiale del palinsesto
+- **Palinsesto personale** (nel menu): i programmi che segui, con stazione, giorni, orari e foto del conduttore;
+  quando vanno in onda si vedono nome e foto al posto di "In riproduzione" e del logo. Utile per Radio 24,
+  che non manda il nome del programma
 
 ### Novità della 1.14.1
 - Tornano titoli e copertine di **Radio Monte Carlo**: il suo indirizzo https suona ma non manda i titoli.

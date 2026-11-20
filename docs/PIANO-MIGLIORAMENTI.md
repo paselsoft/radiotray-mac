@@ -45,6 +45,7 @@ Legenda: `[x]` fatto (versione) · `[ ]` da fare · 🚧 in preparazione nell'an
 ## In preparazione (1.15)
 
 - [ ] 🚧 **Palinsesto della radio** dal menu (Radio 24, Rai, Deejay, RMC…)
+- [ ] 🚧 **Palinsesto personale** con orari e foto del conduttore
 
 ## Da fare
 

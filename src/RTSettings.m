@@ -19,6 +19,7 @@ static NSString *const kReportListening = @"report-listening";
 static NSString *const kPreferHTTPS = @"prefer-https";
 static NSString *const kPrograms = @"programs";
 static NSString *const kDockIcon = @"dock-icon";
+static NSString *const kShows = @"shows";
 static NSString *const kWatchArtists = @"watch-artists";
 static NSString *const kArtistPlays = @"artist-plays";
 static NSString *const kArtistNames = @"artist-names";
@@ -140,6 +141,8 @@ static NSString *const kLastBackup = @"last-backup";
 - (void)setArtistNames:(NSDictionary<NSString *, NSString *> *)v { [self.d setObject:v ?: @{} forKey:kArtistNames]; }
 - (NSDate *)statsSince { return [self.d objectForKey:kStatsSince]; }
 - (void)setStatsSince:(NSDate *)v { if (v) [self.d setObject:v forKey:kStatsSince]; else [self.d removeObjectForKey:kStatsSince]; }
+- (NSArray<NSDictionary *> *)shows { return [self.d arrayForKey:kShows] ?: @[]; }
+- (void)setShows:(NSArray<NSDictionary *> *)v { [self.d setObject:v ?: @[] forKey:kShows]; }
 - (BOOL)dockIcon { return [self.d boolForKey:kDockIcon]; }
 - (void)setDockIcon:(BOOL)v { [self.d setBool:v forKey:kDockIcon]; }
 - (BOOL)preferHTTPS { return [self.d boolForKey:kPreferHTTPS]; }

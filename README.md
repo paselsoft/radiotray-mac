@@ -34,7 +34,7 @@ con **macOS High Sierra 10.13** (funziona anche sulle versioni successive).
 | 1.13.0 | icona nel Dock, finestre del testo e In riproduzione attaccate | fatta (provata sull'iMac) |
 | 1.14.0 | Avvisami quando passa…, statistiche, condividi il brano | fatta (provata sull'iMac) |
 | 1.14.1 | titoli di Radio Monte Carlo (https senza titoli) | fatta (provata sull'iMac) |
-| 1.15.0 | link al palinsesto della radio | anteprima da provare |
+| 1.15.0 | link al palinsesto della radio, palinsesto personale con foto | anteprima da provare |
 
 ## Scaricare
 
