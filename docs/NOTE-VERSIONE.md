@@ -4,6 +4,11 @@ Lettore di radio via Internet nella barra dei menu per **macOS 10.13 High Sierra
 **Installazione:** apri `RadioTray-….dmg`, trascina RadioTray in Applicazioni, poi la prima volta
 clic destro sull'app → Apri → Apri. Istruzioni complete nel file LEGGIMI.txt dentro il .dmg.
 
+### Novità della 1.15
+- **Palinsesto della radio**: con Radio 24, le radio Rai, Deejay, Capital, m2o, RDS, RMC, Virgin, 105, R101,
+  Kiss Kiss, Subasio e Radio Italia, nel menu (sotto il volume) compare "Palinsesto di …", che apre
+  la pagina ufficiale del palinsesto
+
 ### Novità della 1.14.1
 - Tornano titoli e copertine di **Radio Monte Carlo**: il suo indirizzo https suona ma non manda i titoli.
   Ora RadioTray passa a https solo se quel server manda i titoli come l'http (le prove già fatte si ripetono)

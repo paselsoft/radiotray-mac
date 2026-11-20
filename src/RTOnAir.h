@@ -19,6 +19,9 @@ NS_ASSUME_NONNULL_BEGIN
 - (void)startWithSource:(NSString *)source;
 - (void)stop;
 
+/// Pagina ufficiale del palinsesto della radio (si apre nel browser), per l'indirizzo della stazione;
+/// nil se non la si conosce (testabile).
++ (nullable NSURL *)scheduleURLForStationURL:(NSString *)url name:(nullable NSString *)name;
 /// {"title", "artist", "cover"} dal JSON "onair" dei siti GEDI; senza "artist" se è un programma (testabile).
 + (nullable NSDictionary<NSString *, NSString *> *)songFromGediJSON:(nullable NSData *)data;
 /// Titolo del programma Rai in onda in quel momento, dal palinsesto del giorno (testabile).

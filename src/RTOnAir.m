@@ -48,6 +48,48 @@ static NSString *RTStr(id v) { return [v isKindOfClass:[NSString class]] ? v : @
     return nil;
 }
 
++ (NSURL *)scheduleURLForStationURL:(NSString *)url name:(NSString *)name
+{
+    NSString *u = url.lowercaseString ?: @"";
+    NSString *n = name.lowercaseString ?: @"";
+    // indirizzo dello stream → pagina del palinsesto (controllate a novembre 2026)
+    NSArray<NSArray<NSString *> *> *byURL = @[
+        @[@"radio24", @"https://www.radio24.ilsole24ore.com/palinsesto"],
+        @[@"/radiodeejay/", @"https://www.deejay.it/palinsesto/"],
+        @[@"/radiocapital/", @"https://www.capital.it/palinsesto/"],
+        @[@"/radiom2o/", @"https://www.m2o.it/palinsesto/"],
+        @[@"rds.radio", @"https://www.rds.it/palinsesto"],
+        @[@"edge.radiomontecarlo.net/rmc.", @"https://www.radiomontecarlo.net/palinsesto/"],
+        @[@"unitedradio.it/rmc.", @"https://www.radiomontecarlo.net/palinsesto/"],
+        @[@"unitedradio.it/virgin", @"https://www.virginradio.it/palinsesto/"],
+        @[@"unitedradio.it/radio105", @"https://www.105.net/palinsesto/"],
+        @[@"unitedradio.it/r101", @"https://www.r101.it/palinsesto/"],
+        @[@"unitedradio.it/subasio", @"https://www.radiosubasio.it/palinsesto/"],
+        @[@"kisskiss", @"https://kisskiss.it/palinsesto/"],
+        @[@"radioitalia", @"https://www.radioitalia.it/palinsesto"],
+        @[@"icestreaming.rai.it/1.mp3", @"https://www.raiplaysound.it/radio1/palinsesto"],
+        @[@"icestreaming.rai.it/2.mp3", @"https://www.raiplaysound.it/radio2/palinsesto"],
+        @[@"icestreaming.rai.it/3.mp3", @"https://www.raiplaysound.it/radio3/palinsesto"],
+        @[@"icestreaming.rai.it/6.mp3", @"https://www.raiplaysound.it/isoradio/palinsesto"],
+        @[@"cont=162834", @"https://www.raiplaysound.it/radio1/palinsesto"],
+        @[@"cont=162063", @"https://www.raiplaysound.it/radio2/palinsesto"],
+        @[@"cont=162841", @"https://www.raiplaysound.it/radio3/palinsesto"],
+        @[@"cont=173875", @"https://www.raiplaysound.it/isoradio/palinsesto"],
+    ];
+    for (NSArray<NSString *> *e in byURL) if ([u containsString:e[0]]) return [NSURL URLWithString:e[1]];
+    // indirizzi diversi (trovati con Cerca stazioni): si riconosce il nome esatto della radio
+    NSDictionary<NSString *, NSString *> *byName = @{
+        @"radio 24": @"https://www.radio24.ilsole24ore.com/palinsesto",
+        @"radio deejay": @"https://www.deejay.it/palinsesto/", @"radio capital": @"https://www.capital.it/palinsesto/",
+        @"radio monte carlo": @"https://www.radiomontecarlo.net/palinsesto/", @"virgin radio": @"https://www.virginradio.it/palinsesto/",
+        @"radio 105": @"https://www.105.net/palinsesto/", @"r101": @"https://www.r101.it/palinsesto/",
+        @"rai radio 1": @"https://www.raiplaysound.it/radio1/palinsesto", @"rai radio 2": @"https://www.raiplaysound.it/radio2/palinsesto",
+        @"rai radio 3": @"https://www.raiplaysound.it/radio3/palinsesto", @"rai isoradio": @"https://www.raiplaysound.it/isoradio/palinsesto",
+    };
+    NSString *page = byName[[n stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]]];
+    return page ? [NSURL URLWithString:page] : nil;
+}
+
 /// Parola tutta maiuscola ("SARAH", "GLOCKENBACH,", "&"), con almeno una lettera o un simbolo da nome d'artista.
 static BOOL RTIsUpperWord(NSString *w)
 {

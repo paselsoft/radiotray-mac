@@ -83,6 +83,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
 @property (nonatomic, strong) NSMenuItem *qualityItem;
 @property (nonatomic, strong) NSMenuItem *ignoreTitlesItem;
 @property (nonatomic, strong) NSMenuItem *outputItem;
+@property (nonatomic, strong) NSMenuItem *scheduleItem;
 @property (nonatomic, strong) NSMenuItem *nowPlayingItem;
 @property (nonatomic, strong, nullable) RTNowPlayingWindowController *nowPlayingWindow;
 @property (nonatomic, strong) RTAudioWatcher *audioWatcher;
@@ -434,6 +435,9 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     self.ignoreTitlesItem = [self addItem:@"Ignora i titoli di questa stazione" action:@selector(toggleIgnoreTitles:) to:self.menu];
     self.ignoreTitlesItem.indentationLevel = 1;
     self.ignoreTitlesItem.toolTip = @"Per le radio che mandano titoli sbagliati o vecchi: al loro posto si vede il logo";
+    self.scheduleItem = [self addItem:@"Palinsesto…" action:@selector(openSchedule:) to:self.menu];
+    self.scheduleItem.indentationLevel = 1;
+    self.scheduleItem.toolTip = @"Apre nel browser la pagina ufficiale del palinsesto della radio";
     self.outputItem = [self addItem:@"Uscita audio" action:NULL to:self.menu];
     self.outputItem.indentationLevel = 1;
     self.outputItem.submenu = [[NSMenu alloc] initWithTitle:@"Uscita audio"];
@@ -805,6 +809,11 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
         self.addStationItem.title = [NSString stringWithFormat:@"Aggiungi %@ alle stazioni…", [self currentStationLabel]];
     }
 
+    RTStation *chosen = [self currentStationObject];
+    NSURL *schedule = chosen ? [RTOnAir scheduleURLForStationURL:chosen.url name:chosen.name] : nil;
+    self.scheduleItem.hidden = schedule == nil;
+    if (schedule) self.scheduleItem.title = [NSString stringWithFormat:@"Palinsesto di %@…", [self currentStationLabel]];
+
     NSUInteger watching = self.settings.watchArtists.count;
     self.watchItem.title = watching ? [NSString stringWithFormat:@"Avvisami quando passa… (%lu %@)", (unsigned long)watching,
                                        watching == 1 ? @"artista" : @"artisti"] : @"Avvisami quando passa…";
@@ -963,6 +972,13 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
 }
 
 #pragma mark - Titoli dai siti delle radio
+
+- (void)openSchedule:(id)sender
+{
+    RTStation *station = [self currentStationObject];
+    NSURL *url = station ? [RTOnAir scheduleURLForStationURL:station.url name:station.name] : nil;
+    if (url) [[NSWorkspace sharedWorkspace] openURL:url];
+}
 
 - (void)onAirSong:(NSString *)title artist:(NSString *)artist cover:(NSString *)cover
 {

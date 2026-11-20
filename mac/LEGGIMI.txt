@@ -86,6 +86,8 @@ Uso
   ha più server (playlist, file .pls importati) passa subito a un altro. Si ricollega da sola anche
   quando cambia la rete (Wi-Fi che cade e torna, rete diversa).
 - Timer di spegnimento: nell'ultimo minuto il volume scende piano fino a zero.
+- Palinsesto di …: con le radio principali (Radio 24, Rai, Deejay, RMC, RDS…) nel menu, sotto il
+  volume, si apre la pagina ufficiale del palinsesto.
 - Uscita audio (nel menu, sotto il volume): altoparlanti, cuffie, casse USB o AirPlay.
   "Come il Mac" segue l'uscita scelta in Preferenze di Sistema > Suono.
 - Il volume scelto per una stazione torna ogni volta che la riascolti (si toglie da

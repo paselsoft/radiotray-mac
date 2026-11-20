@@ -42,6 +42,10 @@ Legenda: `[x]` fatto (versione) · `[ ]` da fare · 🚧 in preparazione nell'an
 - [x] Finestra del testo larga come In riproduzione, con l'altezza ricordata (1.14)
 - [x] https solo se il server manda anche i titoli (Radio Monte Carlo) (1.14.1)
 
+## In preparazione (1.15)
+
+- [ ] 🚧 **Palinsesto della radio** dal menu (Radio 24, Rai, Deejay, RMC…)
+
 ## Da fare
 
 ### Funzioni nuove

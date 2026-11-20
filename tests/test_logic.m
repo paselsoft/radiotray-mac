@@ -906,6 +906,19 @@ int main(int argc, const char *argv[])
             CHECK([RTArtistWatcher artistIn:@"Sting - Fields Of Gold" matching:watch] == nil);
             CHECK_EQ([RTArtistWatcher artistIn:@"Beyonce - Halo" matching:@[@"Beyoncé"]], @"Beyoncé");
         }
+        // 1.15.0: palinsesto
+        {
+            CHECK_EQ([RTOnAir scheduleURLForStationURL:@"http://shoutcast.radio24.it:8000/" name:@"Radio 24"].absoluteString,
+                     @"https://www.radio24.ilsole24ore.com/palinsesto");
+            CHECK_EQ([RTOnAir scheduleURLForStationURL:@"http://edge.radiomontecarlo.net/RMC.mp3" name:@"x"].absoluteString,
+                     @"https://www.radiomontecarlo.net/palinsesto/");
+            CHECK([RTOnAir scheduleURLForStationURL:@"https://icy.unitedradio.it/rmcweb001" name:@"RMC Hits"] == nil);   // web radio
+            CHECK_EQ([RTOnAir scheduleURLForStationURL:@"https://icestreaming.rai.it/2.mp3" name:nil].absoluteString,
+                     @"https://www.raiplaysound.it/radio2/palinsesto");
+            CHECK_EQ([RTOnAir scheduleURLForStationURL:@"https://altro.example/x" name:@" Radio 24 "].absoluteString,
+                     @"https://www.radio24.ilsole24ore.com/palinsesto");
+            CHECK([RTOnAir scheduleURLForStationURL:@"https://stream.radioparadise.com/aac-128" name:@"Radio Paradise"] == nil);
+        }
         if (argc > 2) testBundledList([NSString stringWithUTF8String:argv[2]]);
         printf("%d verifiche, %d fallite\n", checks, failures);
     }
