@@ -832,6 +832,10 @@ int main(int argc, const char *argv[])
             CHECK([RTHttpsUpgrade httpsCandidateForURL:@"https://stream.radioparadise.com/aac-128"] == nil);
             CHECK([RTHttpsUpgrade httpsCandidateForURL:@"http://185.33.21.112/stream"] == nil);
             CHECK([RTHttpsUpgrade httpsCandidateForURL:@"non è un indirizzo"] == nil);
+            CHECK(![RTHttpsUpgrade acceptHTTPSAudio:YES httpsTitles:NO httpTitles:YES]);   // Radio Monte Carlo
+            CHECK([RTHttpsUpgrade acceptHTTPSAudio:YES httpsTitles:YES httpTitles:YES]);
+            CHECK([RTHttpsUpgrade acceptHTTPSAudio:YES httpsTitles:NO httpTitles:NO]);
+            CHECK(![RTHttpsUpgrade acceptHTTPSAudio:NO httpsTitles:YES httpTitles:YES]);
             NSArray *same = [[RTHttpsUpgrade shared] upgradedURLs:@[@"http://mai.provato.example/s", @"https://a/b"]];
             CHECK([same isEqualToArray:(@[@"http://mai.provato.example/s", @"https://a/b"])]);
         }
