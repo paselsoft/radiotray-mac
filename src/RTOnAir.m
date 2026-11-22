@@ -32,6 +32,13 @@ static NSString *RTStr(id v) { return [v isKindOfClass:[NSString class]] ? v : @
     NSDictionary *raiIce = @{ @"/1.mp3": @"rai-radio-1", @"/2.mp3": @"rai-radio-2", @"/3.mp3": @"rai-radio-3", @"/6.mp3": @"rai-isoradio" };
     for (NSString *raw in urls) {
         NSString *u = raw.lowercaseString;
+        // Radio Paradise: canale dal nome dello stream (…/mellow-flac, …/rock-128, …/aac-320 = Main Mix)
+        if ([u containsString:@"radioparadise.com"]) {
+            NSString *last = [NSURL URLWithString:u].path.lastPathComponent ?: @"";
+            NSString *chan = [last hasPrefix:@"mellow"] ? @"1" : [last hasPrefix:@"rock"] ? @"2"
+                           : ([last hasPrefix:@"global"] || [last hasPrefix:@"world"] || [last hasPrefix:@"eclectic"]) ? @"3" : @"0";
+            return [@"rp:" stringByAppendingString:chan];
+        }
         if ([u containsString:@"msvdn.net"]) {
             for (NSString *k in gedi) if ([u containsString:k]) return [@"gedi:" stringByAppendingString:gedi[k]];
         }
@@ -133,6 +140,19 @@ static BOOL RTIsUpperWord(NSString *w)
     return out;
 }
 
++ (NSDictionary<NSString *, NSString *> *)songFromRadioParadiseJSON:(NSData *)data
+{
+    id json = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:NULL] : nil;
+    if (![json isKindOfClass:[NSDictionary class]]) return nil;
+    NSString *title = [RTStr(json[@"title"]) stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    NSString *artist = [RTStr(json[@"artist"]) stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    if (!title.length || !artist.length) return nil;
+    NSMutableDictionary *out = [@{ @"title": title, @"artist": artist } mutableCopy];
+    NSString *cover = RTStr(json[@"cover"]).length ? RTStr(json[@"cover"]) : RTStr(json[@"cover_med"]);
+    if ([cover hasPrefix:@"http"]) out[@"cover"] = cover;
+    return out;
+}
+
 + (NSString *)programFromRaiJSON:(NSData *)data atDate:(NSDate *)date
 {
     id json = data ? [NSJSONSerialization JSONObjectWithData:data options:0 error:NULL] : nil;
@@ -157,7 +177,7 @@ static BOOL RTIsUpperWord(NSString *w)
     [self stop];
     self.source = source;
     BOOL rai = [source hasPrefix:@"rai:"];
-    self.timer = [NSTimer scheduledTimerWithTimeInterval:rai ? 120 : 25 target:self selector:@selector(poll) userInfo:nil repeats:YES];
+    self.timer = [NSTimer scheduledTimerWithTimeInterval:rai ? 120 : 20 target:self selector:@selector(poll) userInfo:nil repeats:YES];
     self.timer.tolerance = 5;
     [self poll];
 }
@@ -177,7 +197,10 @@ static BOOL RTIsUpperWord(NSString *w)
     NSUInteger generation = self.generation;
     NSURL *url;
     BOOL rai = [source hasPrefix:@"rai:"];
-    if (rai) {
+    BOOL paradise = [source hasPrefix:@"rp:"];
+    if (paradise) {
+        url = [NSURL URLWithString:[@"https://api.radioparadise.com/api/now_playing?chan=" stringByAppendingString:[source substringFromIndex:3]]];
+    } else if (rai) {
         NSDateFormatter *f = [NSDateFormatter new];
         f.timeZone = [NSTimeZone timeZoneWithName:@"Europe/Rome"];
         f.dateFormat = @"dd-MM-yyyy";
@@ -193,6 +216,11 @@ static BOOL RTIsUpperWord(NSString *w)
             if (!strongSelf || strongSelf.generation != generation || !data) return;
             if (rai) {
                 [strongSelf.delegate onAirProgram:[RTOnAir programFromRaiJSON:data atDate:[NSDate date]]];
+                return;
+            }
+            if (paradise) {
+                NSDictionary *rp = [RTOnAir songFromRadioParadiseJSON:data];
+                if (rp) [strongSelf.delegate onAirSong:rp[@"title"] artist:rp[@"artist"] cover:rp[@"cover"]];
                 return;
             }
             NSDictionary *song = [RTOnAir songFromGediJSON:data];

@@ -10,6 +10,7 @@ clic destro sull'app → Apri → Apri. Istruzioni complete nel file LEGGIMI.txt
   dall'indirizzo o dal server, oppure se AVPlayer non riesce ad aprire lo stream); MP3, AAC e HLS restano su AVPlayer.
   Con ffmpeg funzionano volume, uscita audio (anche cambiandola mentre suona), titoli e formato (FLAC, Opus…)
 - "Cerca stazioni" non mostra più in grigio le radio Ogg, Opus e FLAC quando ffmpeg è installato
+- **Radio Paradise**: titolo, artista e copertina ufficiale dal suo servizio pubblico, anche per i canali FLAC
 
 ### Novità della 1.15
 - **Palinsesto della radio**: con Radio 24, le radio Rai, Deejay, Capital, m2o, RDS, RMC, Virgin, 105, R101,

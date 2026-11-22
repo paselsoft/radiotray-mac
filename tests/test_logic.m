@@ -967,6 +967,16 @@ int main(int argc, const char *argv[])
             CHECK([args containsObject:@"pcm_f32le"]);
             CHECK(![[RTFFmpegOutput argumentsForURL:@"rtmp://x/y"] containsObject:@"-reconnect"]);
             CHECK_EQ([RTFFmpegOutput displayNameForCodec:@"aac (HE-AAC)"], @"HE-AAC");
+            // Radio Paradise: brano in onda dal suo servizio pubblico
+            CHECK_EQ([RTOnAir sourceForURLs:@[@"http://stream.radioparadise.com/mellow-flac"]], @"rp:1");
+            CHECK_EQ([RTOnAir sourceForURLs:@[@"https://stream.radioparadise.com/aac-320"]], @"rp:0");
+            CHECK_EQ([RTOnAir sourceForURLs:@[@"https://stream.radioparadise.com/rock-flac"]], @"rp:2");
+            NSDictionary *rp = [RTOnAir songFromRadioParadiseJSON:D(@"{\"time\":54,\"artist\":\"Roo Panes\",\"title\":\"Nightjar and the Nightingale\","
+                                "\"cover\":\"https:\\/\\/img.radioparadise.com\\/covers\\/l\\/19918.jpg\"}")];
+            CHECK_EQ(rp[@"artist"], @"Roo Panes");
+            CHECK_EQ(rp[@"title"], @"Nightjar and the Nightingale");
+            CHECK_EQ(rp[@"cover"], @"https://img.radioparadise.com/covers/l/19918.jpg");
+            CHECK([RTOnAir songFromRadioParadiseJSON:D(@"{\"time\":3}")] == nil);
 
             RTFFmpegOutput *o = [RTFFmpegOutput new];
             NSArray *lines = @[@"Input #0, ogg, from 'http://stream.radioparadise.com/mellow-flac':",

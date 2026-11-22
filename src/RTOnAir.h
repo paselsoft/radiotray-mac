@@ -1,5 +1,5 @@
 // Titoli per le radio che non li mandano nello stream ma li pubblicano sul loro sito:
-// Radio Deejay, Radio Capital e m2o (brano in onda con copertina) e le radio Rai (programma in onda).
+// Radio Deejay, Radio Capital e m2o, Radio Paradise (brano in onda con copertina) e le radio Rai (programma in onda).
 // Gli indirizzi dei siti non sono ufficiali: se cambiano, semplicemente non arriva nulla.
 #import <Foundation/Foundation.h>
 
@@ -24,6 +24,8 @@ NS_ASSUME_NONNULL_BEGIN
 + (nullable NSURL *)scheduleURLForStationURL:(NSString *)url name:(nullable NSString *)name;
 /// {"title", "artist", "cover"} dal JSON "onair" dei siti GEDI; senza "artist" se è un programma (testabile).
 + (nullable NSDictionary<NSString *, NSString *> *)songFromGediJSON:(nullable NSData *)data;
+/// {"title", "artist", "cover"} dal servizio "now_playing" di Radio Paradise (testabile).
++ (nullable NSDictionary<NSString *, NSString *> *)songFromRadioParadiseJSON:(nullable NSData *)data;
 /// Titolo del programma Rai in onda in quel momento, dal palinsesto del giorno (testabile).
 + (nullable NSString *)programFromRaiJSON:(nullable NSData *)data atDate:(NSDate *)date;
 @end
