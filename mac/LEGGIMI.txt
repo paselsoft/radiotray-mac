@@ -119,7 +119,8 @@ Stazioni
   ~/.config/radiotray-ng/bookmarks.json.
 - Appena salvi il file, il menu si aggiorna da solo (se il file ha un errore arriva una notifica).
 - Formati supportati: MP3, AAC, HLS (.m3u8), playlist PLS, M3U, ASX, XSPF.
-  Ogg/Opus e WMA non sono supportati da macOS: usa il flusso MP3 o AAC della stazione.
+  Ogg Vorbis, Opus e FLAC si ascoltano se è installato ffmpeg in /usr/local/bin (per esempio
+  con Homebrew: brew install ffmpeg). WMA non è supportato.
 
 Avvio automatico
 - Preferenze > Avvia RadioTray al login (spunta). Funziona solo dalla cartella Applicazioni,

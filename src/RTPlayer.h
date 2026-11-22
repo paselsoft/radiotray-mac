@@ -37,6 +37,8 @@ typedef NS_ENUM(NSInteger, RTPlayerState) {
 /// Uscita audio (identificativo CoreAudio); nil = quella scelta in Preferenze di Sistema.
 @property (nonatomic, copy, nullable) NSString *outputDeviceUID;
 @property (nonatomic, copy, readonly, nullable) NSString *currentURL;
+/// Content-Type noto degli stream (indirizzo → tipo), per scegliere il motore: Ogg/Opus/FLAC vanno a ffmpeg.
+@property (nonatomic, copy, nullable) NSDictionary<NSString *, NSString *> *streamContentTypes;
 @property (nonatomic, copy, readonly, nullable) NSString *streamFormat;
 @property (nonatomic, readonly) NSInteger streamBitrate;
 

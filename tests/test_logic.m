@@ -21,6 +21,7 @@
 #import "../src/RTLyrics.h"
 #import "../src/RTStats.h"
 #import "../src/RTShows.h"
+#import "../src/RTFFmpegOutput.h"
 #import "../src/RTArtistWatcher.h"
 
 static int failures = 0;
@@ -339,6 +340,7 @@ static void testRadioBrowser(void)
         "{\"name\":\"Senza URL\",\"url\":\"\"},"
         "{\"name\":\"Altro schema\",\"url\":\"mms://m/\"},"
         "42 ]";
+    [RTFoundStation setFFmpegAvailable:NO];   // senza ffmpeg: Ogg in fondo, non riproducibile
     NSArray<RTFoundStation *> *list = [RTRadioBrowser stationsFromJSON:D(json)];
     CHECK(list.count == 3);
     CHECK_EQ(list[0].name, @"Radio 24");
@@ -352,6 +354,9 @@ static void testRadioBrowser(void)
     CHECK_EQ(list[2].name, @"Radio Ogg");          // non riproducibile in fondo
     CHECK(!list[2].playable);
     CHECK_EQ(list[2].url, @"http://o/");
+    [RTFoundStation setFFmpegAvailable:YES];   // con ffmpeg: anche Ogg si può ascoltare
+    CHECK(list[2].playable);
+    [RTFoundStation setFFmpegAvailable:NO];
     CHECK([RTRadioBrowser stationsFromJSON:D(@"{}")] == nil);
     CHECK([RTRadioBrowser stationsFromJSON:D(@"[]")].count == 0);
 }
@@ -944,6 +949,61 @@ int main(int argc, const char *argv[])
             CHECK([RTShows showOnAir:shows group:@"Radio italiane" station:@"Radio 24" date:at(21, 12, 30) calendar:cal] == nil);   // sabato
             CHECK([RTShows showOnAir:shows group:@"Radio italiane" station:@"RMC" date:at(16, 12, 30) calendar:cal] == nil);
             CHECK_EQ([RTShows showOnAir:shows group:@"Radio italiane" station:@"Radio 24" date:at(21, 0, 30) calendar:cal][@"name"], @"Notte");  // venerdì notte
+        }
+        // 1.16.0: motore ffmpeg per Ogg, Opus e FLAC
+        {
+            CHECK([RTFFmpegOutput needsFFmpegForURL:@"http://stream.radioparadise.com/mellow-flac" contentType:nil]);
+            CHECK([RTFFmpegOutput needsFFmpegForURL:@"http://x/stream" contentType:@"application/ogg"]);
+            CHECK([RTFFmpegOutput needsFFmpegForURL:@"http://x/stream" contentType:@"audio/ogg; codecs=opus"]);
+            CHECK([RTFFmpegOutput needsFFmpegForURL:@"https://x/live.opus" contentType:nil]);
+            CHECK([RTFFmpegOutput needsFFmpegForURL:@"https://x/a.FLAC" contentType:nil]);
+            CHECK(![RTFFmpegOutput needsFFmpegForURL:@"https://smoothjazz.cdnstream1.com/2585_320.mp3" contentType:@"audio/mpeg"]);
+            CHECK(![RTFFmpegOutput needsFFmpegForURL:@"https://stream.radioparadise.com/aac-128" contentType:@"audio/aac"]);
+            NSArray *args = [RTFFmpegOutput argumentsForURL:@"http://stream.radioparadise.com/mellow-flac"];
+            CHECK([args containsObject:@"-nostats"]);
+            CHECK([args containsObject:@"-nostdin"]);
+            CHECK([args containsObject:@"-reconnect_streamed"]);
+            CHECK_EQ(args.lastObject, @"pipe:1");
+            CHECK([args containsObject:@"pcm_f32le"]);
+            CHECK(![[RTFFmpegOutput argumentsForURL:@"rtmp://x/y"] containsObject:@"-reconnect"]);
+            CHECK_EQ([RTFFmpegOutput displayNameForCodec:@"aac (HE-AAC)"], @"HE-AAC");
+
+            RTFFmpegOutput *o = [RTFFmpegOutput new];
+            NSArray *lines = @[@"Input #0, ogg, from 'http://stream.radioparadise.com/mellow-flac':",
+                               @"  Duration: N/A, start: 0.000000, bitrate: N/A",
+                               @"  Stream #0:0: Audio: flac, 44100 Hz, stereo, s16",
+                               @"    Metadata:",
+                               @"      ARTIST          : Norah Jones",
+                               @"      TITLE           : Don't Know Why",
+                               @"      ALBUM           : Come Away With Me",
+                               @"Output #0, f32le, to 'pipe:1':",
+                               @"  Stream #0:0: Audio: pcm_f32le, 44100 Hz, stereo, flt, 2822 kb/s"];
+            BOOL changed = NO;
+            for (NSString *l in lines) changed |= [o consumeLine:l];
+            CHECK(changed);
+            CHECK_EQ(o.codec, @"FLAC");
+            CHECK_EQ([o takeTitle], @"Norah Jones - Don't Know Why");
+            CHECK([o takeTitle] == nil);
+            // nuovo brano di uno stream Ogg concatenato
+            [o consumeLine:@"  Metadata:"];
+            [o consumeLine:@"    title           : Moon River"];
+            [o consumeLine:@"    artist          : Audrey Hepburn"];
+            [o flushMetadata];
+            CHECK_EQ([o takeTitle], @"Audrey Hepburn - Moon River");
+            // stream MP3 con ICY: StreamTitle e nome della stazione
+            RTFFmpegOutput *icy = [RTFFmpegOutput new];
+            for (NSString *l in @[@"Input #0, mp3, from 'http://x/stream':", @"  Metadata:", @"    icy-name        : Smooth Jazz",
+                                  @"    StreamTitle     : Sade - Smooth Operator", @"  Duration: N/A, start: 0.000000, bitrate: 320 kb/s",
+                                  @"  Stream #0:0: Audio: mp3, 44100 Hz, stereo, fltp, 320 kb/s"]) [icy consumeLine:l];
+            CHECK_EQ([icy takeTitle], @"Sade - Smooth Operator");
+            CHECK_EQ([icy takeStationName], @"Smooth Jazz");
+            CHECK([icy takeStationName] == nil);
+            CHECK_EQ(icy.codec, @"MP3");
+            CHECK(icy.bitrate == 320);
+            RTFFmpegOutput *bad = [RTFFmpegOutput new];
+            [bad consumeLine:@"[http @ 0x7f8] HTTP error 404 Not Found"];
+            [bad consumeLine:@"http://x/y: Server returned 404 Not Found"];
+            CHECK([bad.lastError containsString:@"404"]);
         }
         if (argc > 2) testBundledList([NSString stringWithUTF8String:argv[2]]);
         printf("%d verifiche, %d fallite\n", checks, failures);

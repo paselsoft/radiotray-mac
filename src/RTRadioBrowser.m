@@ -1,4 +1,5 @@
 #import "RTRadioBrowser.h"
+#import "RTFFmpegOutput.h"
 
 // server dell'archivio: si prova il primo, poi gli altri se non risponde
 static NSArray<NSString *> *RTServers(void)
@@ -18,10 +19,20 @@ static NSString *RTStr(id v)
 
 @implementation RTFoundStation
 
+static int RTFFmpegState = -1;   // -1 da controllare, 0 no, 1 sì
+
++ (void)setFFmpegAvailable:(BOOL)available
+{
+    RTFFmpegState = available ? 1 : 0;
+}
+
 - (BOOL)playable
 {
+    if (RTFFmpegState < 0) RTFFmpegState = [RTFFmpegOutput ffmpegPath] ? 1 : 0;
     NSString *c = self.codec.uppercaseString;
-    for (NSString *bad in @[@"OGG", @"OPUS", @"FLAC", @"WMA", @"VORBIS"]) {
+    if ([c containsString:@"WMA"]) return NO;
+    if (RTFFmpegState == 1) return YES;   // Ogg Vorbis, Opus e FLAC li suona ffmpeg
+    for (NSString *bad in @[@"OGG", @"OPUS", @"FLAC", @"VORBIS"]) {
         if ([c containsString:bad]) return NO;
     }
     return YES;

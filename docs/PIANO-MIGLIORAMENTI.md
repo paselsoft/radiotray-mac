@@ -44,6 +44,10 @@ Legenda: `[x]` fatto (versione) · `[ ]` da fare · 🚧 in preparazione nell'an
 - [x] **Palinsesto della radio** dal menu (Radio 24, Rai, Deejay, RMC…) (1.15)
 - [x] **Palinsesto personale** con orari e foto del conduttore (1.15)
 
+## In preparazione (1.16)
+
+- [ ] 🚧 **Ogg Vorbis, Opus e FLAC** con il motore ffmpeg (AVPlayer resta per MP3, AAC e HLS)
+
 ## Da fare
 
 ### Funzioni nuove

@@ -13,6 +13,10 @@ typedef void (^RTResolveCompletion)(NSArray<NSString *> *_Nullable streams, NSSt
 - (void)resolve:(NSString *)url direct:(BOOL)direct completion:(RTResolveCompletion)completion;
 - (void)cancel;
 
+/// Content-Type dichiarato dal server per gli stream dell'ultima risoluzione (se l'URL era già lo stream):
+/// serve a scegliere il motore (Ogg/FLAC → ffmpeg).
+@property (nonatomic, copy, readonly) NSDictionary<NSString *, NSString *> *streamContentTypes;
+
 /// Descrizione di come è stato interpretato l'ultimo URL (per il registro).
 @property (nonatomic, copy, readonly, nullable) NSString *lastDecision;
 

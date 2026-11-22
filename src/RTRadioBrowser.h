@@ -14,8 +14,10 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) NSInteger votes;
 @property (nonatomic) BOOL hls;
 @property (nonatomic, copy) NSString *favicon;      // logo della stazione (indirizzo), può essere vuoto
-/// NO per i formati che macOS non sa riprodurre (Ogg, Opus, FLAC, WMA).
+/// NO per i formati che macOS non sa riprodurre: WMA, e Ogg/Opus/FLAC se ffmpeg non è installato.
 @property (nonatomic, readonly) BOOL playable;
+/// Ogg/Opus/FLAC riproducibili con ffmpeg (di solito: ffmpeg è installato). Impostabile per i test.
++ (void)setFFmpegAvailable:(BOOL)available;
 /// "MP3 128 kbps"
 @property (nonatomic, readonly) NSString *formatDescription;
 @end

@@ -9,7 +9,7 @@
 
 ARCH       ?= x86_64
 MACOS_MIN  ?= 10.13
-VERSION    ?= 1.15.0
+VERSION    ?= 1.16.0
 BUILD      := build
 APP        := $(BUILD)/RadioTray.app
 
@@ -17,10 +17,10 @@ CC         := clang
 WARN       := -Wall -Wextra -Wno-unused-parameter -Werror=unguarded-availability-new
 CFLAGS     := -std=gnu11 -fobjc-arc -fmodules -O2 -g $(WARN) -arch $(ARCH) -mmacosx-version-min=$(MACOS_MIN)
 LDFLAGS    := -arch $(ARCH) -mmacosx-version-min=$(MACOS_MIN)
-FRAMEWORKS := -framework Cocoa -framework AVFoundation -framework CoreMedia -framework MediaPlayer -framework Carbon -framework CoreAudio -framework SystemConfiguration -framework Security
+FRAMEWORKS := -framework Cocoa -framework AVFoundation -framework CoreMedia -framework MediaPlayer -framework Carbon -framework CoreAudio -framework SystemConfiguration -framework Security -framework AudioToolbox -framework AudioUnit
 
-LOGIC_SRC  := src/RTBookmarks.m src/RTPlaylistParser.m src/RTTrackInfo.m src/RTIcyParser.m src/RTRadioBrowser.m src/RTBookmarksDocument.m src/RTLoginItem.m src/RTFavoriteTracks.m src/RTUpdateChecker.m src/RTArtwork.m src/RTAlarm.m src/RTBackup.m src/RTStationLogo.m
-APP_SRC    := $(LOGIC_SRC) src/RTStreamResolver.m src/RTStationChecker.m src/RTHttpsUpgrade.m src/RTScrobbler.m src/RTOnAir.m src/RTLyrics.m src/RTStats.m src/RTShows.m src/RTIcyMetadataReader.m src/RTArtistWatcher.m src/RTPlayer.m src/RTSettings.m src/RTNotifier.m \
+LOGIC_SRC  := src/RTBookmarks.m src/RTPlaylistParser.m src/RTTrackInfo.m src/RTIcyParser.m src/RTRadioBrowser.m src/RTBookmarksDocument.m src/RTLoginItem.m src/RTFavoriteTracks.m src/RTUpdateChecker.m src/RTArtwork.m src/RTAlarm.m src/RTBackup.m src/RTStationLogo.m src/RTFFmpegOutput.m
+APP_SRC    := $(LOGIC_SRC) src/RTStreamResolver.m src/RTStationChecker.m src/RTHttpsUpgrade.m src/RTScrobbler.m src/RTOnAir.m src/RTLyrics.m src/RTStats.m src/RTShows.m src/RTIcyMetadataReader.m src/RTArtistWatcher.m src/RTAVPlayerEngine.m src/RTFFmpegEngine.m src/RTPlayer.m src/RTSettings.m src/RTNotifier.m \
               src/RTStatusIcon.m src/RTSearchWindowController.m src/RTStationEditorController.m src/RTStationCheckWindowController.m src/RTLyricsWindowController.m src/RTProgramsWindowController.m src/RTStatsWindowController.m src/RTShowsWindowController.m src/RTFavoritesWindowController.m src/RTTableCell.m src/RTHotKeys.m src/RTAudioWatcher.m src/RTNetworkWatcher.m src/RTAudioOutputs.m src/RTNowPlayingWindowController.m src/RTFileWatcher.m src/RTMediaKeys.m src/RTAppDelegate.m src/main.m
 HEADERS    := $(wildcard src/*.h)
 

@@ -4,6 +4,13 @@ Lettore di radio via Internet nella barra dei menu per **macOS 10.13 High Sierra
 **Installazione:** apri `RadioTray-….dmg`, trascina RadioTray in Applicazioni, poi la prima volta
 clic destro sull'app → Apri → Apri. Istruzioni complete nel file LEGGIMI.txt dentro il .dmg.
 
+### Novità della 1.16
+- **Ogg Vorbis, Opus e FLAC**: le radio in questi formati (per esempio Radio Paradise FLAC) ora si ascoltano,
+  con ffmpeg installato in /usr/local/bin. RadioTray lo usa da solo quando serve (formato riconosciuto
+  dall'indirizzo o dal server, oppure se AVPlayer non riesce ad aprire lo stream); MP3, AAC e HLS restano su AVPlayer.
+  Con ffmpeg funzionano volume, uscita audio (anche cambiandola mentre suona), titoli e formato (FLAC, Opus…)
+- "Cerca stazioni" non mostra più in grigio le radio Ogg, Opus e FLAC quando ffmpeg è installato
+
 ### Novità della 1.15
 - **Palinsesto della radio**: con Radio 24, le radio Rai, Deejay, Capital, m2o, RDS, RMC, Virgin, 105, R101,
   Kiss Kiss, Subasio e Radio Italia, nel menu (sotto il volume) compare "Palinsesto di …", che apre

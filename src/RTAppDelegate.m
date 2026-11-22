@@ -976,6 +976,7 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
             [https probeURLs:streams];   // per la prossima volta
             streams = upgraded;
         }
+        self_.player.streamContentTypes = self_.resolver.streamContentTypes;
         [self_.player playStreams:streams];
         // radio che pubblicano i titoli solo sul loro sito
         NSString *source = [RTOnAir sourceForURLs:[@[station.url] arrayByAddingObjectsFromArray:streams]];

@@ -10,6 +10,7 @@ static const NSUInteger RTMaxPlaylistBytes = 4096;
 @property (nonatomic, copy, nullable) RTResolveCompletion completion;
 @property (nonatomic, copy) NSString *originalURL;
 @property (nonatomic, copy, nullable) NSString *contentType;
+@property (nonatomic, copy, readwrite) NSDictionary<NSString *, NSString *> *streamContentTypes;
 @property (nonatomic, copy, readwrite, nullable) NSString *lastDecision;
 @end
 
@@ -25,6 +26,7 @@ static const NSUInteger RTMaxPlaylistBytes = 4096;
         _session = [NSURLSession sessionWithConfiguration:cfg delegate:self delegateQueue:[NSOperationQueue mainQueue]];
         _buffer = [NSMutableData data];
         _originalURL = @"";
+        _streamContentTypes = @{};
     }
     return self;
 }
@@ -46,6 +48,7 @@ static const NSUInteger RTMaxPlaylistBytes = 4096;
     [self cancel];
     self.originalURL = url;
     self.contentType = nil;
+    self.streamContentTypes = @{};
     [self.buffer setLength:0];
 
     NSURL *u = [NSURL URLWithString:url];
@@ -141,6 +144,7 @@ didReceiveResponse:(NSURLResponse *)response completionHandler:(void (^)(NSURLSe
     }
     if ([RTPlaylistParser contentTypeIsAudio:self.contentType]) {
         completionHandler(NSURLSessionResponseCancel);
+        self.streamContentTypes = @{ [self effectiveURL:dataTask]: self.contentType ?: @"" };
         [self finishWithStreams:@[[self effectiveURL:dataTask]] error:nil
                        decision:[NSString stringWithFormat:@"stream diretto (%@)", self.contentType]];
         return;

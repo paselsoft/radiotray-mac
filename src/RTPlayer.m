@@ -2,10 +2,9 @@
 #import <AVFoundation/AVFoundation.h>
 #import "RTIcyMetadataReader.h"
 #import "RTTrackInfo.h"
-
-static void *RTItemStatusContext = &RTItemStatusContext;
-static void *RTItemMetadataContext = &RTItemMetadataContext;
-static void *RTPlayerTimeControlContext = &RTPlayerTimeControlContext;
+#import "RTAVPlayerEngine.h"
+#import "RTFFmpegEngine.h"
+#import "RTFFmpegOutput.h"
 
 static const NSTimeInterval RTConnectTimeout = 20.0;
 static const NSTimeInterval RTStallTimeout = 20.0;
@@ -13,9 +12,11 @@ static const NSTimeInterval RTStallTimeout = 20.0;
 static const NSTimeInterval RTReconnectDelays[] = { 2, 5, 10, 15, 20, 30, 30, 30, 60, 60 };
 static const NSUInteger RTMaxReconnects = sizeof(RTReconnectDelays) / sizeof(RTReconnectDelays[0]);
 
-@interface RTPlayer () <RTIcyMetadataReaderDelegate>
-@property (nonatomic, strong) AVPlayer *player;
-@property (nonatomic, strong, nullable) AVPlayerItem *item;
+@interface RTPlayer () <RTIcyMetadataReaderDelegate, RTAudioEngineDelegate>
+@property (nonatomic, strong) RTAVPlayerEngine *avEngine;
+@property (nonatomic, strong, nullable) RTFFmpegEngine *ffEngine;
+@property (nonatomic, strong, nullable) id<RTAudioEngine> engine;   // il motore che sta suonando (nil se fermo)
+@property (nonatomic, strong) NSMutableSet<NSString *> *ffmpegURLs; // indirizzi che AVPlayer non sa leggere
 @property (nonatomic, copy) NSArray<NSString *> *urls;
 @property (nonatomic) NSUInteger urlIndex;
 @property (nonatomic, readwrite) RTPlayerState state;
@@ -29,13 +30,14 @@ static const NSUInteger RTMaxReconnects = sizeof(RTReconnectDelays) / sizeof(RTR
 @property (nonatomic) NSUInteger failovers;     // server di riserva provati dopo una caduta
 @property (nonatomic, strong, nullable) NSTimer *reconnectTimer;
 @property (nonatomic, strong, nullable) NSTimer *stallTimer;
-@property (nonatomic) BOOL avMetadataSeen;   // AVPlayer consegna i metadati: il lettore ICY non serve
+@property (nonatomic) BOOL avMetadataSeen;   // il motore consegna i titoli: il lettore ICY non serve
 @property (nonatomic, strong) RTIcyMetadataReader *icyReader;
 @property (nonatomic, copy, readwrite, nullable) NSString *streamFormat;
 @property (nonatomic, readwrite) NSInteger streamBitrate;
 @property (nonatomic) NSInteger declaredBitrate;              // icy-br
 @property (nonatomic, copy, nullable) NSString *declaredFormat; // dal Content-Type
-@property (nonatomic, strong, nullable) NSTimer *infoTimer;
+@property (nonatomic, copy, nullable) NSString *engineFormat;   // riconosciuto dal motore
+@property (nonatomic) NSInteger engineBitrate;
 @end
 
 @implementation RTPlayer
@@ -43,29 +45,29 @@ static const NSUInteger RTMaxReconnects = sizeof(RTReconnectDelays) / sizeof(RTR
 - (instancetype)init
 {
     if ((self = [super init])) {
-        _player = [AVPlayer new];
-        _player.automaticallyWaitsToMinimizeStalling = YES;
+        _avEngine = [RTAVPlayerEngine new];
+        _avEngine.delegate = self;
+        _ffmpegURLs = [NSMutableSet set];
         _urls = @[];
         _volume = 100;
         _readsTitles = YES;
         _icyReader = [RTIcyMetadataReader new];
         _icyReader.delegate = self;
-        [_player addObserver:self forKeyPath:@"timeControlStatus" options:NSKeyValueObservingOptionNew
-                     context:RTPlayerTimeControlContext];
     }
     return self;
 }
 
 - (void)dealloc
 {
-    [self detachItem];
-    [_player removeObserver:self forKeyPath:@"timeControlStatus" context:RTPlayerTimeControlContext];
+    [_avEngine stop];
+    [_ffEngine stop];
 }
 
 - (void)setVolume:(NSInteger)volume
 {
     _volume = MAX(0, MIN(100, volume));
-    self.player.volume = (float)_volume / 100.0f;
+    self.avEngine.volume = (float)_volume / 100.0f;
+    self.ffEngine.volume = (float)_volume / 100.0f;
 }
 
 - (void)setState:(RTPlayerState)state
@@ -79,8 +81,7 @@ static const NSUInteger RTMaxReconnects = sizeof(RTReconnectDelays) / sizeof(RTR
 {
     [self cancelReconnect];
     self.everPlayed = NO;
-    [self detachItem];
-    [self.player pause];
+    [self detachEngine];
     self.hasPlayed = NO;
     self.state = RTPlayerStateConnecting;
 }
@@ -108,16 +109,30 @@ static const NSUInteger RTMaxReconnects = sizeof(RTReconnectDelays) / sizeof(RTR
 {
     [self cancelReconnect];
     self.everPlayed = NO;
-    [self detachItem];
-    [self.player pause];
+    [self detachEngine];
     self.urls = @[];
     self.currentURL = nil;
     self.state = RTPlayerStateStopped;
 }
 
+/// Il motore giusto per l'indirizzo: ffmpeg per Ogg/Opus/FLAC (o se AVPlayer non l'ha saputo leggere).
+- (id<RTAudioEngine>)engineForURL:(NSString *)url needsFFmpeg:(BOOL *)needs
+{
+    BOOL ffmpeg = [self.ffmpegURLs containsObject:url] ||
+                  [RTFFmpegOutput needsFFmpegForURL:url contentType:self.streamContentTypes[url]];
+    if (needs) *needs = ffmpeg;
+    if (!ffmpeg) return self.avEngine;
+    if (![RTFFmpegEngine isAvailable]) return nil;
+    if (!self.ffEngine) {
+        self.ffEngine = [RTFFmpegEngine new];
+        self.ffEngine.delegate = self;
+    }
+    return self.ffEngine;
+}
+
 - (void)startCurrent
 {
-    [self detachItem];
+    [self detachEngine];
     if (self.urlIndex >= self.urls.count) {
         NSString *error = self.lastError ?: @"Impossibile riprodurre la stazione";
         [self stop];
@@ -126,38 +141,38 @@ static const NSUInteger RTMaxReconnects = sizeof(RTReconnectDelays) / sizeof(RTR
     }
 
     NSString *urlString = self.urls[self.urlIndex];
-    NSURL *url = [NSURL URLWithString:urlString];
-    if (!url) {
+    if (![NSURL URLWithString:urlString]) {
         self.lastError = @"URL dello stream non valido";
         self.urlIndex++;
         [self startCurrent];
         return;
     }
-    NSLog(@"RadioTray: riproduco %@ (%lu/%lu)", urlString, (unsigned long)self.urlIndex + 1, (unsigned long)self.urls.count);
+    BOOL needsFFmpeg = NO;
+    id<RTAudioEngine> engine = [self engineForURL:urlString needsFFmpeg:&needsFFmpeg];
+    if (!engine) {
+        self.lastError = @"Formato Ogg/Opus/FLAC: per ascoltarlo serve ffmpeg in /usr/local/bin";
+        self.urlIndex++;
+        [self startCurrent];
+        return;
+    }
+    NSLog(@"RadioTray: riproduco %@ (%lu/%lu) con %@", urlString, (unsigned long)self.urlIndex + 1,
+          (unsigned long)self.urls.count, engine.engineName);
 
     self.currentURL = urlString;
     self.hasPlayed = NO;
     self.state = RTPlayerStateConnecting;
+    self.engine = engine;
+    engine.volume = (float)self.volume / 100.0f;
+    engine.outputDeviceUID = self.outputDeviceUID;
+    [engine playURL:urlString];
 
-    AVURLAsset *asset = [AVURLAsset URLAssetWithURL:url options:nil];
-    AVPlayerItem *item = [AVPlayerItem playerItemWithAsset:asset];
-    item.preferredForwardBufferDuration = 4.0;
-    self.item = item;
-    [item addObserver:self forKeyPath:@"status" options:NSKeyValueObservingOptionNew context:RTItemStatusContext];
-    [item addObserver:self forKeyPath:@"timedMetadata" options:NSKeyValueObservingOptionNew context:RTItemMetadataContext];
-    NSNotificationCenter *nc = [NSNotificationCenter defaultCenter];
-    [nc addObserver:self selector:@selector(itemFailedToPlay:) name:AVPlayerItemFailedToPlayToEndTimeNotification object:item];
-    [nc addObserver:self selector:@selector(itemEnded:) name:AVPlayerItemDidPlayToEndTimeNotification object:item];
-
-    [self.player replaceCurrentItemWithPlayerItem:item];
-    self.player.volume = (float)self.volume / 100.0f;
-    [self.player play];
-
-    self.connectTimer = [NSTimer scheduledTimerWithTimeInterval:RTConnectTimeout target:self
-                                                       selector:@selector(connectTimedOut:) userInfo:nil repeats:NO];
+    if (self.engine == engine) {   // il motore potrebbe aver già rinunciato (per esempio ffmpeg che non parte)
+        self.connectTimer = [NSTimer scheduledTimerWithTimeInterval:RTConnectTimeout target:self
+                                                           selector:@selector(connectTimedOut:) userInfo:nil repeats:NO];
+    }
 }
 
-- (void)detachItem
+- (void)detachEngine
 {
     [self.connectTimer invalidate];
     self.connectTimer = nil;
@@ -165,22 +180,18 @@ static const NSUInteger RTMaxReconnects = sizeof(RTReconnectDelays) / sizeof(RTR
     self.stallTimer = nil;
     [self.icyReader stop];
     self.avMetadataSeen = NO;
-    [self.infoTimer invalidate];
-    self.infoTimer = nil;
     self.declaredBitrate = 0;
     self.declaredFormat = nil;
+    self.engineFormat = nil;
+    self.engineBitrate = 0;
     if (self.streamFormat || self.streamBitrate) {
         self.streamFormat = nil;
         self.streamBitrate = 0;
         [self.delegate player:self didUpdateStreamFormat:nil bitrate:0];
     }
-    AVPlayerItem *item = self.item;
-    if (!item) return;
-    self.item = nil;
-    [item removeObserver:self forKeyPath:@"status" context:RTItemStatusContext];
-    [item removeObserver:self forKeyPath:@"timedMetadata" context:RTItemMetadataContext];
-    [[NSNotificationCenter defaultCenter] removeObserver:self name:nil object:item];
-    [self.player replaceCurrentItemWithPlayerItem:nil];
+    id<RTAudioEngine> engine = self.engine;
+    self.engine = nil;
+    [engine stop];
 }
 
 - (void)tryNextWithError:(NSString *)error
@@ -207,8 +218,7 @@ static const NSUInteger RTMaxReconnects = sizeof(RTReconnectDelays) / sizeof(RTR
 
 - (void)scheduleReconnectAfterError:(NSString *)error
 {
-    [self detachItem];
-    [self.player pause];
+    [self detachEngine];
     [self cancelReconnect];
     if (self.reconnectAttempt >= RTMaxReconnects) {
         NSString *message = [NSString stringWithFormat:@"%@ (riconnessione non riuscita)", error];
@@ -265,26 +275,83 @@ static const NSUInteger RTMaxReconnects = sizeof(RTReconnectDelays) / sizeof(RTR
     }
 }
 
-- (void)itemFailedToPlay:(NSNotification *)note
+#pragma mark - Eventi del motore
+
+- (void)audioEngineDidStartPlaying:(id<RTAudioEngine>)engine
 {
-    if (![NSThread isMainThread]) {
-        dispatch_async(dispatch_get_main_queue(), ^{ [self itemFailedToPlay:note]; });
-        return;
+    if (engine != self.engine) return;
+    if (!self.hasPlayed) {
+        [self startIcyReaderIfNeeded];
+        [self updateStreamInfo];
     }
-    if (note.object != self.item) return;
-    NSError *error = note.userInfo[AVPlayerItemFailedToPlayToEndTimeErrorKey];
-    [self tryNextWithError:error.localizedDescription ?: @"Lo stream si è interrotto"];
+    self.hasPlayed = YES;
+    self.everPlayed = YES;
+    self.reconnectAttempt = 0;
+    self.failovers = 0;
+    self.goodIndex = self.urlIndex;
+    [self.connectTimer invalidate];
+    self.connectTimer = nil;
+    [self.stallTimer invalidate];
+    self.stallTimer = nil;
+    self.state = RTPlayerStatePlaying;
 }
 
-- (void)itemEnded:(NSNotification *)note
+- (void)audioEngineIsWaiting:(id<RTAudioEngine>)engine
 {
-    if (![NSThread isMainThread]) {
-        dispatch_async(dispatch_get_main_queue(), ^{ [self itemEnded:note]; });
+    if (engine != self.engine) return;
+    self.state = self.hasPlayed ? RTPlayerStateBuffering : RTPlayerStateConnecting;
+    if (self.hasPlayed && !self.stallTimer) {
+        self.stallTimer = [NSTimer scheduledTimerWithTimeInterval:RTStallTimeout target:self
+                                                         selector:@selector(stallTimedOut:) userInfo:nil repeats:NO];
+    }
+}
+
+- (void)audioEngine:(id<RTAudioEngine>)engine didFail:(NSString *)error formatProblem:(BOOL)formatProblem
+{
+    if (engine != self.engine) return;
+    NSString *url = self.currentURL;
+    if (formatProblem && engine == self.avEngine && url && !self.hasPlayed && [RTFFmpegEngine isAvailable] &&
+        ![self.ffmpegURLs containsObject:url]) {
+        // AVPlayer non sa leggere questo stream: si riprova lo stesso indirizzo con ffmpeg
+        NSLog(@"RadioTray: AVPlayer non apre %@ (%@), riprovo con ffmpeg", url, error);
+        [self.ffmpegURLs addObject:url];
+        [self startCurrent];
         return;
     }
-    if (note.object != self.item) return;
-    [self tryNextWithError:@"Lo stream si è interrotto"];
+    [self tryNextWithError:error];
 }
+
+- (void)audioEngine:(id<RTAudioEngine>)engine didReceiveMetadataItems:(NSArray<AVMetadataItem *> *)items
+{
+    if (engine != self.engine) return;
+    [self handleMetadata:items];
+}
+
+- (void)audioEngine:(id<RTAudioEngine>)engine didReadTitle:(NSString *)title
+{
+    if (engine != self.engine || !self.readsTitles) return;
+    if (!self.avMetadataSeen) {
+        self.avMetadataSeen = YES;   // i titoli arrivano dal motore: la seconda connessione non serve
+        [self.icyReader stop];
+    }
+    [self.delegate player:self didReceiveStreamTitle:title];
+}
+
+- (void)audioEngine:(id<RTAudioEngine>)engine didReadStationName:(NSString *)name
+{
+    if (engine != self.engine) return;
+    [self.delegate player:self didReceiveStationName:name];
+}
+
+- (void)audioEngine:(id<RTAudioEngine>)engine didReadFormat:(NSString *)format bitrate:(NSInteger)kbps
+{
+    if (engine != self.engine) return;
+    self.engineFormat = format;
+    self.engineBitrate = kbps;
+    [self updateStreamInfo];
+}
+
+#pragma mark - Titoli
 
 - (void)handleMetadata:(NSArray<AVMetadataItem *> *)items
 {
@@ -332,7 +399,8 @@ static const NSUInteger RTMaxReconnects = sizeof(RTReconnectDelays) / sizeof(RTR
 - (void)setOutputDeviceUID:(NSString *)outputDeviceUID
 {
     _outputDeviceUID = [outputDeviceUID copy];
-    self.player.audioOutputDeviceUniqueID = _outputDeviceUID;
+    self.avEngine.outputDeviceUID = _outputDeviceUID;
+    self.ffEngine.outputDeviceUID = _outputDeviceUID;   // ffmpeg: si ferma e riparte l'audio sulla nuova uscita
 }
 
 - (void)setReadsTitles:(BOOL)readsTitles
@@ -349,8 +417,11 @@ static const NSUInteger RTMaxReconnects = sizeof(RTReconnectDelays) / sizeof(RTR
 - (void)startIcyReaderIfNeeded
 {
     // su 10.13 AVPlayer non consegna i titoli ICY: li si legge con una seconda connessione
+    // (negli stream Ogg/FLAC non ci sono metadati ICY: lì i titoli li legge ffmpeg)
     if (!self.readsTitles || self.avMetadataSeen || !self.currentURL) return;
     if ([[NSURL URLWithString:self.currentURL].path.pathExtension.lowercaseString isEqualToString:@"m3u8"]) return;
+    if (self.engine == self.ffEngine &&
+        [RTFFmpegOutput needsFFmpegForURL:self.currentURL contentType:self.streamContentTypes[self.currentURL]]) return;
     [self.icyReader startWithURL:self.currentURL];
 }
 
@@ -360,39 +431,19 @@ static const NSUInteger RTMaxReconnects = sizeof(RTReconnectDelays) / sizeof(RTR
     if ([ct containsString:@"mpeg"] && ![ct containsString:@"mpegurl"]) return @"MP3";
     if ([ct containsString:@"aacp"]) return @"HE-AAC";
     if ([ct containsString:@"aac"] || [ct containsString:@"mp4"]) return @"AAC";
+    if ([ct containsString:@"flac"]) return @"FLAC";
+    if ([ct containsString:@"opus"]) return @"Opus";
     if ([ct containsString:@"ogg"]) return @"Ogg";
     if ([ct containsString:@"mpegurl"]) return @"HLS";
     return nil;
 }
 
-/// Formato dalla traccia audio, bitrate da: intestazione icy-br, stima della traccia, registro HLS.
+/// Formato e bitrate da mostrare: quelli del motore, completati dalle intestazioni (icy-br, Content-Type).
 - (void)updateStreamInfo
 {
-    AVPlayerItem *item = self.item;
-    if (!item) return;
-    NSString *format = nil;
-    double bitrate = self.declaredBitrate * 1000.0;
-    for (AVPlayerItemTrack *t in item.tracks) {
-        AVAssetTrack *track = t.assetTrack;
-        if (![track.mediaType isEqualToString:AVMediaTypeAudio]) continue;
-        for (id desc in track.formatDescriptions) {
-            switch (CMFormatDescriptionGetMediaSubType((__bridge CMFormatDescriptionRef)desc)) {
-                case kAudioFormatMPEGLayer3: format = @"MP3"; break;
-                case kAudioFormatMPEG4AAC: format = @"AAC"; break;
-                case kAudioFormatMPEG4AAC_HE:
-                case kAudioFormatMPEG4AAC_HE_V2: format = @"HE-AAC"; break;
-                default: break;
-            }
-        }
-        if (bitrate <= 0 && track.estimatedDataRate > 0) bitrate = track.estimatedDataRate;
-    }
-    if (bitrate <= 0) {
-        AVPlayerItemAccessLogEvent *event = item.accessLog.events.lastObject;
-        if (event.indicatedBitrate > 0) bitrate = event.indicatedBitrate;
-        else if (event.observedBitrate > 0) bitrate = event.observedBitrate;
-    }
-    if (!format) format = self.declaredFormat;
-    NSInteger kbps = (NSInteger)lround(bitrate / 1000.0);
+    if (!self.engine) return;
+    NSString *format = self.engineFormat ?: self.declaredFormat;
+    NSInteger kbps = self.declaredBitrate > 0 ? self.declaredBitrate : self.engineBitrate;
     if ((format == self.streamFormat || [format isEqualToString:self.streamFormat ?: @""]) && kbps == self.streamBitrate) return;
     self.streamFormat = format;
     self.streamBitrate = kbps;
@@ -401,7 +452,7 @@ static const NSUInteger RTMaxReconnects = sizeof(RTReconnectDelays) / sizeof(RTR
 
 - (void)metadataReader:(RTIcyMetadataReader *)reader didReadBitrate:(NSInteger)kbps contentType:(NSString *)contentType
 {
-    if (!self.item) return;
+    if (!self.engine) return;
     self.declaredBitrate = kbps;
     self.declaredFormat = [RTPlayer formatForContentType:contentType];
     [self updateStreamInfo];
@@ -409,70 +460,14 @@ static const NSUInteger RTMaxReconnects = sizeof(RTReconnectDelays) / sizeof(RTR
 
 - (void)metadataReader:(RTIcyMetadataReader *)reader didReadStationName:(NSString *)name
 {
-    if (!self.item) return;
+    if (!self.engine) return;
     [self.delegate player:self didReceiveStationName:name];
 }
 
 - (void)metadataReader:(RTIcyMetadataReader *)reader didReadStreamTitle:(NSString *)title
 {
-    if (self.avMetadataSeen || !self.item) return;
+    if (self.avMetadataSeen || !self.engine) return;
     [self.delegate player:self didReceiveStreamTitle:title];
-}
-
-- (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context
-{
-    BOOL ours = context == RTItemStatusContext || context == RTItemMetadataContext || context == RTPlayerTimeControlContext;
-    if (ours && ![NSThread isMainThread]) {
-        // tutta la logica gira sul thread principale
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [self observeValueForKeyPath:keyPath ofObject:object change:change context:context];
-        });
-        return;
-    }
-    if (context == RTItemStatusContext) {
-        if (object != self.item) return;
-        if (self.item.status == AVPlayerItemStatusFailed) {
-            [self tryNextWithError:self.item.error.localizedDescription ?: @"Formato dello stream non supportato"];
-        }
-    } else if (context == RTItemMetadataContext) {
-        if (object != self.item) return;
-        [self handleMetadata:self.item.timedMetadata];
-    } else if (context == RTPlayerTimeControlContext) {
-        if (!self.item) return;
-        switch (self.player.timeControlStatus) {
-            case AVPlayerTimeControlStatusPlaying:
-                if (!self.hasPlayed) {
-                    [self startIcyReaderIfNeeded];
-                    [self updateStreamInfo];
-                    // il registro di accesso (bitrate HLS) si riempie dopo qualche secondo
-                    [self.infoTimer invalidate];
-                    self.infoTimer = [NSTimer scheduledTimerWithTimeInterval:6 target:self selector:@selector(updateStreamInfo)
-                                                                    userInfo:nil repeats:NO];
-                }
-                self.hasPlayed = YES;
-                self.everPlayed = YES;
-                self.reconnectAttempt = 0;
-                self.failovers = 0;
-                self.goodIndex = self.urlIndex;
-                [self.connectTimer invalidate];
-                self.connectTimer = nil;
-                [self.stallTimer invalidate];
-                self.stallTimer = nil;
-                self.state = RTPlayerStatePlaying;
-                break;
-            case AVPlayerTimeControlStatusWaitingToPlayAtSpecifiedRate:
-                self.state = self.hasPlayed ? RTPlayerStateBuffering : RTPlayerStateConnecting;
-                if (self.hasPlayed && !self.stallTimer) {
-                    self.stallTimer = [NSTimer scheduledTimerWithTimeInterval:RTStallTimeout target:self
-                                                                     selector:@selector(stallTimedOut:) userInfo:nil repeats:NO];
-                }
-                break;
-            case AVPlayerTimeControlStatusPaused:
-                break;
-        }
-    } else {
-        [super observeValueForKeyPath:keyPath ofObject:object change:change context:context];
-    }
 }
 
 @end
