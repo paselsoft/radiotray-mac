@@ -35,7 +35,7 @@ con **macOS High Sierra 10.13** (funziona anche sulle versioni successive).
 | 1.14.0 | Avvisami quando passa…, statistiche, condividi il brano | fatta (provata sull'iMac) |
 | 1.14.1 | titoli di Radio Monte Carlo (https senza titoli) | fatta (provata sull'iMac) |
 | 1.15.0 | link al palinsesto della radio, palinsesto personale con foto | fatta (provata sull'iMac) |
-| 1.16.0 | Ogg Vorbis, Opus e FLAC con ffmpeg | anteprima da provare |
+| 1.16.0 | Ogg Vorbis, Opus e FLAC con ffmpeg, titoli di Radio Paradise | fatta (provata sull'iMac) |
 
 ## Scaricare
 
