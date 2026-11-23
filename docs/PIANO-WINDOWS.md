@@ -230,6 +230,10 @@ per Radio 105), ma il simbolo ⏻ non esiste nel font di Windows 10 e compariva 
 usano le icone di Windows 10 (Segoe MDL2 Assets): riproduci/ferma, stella vuota/piena. In più la finestra mostra
 la qualità dello stream (per esempio "AAC (HLS) 129 kbps") e la percentuale del volume, anche mentre si trascina.
 
+**0.4.1 provata sul PC d'ufficio** (23 novembre 2026): con la radio spenta il pulsante ▶ verde, la stella disattivata
+e il logo della stazione (Radio Capital); in ascolto il ■ rosso, la stella, la copertina (Franco Battiato, "Impressioni
+di Settembre", su Radio Capital via GEDI), la riga "AAC (HLS) 122 kbps" e il volume "70%". Tutto corretto.
+
 ## Limiti noti
 
 - Il codice Windows non si può provare qui né sul Mac: la prova vera è sul PC d'ufficio, come per
