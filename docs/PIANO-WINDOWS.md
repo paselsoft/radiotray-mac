@@ -1,6 +1,6 @@
 # Piano: RadioTray per Windows 10 (PC d'ufficio dietro proxy)
 
-Stato: **fase 1 fatta e provata sul PC d'ufficio** (0.1.1); **fase 2 scritta** (0.2.0, HLS), da provare.
+Stato: **fasi 1 e 2 fatte e provate sul PC d'ufficio** (0.2.0): tutte le stazioni predefinite suonano. Prossima: fase 3.
 
 ## Si può fare?
 
@@ -172,6 +172,9 @@ Provato qui (Linux, .NET 8) con le radio vere: RDS, Deejay, Capital e m2o danno 
 (controllato con ffmpeg: AAC-LC per RDS, HE-AAC per le GEDI, nessun errore) e i titoli (RDS dal JSON ID3,
 le altre dal servizio GEDI). **Da provare sul PC d'ufficio**: che Media Foundation suoni l'HE-AAC con la
 qualità piena (48 kHz) e non solo la parte base a 24 kHz.
+
+**0.2.0 provata sul PC d'ufficio** (23 novembre 2026, build 117): RDS, Deejay, Capital e m2o suonano
+perfettamente, con i titoli; le altre radio continuano ad andare. **Fase 2 conclusa.**
 
 ## Limiti noti
 
