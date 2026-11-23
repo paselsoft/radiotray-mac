@@ -1,6 +1,6 @@
 # Piano: RadioTray per Windows 10 (PC d'ufficio dietro proxy)
 
-Stato: **fase 1 scritta** (cartella `windows/`), da provare sul PC d'ufficio.
+Stato: **fase 1 fatta e provata sul PC d'ufficio** (cartella `windows/`, versione 0.1.1). Prossima: fase 2 (HLS).
 
 ## Si può fare?
 
@@ -138,6 +138,8 @@ dell'ufficio, che Windows (e quindi l'app) accetta. Restano da provare l'audio e
   Blocco note da un altro programma. Dalla 0.1.1 stazioni e registro si aprono in una finestra interna
   (editor con controllo prima di salvare, copia in `bookmarks.json.bak`; registro con "Copia tutto").
   "Apri la cartella", se bloccato, copia il percorso negli appunti.
+- **0.1.1 provata** (build 115): Modifica stazioni, Apri il registro e Apri la cartella di RadioTray funzionano.
+  **Fase 1 conclusa.**
 
 ### Da provare sul PC d'ufficio
 1. Scaricare `RadioTray-Windows.zip` dalla release **anteprima**, estrarlo in Documenti, avviare `RadioTray.exe`
