@@ -521,6 +521,173 @@ static class Program
         Check(OnAir.SongFromGediJson("<html>") == null);
     }
 
+
+    static void TestFavorites()
+    {
+        var day = new DateTime(2026, 11, 23, 9, 30, 0, DateTimeKind.Utc);
+        var f = FavoriteTracks.Parse("[{\"title\":\"So What\",\"artist\":\"Miles Davis\",\"station\":\"Jazz24\",\"added\":\"2026-01-02T10:00:00Z\"}," +
+                                     "{\"title\":\"\",\"artist\":\"Solo Artista\",\"station\":\"X\",\"added\":\"2026-01-03T10:00:00Z\"}," +
+                                     "{\"title\":\"\",\"artist\":\"\"},{\"title\":\"Città\",\"artist\":\"Battiato\",\"station\":\"Rai Radio 1\",\"added\":\"bad\"}]", out string error);
+        Check(f != null && error == null);
+        Eq(f.Tracks.Count, 3);
+        Eq(f.Tracks[1].Title, "Solo Artista");
+        Eq(f.Tracks[1].Artist, "");
+        Eq(f.Tracks[0].Added, new DateTime(2026, 1, 2, 10, 0, 0, DateTimeKind.Utc));
+        Eq(f.Tracks[2].Added.Year, 1970);
+        Eq(f.Tracks[0].DisplayText, "So What – Miles Davis");
+        Eq(f.Tracks[0].SearchText, "Miles Davis So What");
+
+        f.Add("so what", "MILES DAVIS", "Altra", day, out bool present);
+        Check(present);
+        Eq(f.Tracks.Count, 3);
+        f.Add("Azzurro", "Adriano Celentano", "Radio 105", day, out present);
+        Check(!present);
+        Eq(f.Tracks.Count, 4);
+
+        EqList(f.Matching("davis", null).Select(t => t.Title), new[] { "So What" });
+        EqList(f.Matching("citta battiato", null).Select(t => t.Title), new[] { "Città" });   // accenti e ordine ignorati
+        EqList(f.Matching("", "Radio 105").Select(t => t.Title), new[] { "Azzurro" });
+        EqList(f.Stations(), new[] { "Jazz24", "Radio 105", "Rai Radio 1", "X" });
+
+        // andata e ritorno nel formato del Mac
+        string json = f.ToJson();
+        Check(json.Contains("\"added\": \"2026-11-23T09:30:00Z\""));
+        Check(!json.Contains("\\/"));
+        var back = FavoriteTracks.Parse(json, out _);
+        Eq(back.Tracks.Count, 4);
+        Eq(back.Tracks[3].Station, "Radio 105");
+
+        string csv = FavoriteTracks.Csv(new[] { new FavoriteTrack { Title = "A \"b\"", Artist = "C;D", Station = "S", Added = day } });
+        Check(csv.StartsWith("﻿Titolo;Artista;Stazione;Aggiunto il\r\n"));
+        Check(csv.Contains("\"A \"\"b\"\"\";\"C;D\";\"S\";"));
+
+        Eq(FavoriteTracks.SearchUrl(new FavoriteTrack { Title = "Sere Nere", Artist = "Tiziano Ferro & Co/x" }, TrackSearchSite.YouTube),
+           "https://www.youtube.com/results?search_query=Tiziano%20Ferro%20%26%20Co%2Fx%20Sere%20Nere");
+        Check(FavoriteTracks.SearchUrl(new FavoriteTrack { Title = "Città" }, TrackSearchSite.Spotify).EndsWith("Citt%C3%A0"));
+
+        // cronologia
+        var h = new FavoriteTracks();
+        Check(h.Record("A", "x", "S", day, 3));
+        Check(!h.Record("A", "x", "S", day, 3));   // già l'ultimo
+        Check(h.Record("B", "", "S", day, 3));
+        Check(h.Record("C", "", "S", day, 3));
+        Check(h.Record("A", "X", "T", day, 3));    // spostato in fondo
+        EqList(h.Tracks.Select(t => t.Title), new[] { "B", "C", "A" });
+        Check(h.Record("D", "", "S", day, 3));
+        EqList(h.Tracks.Select(t => t.Title), new[] { "C", "A", "D" });
+        Check(!h.Record("", "", "S", day, 3));
+
+        Check(FavoriteTracks.Parse("{}", out error) == null && error != null);
+        Eq(FavoriteTracks.Parse("", out _).Tracks.Count, 0);
+
+        var other = FavoriteTracks.Parse("[{\"title\":\"So What\",\"artist\":\"Miles Davis\",\"added\":\"2025-01-01T00:00:00Z\"},{\"title\":\"Nuovo\",\"added\":\"2025-06-01T00:00:00Z\"}]", out _);
+        Eq(back.Merge(other), 1);
+        EqList(back.Tracks.Select(t => t.Title), new[] { "Città", "Nuovo", "So What", "Solo Artista", "Azzurro" });   // in ordine di data (Città senza data)
+    }
+
+    static void TestRadioBrowser()
+    {
+        string json = "[{\"name\":\"Radio 105\",\"url\":\"http://x/105.pls\",\"url_resolved\":\"http://icecast.unitedradio.it/Radio105.mp3\",\"countrycode\":\"it\",\"codec\":\"MP3\",\"bitrate\":128,\"tags\":\"pop,hits\",\"votes\":10,\"hls\":0}," +
+                      "{\"name\":\"Radio 105\",\"url\":\"http://icecast.unitedradio.it/Radio105.mp3\",\"codec\":\"MP3\"}," +
+                      "{\"name\":\"Ogg Radio\",\"url_resolved\":\"https://o/x.ogg\",\"codec\":\"OGG\",\"bitrate\":0}," +
+                      "{\"name\":\"Deejay\",\"url_resolved\":\"https://a/b.m3u8\",\"codec\":\"UNKNOWN\",\"hls\":1}," +
+                      "{\"name\":\"MMS\",\"url_resolved\":\"mms://x\"},{\"name\":\"\",\"url_resolved\":\"http://y\"}]";
+        var list = RadioBrowser.StationsFromJson(json);
+        Eq(list.Count, 3);
+        Eq(list[0].Url, "http://icecast.unitedradio.it/Radio105.mp3");
+        Eq(list[0].Country, "IT");
+        Eq(list[0].Tags, "pop, hits");
+        Eq(list[0].FormatDescription, "MP3 128 kbps");
+        Eq(list[1].Name, "Deejay");
+        Eq(list[1].FormatDescription, "HLS");
+        Eq(list[2].Name, "Ogg Radio");   // non riproducibile: in fondo
+        Check(!list[2].Playable);
+        Check(RadioBrowser.StationsFromJson("<html>") == null);
+
+        Eq(RadioBrowser.SearchUrl("de1.api.radio-browser.info", RadioBrowser.Mode.Name, "rock & roll", "IT"),
+           "https://de1.api.radio-browser.info/json/stations/search?name=rock%20%26%20roll&hidebroken=true&order=clickcount&reverse=true&limit=100&countrycode=IT");
+        Check(RadioBrowser.SearchUrl("x", RadioBrowser.Mode.Tag, "Jazz", null).Contains("tag=jazz&"));
+        Check(!RadioBrowser.SearchUrl("x", RadioBrowser.Mode.Top, "", "").Contains("countrycode"));
+
+        EqList(RadioBrowser.AlternativeNames("Radio Monte Carlo Hits"), new[] { "RMC Hits", "Monte Carlo Hits", "RMCH", "RMC Hits" }.Distinct().ToArray());
+        Check(RadioBrowser.AlternativeNames("Radio Dimensione Suono").Contains("RDS"));
+        Check(RadioBrowser.AlternativeNames("Radio Subasio").Contains("Subasio"));
+        Check(RadioBrowser.AlternativeNames("Radio Freccia").Contains("Radiofreccia"));
+        Check(RadioBrowser.AlternativeNames("Radiofreccia").Contains("Radio freccia"));
+        Check(!RadioBrowser.AlternativeNames("Jazz").Any());
+    }
+
+    static void TestBackup()
+    {
+        string mac = "{\"app\":\"1.16.0\",\"format\":\"radiotray-mac-backup\",\"version\":1,\"created\":\"2026-11-20T08:00:00Z\"," +
+                     "\"bookmarks\":[{\"group\":\"Jazz\",\"stations\":[{\"name\":\"Swiss Jazz\",\"url\":\"http://stream.srg-ssr.ch/m/rsj/mp3_128\",\"mirrors\":[\"http://m2/x\"]}]}]," +
+                     "\"favorites\":[{\"title\":\"So What\",\"artist\":\"Miles Davis\",\"station\":\"Swiss Jazz\",\"added\":\"2026-11-01T10:00:00Z\"}]," +
+                     "\"history\":[],\"settings\":{\"volume-level\":65,\"notifications\":false,\"swapped-title-artist-stations\":[\"Radio italiane\\nRadio 105\"]}}";
+        var b = Backup.Parse(mac, out string error);
+        Check(b != null, error);
+        Eq(b.StationCount, 1);
+        Eq(b.Favorites.Tracks.Count, 1);
+        Eq(b.History.Tracks.Count, 0);
+        Eq(b.SettingInt(Backup.KeyVolume), 65);
+        Eq(b.SettingBool(Backup.KeyNotifications), false);
+        EqList(b.SettingStrings(Backup.KeySwapped), new[] { "Radio italiane\nRadio 105" });
+        Eq(b.AppVersion, "1.16.0");
+        Eq(b.Created, new DateTime(2026, 11, 20, 8, 0, 0, DateTimeKind.Utc));
+
+        var again = Backup.Parse(b.ToJson(), out error);
+        Check(again != null, error);
+        Eq(again.StationCount, 1);
+        Eq(again.Favorites.Tracks[0].Artist, "Miles Davis");
+
+        Check(Backup.Parse("{\"format\":\"altro\"}", out error) == null && error.Contains("non è un backup"));
+        Check(Backup.Parse("{\"format\":\"radiotray-mac-backup\",\"version\":2}", out error) == null && error.Contains("più recente"));
+        Check(Backup.Parse("{\"format\":\"radiotray-mac-backup\",\"favorites\":{}}", out error) == null && error.Contains("favorites"));
+        Check(Backup.Parse("[1]", out _) == null);
+    }
+
+    static void TestBookmarksDocument()
+    {
+        string json = "[{\"group\":\"Jazz\",\"image\":\"x.png\",\"extra\":7,\"stations\":[{\"name\":\"A\",\"url\":\"http://a/\",\"mirrors\":[\"http://a2/\"]}]},{\"group\":\"root\",\"stations\":[]}]";
+        var doc = BookmarksDocument.Parse(json, out string error);
+        Check(doc != null, error);
+        var jazz = doc.GroupNamed("Jazz");
+        Eq(doc.AddStation(jazz, "Radio 105", "http://icecast.unitedradio.it/Radio105.mp3", out var r105), null);
+        Check(doc.AddStation(jazz, "A", "http://b/", out _).Contains("già"));
+        Check(doc.AddStation(jazz, "B", "ftp://b/", out _).Contains("http"));
+        Check(doc.AddStation(jazz, " ", "http://b/", out _) != null);
+        Eq(doc.AddGroup("Notizie", out var news), null);
+        Eq(doc.Groups.Last().Name, "root");          // il gruppo root resta in fondo
+        Eq(doc.Groups[1].Name, "Notizie");
+        Check(doc.AddGroup("jazz", out _) == null);  // nomi diversi per maiuscole: ammessi come in Radiotray-NG
+        Check(doc.AddGroup("Jazz", out _).Contains("già"));
+        Check(doc.RenameGroup(doc.GroupNamed("root"), "X") != null);
+        Eq(doc.RenameStation(r105, "105"), null);
+        Eq(doc.MoveStation(r105, -1), null);
+        EqList(jazz.Stations.Select(s => s.Name), new[] { "105", "A" });
+        doc.SetNotifications(r105, false);
+        Eq(doc.MoveStationToGroup(r105, news, out var moved), null);
+        Eq(moved.Group.Name, "Notizie");
+        Eq(doc.MoveGroup(news, -1), null);
+        Eq(doc.Groups[0].Name, "Notizie");
+
+        var b = Bookmarks.Parse(doc.ToJson(), out error);
+        Check(b != null, error);
+        Check(!b.StationNamed("105", "Notizie").Notifications);
+        EqList(b.StationNamed("A", "Jazz").Mirrors, new[] { "http://a2/" });   // i campi sconosciuti restano
+        Check(doc.ToJson().Contains("\"extra\": 7"));
+        Check(doc.ToJson().Contains("\"image\": \"x.png\""));
+
+        var extra = Bookmarks.Parse("[{\"group\":\"Jazz\",\"stations\":[{\"name\":\"A doppia\",\"url\":\"https://a\"},{\"name\":\"Nuova\",\"url\":\"http://n/\",\"mirrors\":[\"http://n2/\"]}]}," +
+                                    "{\"group\":\"Rock\",\"stations\":[{\"name\":\"R\",\"url\":\"http://r/\"}]}]", out _);
+        Eq(doc.Merge(extra), 2);   // "https://a" è già "http://a/"
+        b = Bookmarks.Parse(doc.ToJson(), out _);
+        EqList(b.StationNamed("Nuova", "Jazz").Mirrors, new[] { "http://n2/" });
+        Check(b.GroupNamed("Rock") != null);
+        Check(BookmarksDocument.Parse("[{", out error) == null && error != null);
+        doc.RemoveGroup(doc.GroupNamed("Rock"));
+        Check(doc.GroupNamed("Rock") == null);
+    }
+
     static int Main(string[] args)
     {
         TestJson();
@@ -538,6 +705,10 @@ static class Program
         TestId3();
         TestTs();
         TestOnAir();
+        TestFavorites();
+        TestRadioBrowser();
+        TestBackup();
+        TestBookmarksDocument();
         foreach (var path in args) TestBundled(path);
         Console.WriteLine($"{checks} controlli, {failures} falliti");
         return failures == 0 ? 0 : 1;

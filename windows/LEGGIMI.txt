@@ -1,4 +1,4 @@
-RadioTray per Windows 10 (versione di prova, fase 2)
+RadioTray per Windows 10 (versione di prova, fase 3)
 =====================================================
 
 Installazione (senza permessi di amministratore)
@@ -14,15 +14,27 @@ Uso
 - Clic (sinistro o destro) sull'icona: si apre il menu. Scegli una stazione da un gruppo.
 - "Accendi" / "Spegni": riprende o ferma l'ultima stazione. Clic con la rotellina sull'icona: lo stesso.
 - Volume: il cursore nel menu.
-- Titolo e artista in cima al menu: un clic li copia negli appunti.
+- Titolo e artista in cima al menu: si apre un sottomenu con "★ Aggiungi ai brani preferiti",
+  "Copia titolo e artista" e "Cerca su YouTube". Una ★ prima del titolo indica che è già tra i preferiti.
+- Notifica del cambio di brano: un clic sulla notifica aggiunge il brano ai preferiti.
+- Brani preferiti…: finestra con ricerca istantanea, filtro per stazione, ordinamento (clic
+  sull'intestazione di una colonna), Elimina (Canc), Copia (Ctrl+C), Cerca su YouTube (doppio clic),
+  YouTube Music, Spotify, Apple Music (clic destro) ed Esporta CSV per Excel.
+- Ascoltati di recente: gli ultimi 20 brani (ne ricorda 50); un clic lo aggiunge ai preferiti.
+- Cerca stazioni…: l'archivio pubblico Radio Browser, per nome, per genere o le più ascoltate,
+  in Italia o nel mondo. Doppio clic per ascoltare, "Aggiungi alle stazioni…" per tenerla.
+  Se il nome non dà risultati si riprova con sigle e nomi corti (RMC, RDS, Subasio…).
 - Titoli di questa stazione (nel menu, mentre suona): "Titolo e artista al contrario" per le radio
   che li scrivono invertiti; "Ignora i titoli" per quelle che mandano titoli sbagliati o vecchi.
 - Una notifica di Windows mostra il brano quando cambia (si tolgono da Preferenze > Notifiche dei brani).
 - Stazione precedente / successiva, Apri indirizzo… (una radio o una playlist .pls/.m3u qualsiasi).
-- Preferenze > Modifica stazioni…: apre bookmarks.json in una finestra di RadioTray. "Salva" (Ctrl+S)
-  controlla il testo e, se c'è un errore, porta il cursore alla riga sbagliata; la versione precedente
-  resta in bookmarks.json.bak. È lo stesso file della versione per Mac: si può copiare da un computer all'altro.
-  (Se lo modifichi con un altro programma, RadioTray se ne accorge e ricarica l'elenco.)
+- Preferenze > Modifica stazioni…: gruppi e stazioni in un elenco; a destra nome, indirizzo e notifiche.
+  Nuovo gruppo, Nuova stazione, Elimina, Su/Giù, Sposta nel gruppo, Prova. "Salva" (Ctrl+S) controlla
+  tutto; la versione precedente resta in bookmarks.json.bak. "Modifica come testo…" apre il file JSON.
+  È lo stesso file della versione per Mac: si può copiare da un computer all'altro.
+- Preferenze > Backup: "Esporta backup…" salva stazioni, preferiti, ascoltati e impostazioni in un file;
+  "Importa backup (anche dal Mac)…" legge anche il RadioTray-backup.json della versione per Mac.
+  L'importazione aggiunge solo ciò che manca, non cancella niente.
 - Preferenze > Accendi l'ultima stazione all'avvio.
 
 Il proxy dell'ufficio
@@ -35,7 +47,8 @@ Il proxy dell'ufficio
 
 Dove sono i file
 - %APPDATA%\RadioTray (Preferenze > Apri la cartella di RadioTray):
-  bookmarks.json (stazioni), settings.json (impostazioni), radiotray.log (registro).
+  bookmarks.json (stazioni), brani-preferiti.json, ascoltati-di-recente.json,
+  settings.json (impostazioni), radiotray.log (registro).
 - Per togliere RadioTray: Esci dal menu, poi cancella la cartella del programma e, se vuoi,
   anche %APPDATA%\RadioTray.
 
@@ -43,5 +56,4 @@ Limiti di questa versione
 - Formati: MP3 e AAC, anche in streaming HLS (.m3u8: RDS, Deejay, Capital, m2o, Radio Italia…).
   Per Deejay, Capital e m2o i titoli arrivano dal servizio "in onda" dei loro siti.
   Ogg/Opus/FLAC e HLS con segmenti fMP4 non ancora.
-- Non ci sono ancora brani preferiti, cronologia, ricerca delle stazioni, copertine, scorciatoie,
-  sveglia e avvio automatico con Windows (fasi 3 e 4).
+- Non ci sono ancora copertine, scorciatoie, timer, sveglia e avvio automatico con Windows (fase 4).

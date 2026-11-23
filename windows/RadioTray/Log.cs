@@ -11,6 +11,8 @@ namespace RadioTray
         public static string Bookmarks => Path.Combine(Folder, "bookmarks.json");
         public static string Settings => Path.Combine(Folder, "settings.json");
         public static string LogFile => Path.Combine(Folder, "radiotray.log");
+        public static string Favorites => Path.Combine(Folder, "brani-preferiti.json");
+        public static string History => Path.Combine(Folder, "ascoltati-di-recente.json");
 
         public static void Ensure() => Directory.CreateDirectory(Folder);
     }

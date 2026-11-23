@@ -34,6 +34,13 @@ namespace RadioTray
         private bool _openedUrl;   // aperta con "Apri indirizzo…", non è nell'elenco
         private TrackInfo _track = TrackInfo.Create(null, null);
         private readonly OnAirPoller _onAir;
+        private FavoriteTracks _favorites = new FavoriteTracks();
+        private FavoriteTracks _history = new FavoriteTracks();
+        private FavoritesWindow _favoritesWindow;
+        private SearchWindow _searchWindow;
+        private StationEditor _stationEditor;
+        private TrackInfo _balloonTrack;      // brano dell'ultima notifica: un clic lo aggiunge ai preferiti
+        private const int HistoryLimit = 50;
 
         public TrayApp()
         {
@@ -57,7 +64,8 @@ namespace RadioTray
             _menu.Closed += (s, e) => _settings.Save();
             _icon = new NotifyIcon { Icon = Icons.Off, Text = "RadioTray", ContextMenuStrip = _menu, Visible = true };
             _icon.MouseUp += OnIconClick;
-            _icon.BalloonTipClicked += (s, e) => ShowMenu();
+            _icon.BalloonTipClicked += (s, e) => OnBalloonClicked();
+            LoadTracks();
 
             _reloadTimer.Tick += (s, e) => { _reloadTimer.Stop(); LoadBookmarks(true); };
             LoadBookmarks(false);
@@ -259,7 +267,7 @@ namespace RadioTray
             _track = info;
             Log.Write($"Brano: {raw}");
             UpdateTooltip();
-            if (_notifications) Notify(_station ?? "RadioTray", info.Text, ToolTipIcon.None);
+            NewTrack(info);
         }
 
         /// <summary>Brano dal servizio "in onda" (Deejay, Capital, m2o); senza artista è il nome del programma.</summary>
@@ -272,11 +280,11 @@ namespace RadioTray
             _track = info;
             Log.Write($"Brano (servizio): {artist} - {title}");
             UpdateTooltip();
-            if (_notifications && artist.Length > 0) Notify(_station ?? "RadioTray", info.Text, ToolTipIcon.None);
+            if (artist.Length > 0) NewTrack(info);
         }
 
         /// <summary>Chiave della stazione attuale per le impostazioni per stazione.</summary>
-        private string StationKey => _station == null ? null : _openedUrl ? _url : _group + "\n" + _station;
+        private string StationKey => _station == null ? null : _openedUrl ? "url\n" + _url : _group + "\n" + _station;
 
         private bool StationIn(List<string> list) => StationKey != null && list.Contains(StationKey);
 
@@ -295,6 +303,7 @@ namespace RadioTray
         private void Notify(string title, string text, ToolTipIcon icon, bool force = false)
         {
             if (!force && !_settings.Notifications) return;
+            _balloonTrack = null;
             _icon.ShowBalloonTip(5000, TrackInfo.Truncate(title, 63), TrackInfo.Truncate(string.IsNullOrEmpty(text) ? " " : text, 250), icon);
         }
 
@@ -353,11 +362,16 @@ namespace RadioTray
             // brano in onda: clic per copiarlo
             if (state == PlayerState.Playing && !_track.IsEmpty)
             {
-                var title = Item("♪ " + Escape(Truncate(_track.Title.Length > 0 ? _track.Title : _track.Artist)), CopyTrack);
-                title.ToolTipText = "Clic per copiare titolo e artista";
+                bool favorite = _favorites.Find(_track.Title, _track.Artist) != null;
+                var title = new ToolStripMenuItem((favorite ? "★ " : "♪ ") + Escape(Truncate(_track.Title.Length > 0 ? _track.Title : _track.Artist)));
+                FillTrackMenu(title, favorite);
                 _menu.Items.Add(title);
                 if (_track.Title.Length > 0 && _track.Artist.Length > 0)
-                    _menu.Items.Add(Item("    " + Escape(Truncate(_track.Artist)), CopyTrack));
+                {
+                    var artistItem = new ToolStripMenuItem("    " + Escape(Truncate(_track.Artist)));
+                    FillTrackMenu(artistItem, favorite);
+                    _menu.Items.Add(artistItem);
+                }
                 _menu.Items.Add(new ToolStripSeparator());
             }
 
@@ -416,7 +430,13 @@ namespace RadioTray
             _menu.Items.Add(new ToolStripSeparator());
             _menu.Items.Add(Item("Stazione precedente", () => Step(-1), _bookmarks.StationCount > 0));
             _menu.Items.Add(Item("Stazione successiva", () => Step(+1), _bookmarks.StationCount > 0));
+            _menu.Items.Add(HistoryMenu());
+            _menu.Items.Add(Item("Brani preferiti…", ShowFavorites));
+            _menu.Items.Add(new ToolStripSeparator());
+            _menu.Items.Add(Item("Cerca stazioni…", ShowSearch));
             _menu.Items.Add(Item("Apri indirizzo…", OpenUrl));
+            if (_openedUrl && _url != null)
+                _menu.Items.Add(Item($"Aggiungi «{Escape(TrackInfo.Truncate(_station, 30))}» alle stazioni…", () => AddToStations(_station, _url)));
             _menu.Items.Add(new ToolStripSeparator());
             _menu.Items.Add(PreferencesMenu());
             _menu.Items.Add(Item("Informazioni su RadioTray", About));
@@ -461,9 +481,13 @@ namespace RadioTray
         private ToolStripMenuItem PreferencesMenu()
         {
             var prefs = new ToolStripMenuItem("Preferenze");
-            prefs.DropDownItems.Add(Item("Modifica stazioni…", EditBookmarks));
+            prefs.DropDownItems.Add(Item("Modifica stazioni…", ShowStationEditor));
             prefs.DropDownItems.Add(Item("Ricarica stazioni", () => LoadBookmarks(true)));
             prefs.DropDownItems.Add(Item("Apri la cartella di RadioTray", () => OpenFolder(AppPaths.Folder)));
+            var backup = new ToolStripMenuItem("Backup");
+            backup.DropDownItems.Add(Item("Esporta backup…", ExportBackup));
+            backup.DropDownItems.Add(Item("Importa backup (anche dal Mac)…", ImportBackup));
+            prefs.DropDownItems.Add(backup);
             prefs.DropDownItems.Add(new ToolStripSeparator());
             var notifications = Item("Notifiche dei brani", () => { _settings.Notifications = !_settings.Notifications; _settings.Save(); });
             notifications.Checked = _settings.Notifications;
@@ -476,6 +500,304 @@ namespace RadioTray
             prefs.DropDownItems.Add(Item("Apri il registro", ShowLog));
             return prefs;
         }
+
+        #region Preferiti e cronologia
+
+        private void LoadTracks()
+        {
+            _favorites = FavoriteTracks.FromFile(AppPaths.Favorites, out string e1) ?? new FavoriteTracks();
+            if (e1 != null) Log.Write("Brani preferiti non leggibili: " + e1);
+            _history = FavoriteTracks.FromFile(AppPaths.History, out string e2) ?? new FavoriteTracks();
+            if (e2 != null) Log.Write("Ascoltati di recente non leggibili: " + e2);
+        }
+
+        private void SaveFavorites()
+        {
+            try { Ui.WriteText(AppPaths.Favorites, _favorites.ToJson()); }
+            catch (Exception e) { Log.Write("Impossibile salvare i brani preferiti: " + e.Message); }
+            if (_favoritesWindow != null && !_favoritesWindow.IsDisposed) _favoritesWindow.Refill();
+        }
+
+        private void SaveHistory()
+        {
+            try { Ui.WriteText(AppPaths.History, _history.ToJson()); }
+            catch (Exception e) { Log.Write("Impossibile salvare gli ascoltati di recente: " + e.Message); }
+        }
+
+        /// <summary>Brano nuovo: cronologia e notifica (un clic sulla notifica lo aggiunge ai preferiti).</summary>
+        private void NewTrack(TrackInfo info)
+        {
+            if (_history.Record(info.Title, info.Artist, _station ?? "", DateTime.UtcNow, HistoryLimit)) SaveHistory();
+            if (!_notifications || !_settings.Notifications) return;
+            bool favorite = _favorites.Find(info.Title, info.Artist) != null;
+            Notify((favorite ? "★ " : "") + (_station ?? "RadioTray"), info.Text + (favorite ? "" : "\n(clic qui: ★ aggiungi ai preferiti)"), ToolTipIcon.None);
+            _balloonTrack = favorite ? null : info;
+        }
+
+        private void OnBalloonClicked()
+        {
+            var t = _balloonTrack;
+            _balloonTrack = null;
+            if (t != null) AddFavorite(t.Title, t.Artist, _station);
+            else ShowMenu();
+        }
+
+        private void AddFavorite(string title, string artist, string station)
+        {
+            var t = _favorites.Add(title, artist, station ?? "", DateTime.UtcNow, out bool present);
+            if (!present) SaveFavorites();
+            Notify(present ? "★ Già nei brani preferiti" : "★ Aggiunto ai brani preferiti", t.DisplayText, ToolTipIcon.Info, force: true);
+        }
+
+        private void FillTrackMenu(ToolStripMenuItem parent, bool favorite)
+        {
+            var track = _track;
+            parent.DropDownItems.Add(favorite ? Item("★ Già nei brani preferiti", null, false)
+                                              : Item("★ Aggiungi ai brani preferiti", () => AddFavorite(track.Title, track.Artist, _station)));
+            parent.DropDownItems.Add(Item("Copia titolo e artista", CopyTrack));
+            parent.DropDownItems.Add(Item("Cerca su YouTube", () =>
+                Ui.OpenInBrowser(FavoriteTracks.SearchUrl(new FavoriteTrack { Title = track.Title, Artist = track.Artist }, TrackSearchSite.YouTube))));
+            parent.DropDownItems.Add(new ToolStripSeparator());
+            parent.DropDownItems.Add(Item("Brani preferiti…", ShowFavorites));
+        }
+
+        private ToolStripMenuItem HistoryMenu()
+        {
+            var menu = new ToolStripMenuItem("Ascoltati di recente");
+            var recent = _history.Tracks.Reverse().Take(20).ToList();
+            if (recent.Count == 0) menu.DropDownItems.Add(Item("(ancora nessun brano)", null, false));
+            foreach (var t in recent)
+            {
+                bool favorite = _favorites.Find(t.Title, t.Artist) != null;
+                var item = Item((favorite ? "★ " : "") + Escape(Truncate(t.DisplayText)), () => AddFavorite(t.Title, t.Artist, t.Station));
+                item.ToolTipText = $"{t.Station}, {t.Added.ToLocalTime():HH:mm} — clic: aggiungi ai preferiti";
+                menu.DropDownItems.Add(item);
+            }
+            return menu;
+        }
+
+        private void ShowFavorites()
+        {
+            if (_favoritesWindow == null || _favoritesWindow.IsDisposed)
+                _favoritesWindow = new FavoritesWindow(() => _favorites, tracks => { _favorites.Remove(tracks); SaveFavorites(); });
+            Ui.Bring(_favoritesWindow);
+        }
+
+        #endregion
+
+        #region Ricerca ed editor delle stazioni
+
+        /// <summary>Ascolta un indirizzo che non è nell'elenco (ricerca, prova dall'editor).</summary>
+        private void PlayUrl(string name, string url)
+        {
+            _group = null;
+            _station = string.IsNullOrEmpty(name) ? new Uri(url).Host : name;
+            _url = url;
+            _direct = false;
+            _notifications = true;
+            _mirrors = new List<string>();
+            _openedUrl = true;
+            Play();
+        }
+
+        private void ShowSearch()
+        {
+            if (_searchWindow == null || _searchWindow.IsDisposed) _searchWindow = new SearchWindow(PlayUrl, AddToStations);
+            Ui.Bring(_searchWindow);
+        }
+
+        private void ShowStationEditor()
+        {
+            if (_stationEditor != null && !_stationEditor.IsDisposed) { Ui.Bring(_stationEditor); return; }
+            string text;
+            try
+            {
+                EnsureBookmarksFile();
+                text = File.ReadAllText(AppPaths.Bookmarks, Encoding.UTF8);
+            }
+            catch (Exception e)
+            {
+                MessageBox.Show("Impossibile leggere il file delle stazioni:\n" + e.Message, "RadioTray", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            if (BookmarksDocument.Parse(text, out string error) == null)
+            {
+                MessageBox.Show("Il file delle stazioni ha un errore e va corretto come testo:\n\n" + error, "RadioTray", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                EditBookmarks();
+                return;
+            }
+            _stationEditor = new StationEditor(text, SaveBookmarks, PlayUrl, EditBookmarks);
+            Ui.Bring(_stationEditor);
+        }
+
+        /// <summary>Aggiunge una stazione all'elenco chiedendo nome e gruppo.</summary>
+        private void AddToStations(string name, string url)
+        {
+            BookmarksDocument doc;
+            try
+            {
+                EnsureBookmarksFile();
+                doc = BookmarksDocument.Parse(File.ReadAllText(AppPaths.Bookmarks, Encoding.UTF8), out string error);
+                if (doc == null) { MessageBox.Show("Il file delle stazioni ha un errore:\n" + error, "RadioTray", MessageBoxButtons.OK, MessageBoxIcon.Warning); return; }
+            }
+            catch (Exception e)
+            {
+                MessageBox.Show("Impossibile leggere il file delle stazioni:\n" + e.Message, "RadioTray", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            if (doc.ContainsUrl(url) && MessageBox.Show($"Un'altra stazione ha già questo indirizzo:\n{url}\n\nAggiungerla lo stesso?", "RadioTray",
+                                                         MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+            var groups = doc.Groups.Where(g => !g.IsRoot).Select(g => g.Name).ToList();
+            groups.Add("(senza gruppo)");
+            while (true)
+            {
+                var r = Ui.AskFields("Aggiungi alle stazioni", "Aggiungi", new[]
+                {
+                    ("Nome della stazione:", name, (string[])null),
+                    ("Gruppo (scegli o scrivi un nome nuovo):", _group != null && !_openedUrl ? _group : groups[0], groups.ToArray()),
+                });
+                if (r == null) return;
+                var group = r[1].Length == 0 || r[1] == "(senza gruppo)" ? doc.RootGroup() : doc.GroupNamed(r[1]);
+                string error = group == null ? doc.AddGroup(r[1], out group) : null;
+                if (error == null) error = doc.AddStation(group, r[0], url, out _);
+                if (error == null) error = SaveBookmarks(doc.ToJson());
+                if (error == null)
+                {
+                    Notify("Stazione aggiunta", $"{r[0]} in \"{group.DisplayName}\"", ToolTipIcon.Info, force: true);
+                    if (_openedUrl && _url == url)
+                    {
+                        // da ora è una stazione dell'elenco
+                        _openedUrl = false;
+                        _group = group.Name;
+                        _station = r[0].Trim();
+                        _settings.LastGroup = _group;
+                        _settings.LastStation = _station;
+                        _settings.Save();
+                    }
+                    return;
+                }
+                MessageBox.Show(error, "Aggiungi alle stazioni", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                name = r[0];
+            }
+        }
+
+        #endregion
+
+        #region Backup
+
+        private Backup CurrentBackup()
+        {
+            var b = new Backup
+            {
+                AppVersion = "Windows " + Application.ProductVersion.Split('+')[0],
+                Created = DateTime.UtcNow,
+                Favorites = _favorites,
+                History = _history,
+            };
+            try
+            {
+                if (File.Exists(AppPaths.Bookmarks) && Json.Parse(File.ReadAllText(AppPaths.Bookmarks, Encoding.UTF8)) is List<object> l) b.Bookmarks = l;
+            }
+            catch (Exception e) { Log.Write("Stazioni non incluse nel backup: " + e.Message); }
+            // le impostazioni con i nomi della versione per Mac
+            b.Settings[Backup.KeyVolume] = _settings.Volume;
+            b.Settings[Backup.KeyNotifications] = _settings.Notifications;
+            if (_settings.LastGroup != null) b.Settings[Backup.KeyLastGroup] = _settings.LastGroup;
+            if (_settings.LastStation != null) b.Settings[Backup.KeyLastStation] = _settings.LastStation;
+            if (_settings.LastOpenedUrl != null) b.Settings[Backup.KeyLastUrl] = _settings.LastOpenedUrl;
+            b.Settings[Backup.KeySwapped] = _settings.SwappedStations.Cast<object>().ToList();
+            b.Settings[Backup.KeyIgnored] = _settings.IgnoredTitleStations.Cast<object>().ToList();
+            return b;
+        }
+
+        private void ExportBackup()
+        {
+            using (var dialog = new SaveFileDialog
+            {
+                Title = "Esporta backup di RadioTray",
+                Filter = "Backup di RadioTray (*.json)|*.json",
+                FileName = "RadioTray-backup.json",
+                InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+            })
+            {
+                if (dialog.ShowDialog() != DialogResult.OK) return;
+                try
+                {
+                    var b = CurrentBackup();
+                    File.WriteAllText(dialog.FileName, b.ToJson(), new UTF8Encoding(false));
+                    Log.Write("Backup esportato in " + dialog.FileName);
+                    MessageBox.Show($"Backup salvato:\n{dialog.FileName}\n\n{b.StationCount} stazioni, {b.Favorites.Tracks.Count} brani preferiti, " +
+                                    $"{b.History.Tracks.Count} ascoltati di recente.\n\nSi può importare anche in RadioTray per Mac (Preferenze > Backup).",
+                                    "RadioTray", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                catch (Exception e)
+                {
+                    MessageBox.Show("Impossibile salvare il backup:\n" + e.Message, "RadioTray", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                }
+            }
+        }
+
+        /// <summary>Importa un backup (del Mac o di Windows): aggiunge ciò che manca, non cancella niente.</summary>
+        private void ImportBackup()
+        {
+            string path;
+            using (var dialog = new OpenFileDialog
+            {
+                Title = "Importa backup di RadioTray",
+                Filter = "Backup di RadioTray (*.json)|*.json|Tutti i file (*.*)|*.*",
+                InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+            })
+            {
+                if (dialog.ShowDialog() != DialogResult.OK) return;
+                path = dialog.FileName;
+            }
+            Backup b;
+            try { b = Backup.Parse(File.ReadAllText(path, Encoding.UTF8), out string error); if (b == null) throw new InvalidDataException(error); }
+            catch (Exception e)
+            {
+                MessageBox.Show("Impossibile importare il backup:\n" + e.Message, "RadioTray", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            string from = (b.AppVersion != null ? $"RadioTray {b.AppVersion}" : "RadioTray") + (b.Created.HasValue ? $" del {b.Created.Value.ToLocalTime():dd/MM/yyyy HH:mm}" : "");
+            if (MessageBox.Show($"Backup di {from}:\n{b.StationCount} stazioni, {b.Favorites.Tracks.Count} brani preferiti, {b.History.Tracks.Count} ascoltati di recente.\n\n" +
+                                "Le stazioni e i brani che mancano vengono aggiunti; quelli che hai già restano come sono. Importare?",
+                                "Importa backup", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+
+            int stations = 0;
+            if (b.Bookmarks != null)
+            {
+                try
+                {
+                    EnsureBookmarksFile();
+                    var doc = BookmarksDocument.Parse(File.ReadAllText(AppPaths.Bookmarks, Encoding.UTF8), out string error) ?? BookmarksDocument.Empty();
+                    var extra = Bookmarks.Parse(Json.Write(b.Bookmarks), out _);
+                    stations = doc.Merge(extra);
+                    if (stations > 0)
+                    {
+                        string saveError = SaveBookmarks(doc.ToJson());
+                        if (saveError != null) throw new InvalidOperationException(saveError);
+                    }
+                }
+                catch (Exception e)
+                {
+                    MessageBox.Show("Le stazioni non sono state importate:\n" + e.Message, "RadioTray", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    stations = 0;
+                }
+            }
+            int favorites = _favorites.Merge(b.Favorites);
+            if (favorites > 0) SaveFavorites();
+            int history = _history.Merge(b.History);
+            while (_history.Tracks.Count > HistoryLimit) _history.Remove(new[] { _history.Tracks[0] });
+            if (history > 0) SaveHistory();
+            foreach (var k in b.SettingStrings(Backup.KeySwapped)) if (!_settings.SwappedStations.Contains(k)) _settings.SwappedStations.Add(k);
+            foreach (var k in b.SettingStrings(Backup.KeyIgnored)) if (!_settings.IgnoredTitleStations.Contains(k)) _settings.IgnoredTitleStations.Add(k);
+            _settings.Save();
+            Log.Write($"Backup importato da {path}: {stations} stazioni, {favorites} preferiti, {history} ascoltati");
+            MessageBox.Show($"Importati: {stations} stazioni nuove, {favorites} brani preferiti nuovi, {history} ascoltati di recente.",
+                            "Importa backup", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+
+        #endregion
 
         private void CopyTrack()
         {

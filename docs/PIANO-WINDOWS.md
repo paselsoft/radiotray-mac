@@ -1,6 +1,6 @@
 # Piano: RadioTray per Windows 10 (PC d'ufficio dietro proxy)
 
-Stato: **fasi 1 e 2 fatte e provate sul PC d'ufficio** (0.2.0): tutte le stazioni predefinite suonano. Prossima: fase 3.
+Stato: **fasi 1 e 2 fatte e provate sul PC d'ufficio** (0.2.0); **fase 3 scritta** (0.3.0), da provare.
 
 ## Si può fare?
 
@@ -175,6 +175,31 @@ qualità piena (48 kHz) e non solo la parte base a 24 kHz.
 
 **0.2.0 provata sul PC d'ufficio** (23 novembre 2026, build 117): RDS, Deejay, Capital e m2o suonano
 perfettamente, con i titoli; le altre radio continuano ad andare. **Fase 2 conclusa.**
+
+## Fase 3: preferiti, cronologia, ricerca, editor, backup (novembre 2026)
+
+Stessi file e formati della versione per Mac, così si passa da un computer all'altro:
+`brani-preferiti.json` e `ascoltati-di-recente.json` (`[{"title","artist","station","added"}]`, data ISO 8601),
+backup `RadioTray-backup.json` (`"format": "radiotray-mac-backup"`, impostazioni con i nomi del Mac:
+`volume-level`, `swapped-title-artist-stations`…), chiavi per stazione `gruppo\nstazione` o `url\n…`.
+
+- **Logica comune** (testata): `FavoriteTracks` (aggiunta senza doppioni, ricerca senza accenti a parole,
+  cronologia con limite, CSV per Excel, indirizzi di ricerca YouTube/Spotify/Apple Music), `RadioBrowser`
+  (indirizzi, lettura, Ogg/Opus/FLAC/WMA in fondo, nomi alternativi come sul Mac), `Backup`,
+  `BookmarksDocument` (modifica di bookmarks.json che conserva i campi sconosciuti; unione per indirizzo).
+- **Menu**: sottomenu del brano (★ Aggiungi ai preferiti, Copia, Cerca su YouTube), Ascoltati di recente,
+  Brani preferiti…, Cerca stazioni…, "Aggiungi «…» alle stazioni…" per gli indirizzi aperti a mano,
+  Preferenze → Backup (Esporta / Importa anche dal Mac).
+- **"★ Preferito" nella notifica**: le notifiche a fumetto di `NotifyIcon` non hanno pulsanti (i "toast" con
+  pulsanti richiedono un collegamento nel menu Start con un AppUserModelID, cioè un'installazione). Al loro posto:
+  **clic sulla notifica** = aggiungi ai preferiti (la notifica lo scrive).
+- **Finestre**: Brani preferiti (ricerca, filtro, ordinamento, Canc, Ctrl+C, doppio clic = YouTube, CSV),
+  Cerca stazioni (per nome/genere/più ascoltate, Italia/mondo, Ascolta, Aggiungi), Stazioni (albero gruppi/stazioni,
+  nome/indirizzo/notifiche, nuovo, elimina, su/giù, sposta, prova, salva con controllo e `.bak`).
+- Il browser per le ricerche si apre con ShellExecute; se la politica del PC lo blocca, l'indirizzo va negli appunti.
+
+Provato qui: 307 controlli sulla logica; ricerche vere su Radio Browser (Radio Italia, Radio Monte Carlo,
+genere jazz, più ascoltate in Italia) lette correttamente. Le finestre vanno provate sul PC d'ufficio.
 
 ## Limiti noti
 
