@@ -71,6 +71,18 @@ l'autenticazione NTLM dei proxy.
    compaiono blocchi di sicurezza (SmartScreen, AppLocker)?
 4. Versione di Windows 10 (Impostazioni → Sistema → Informazioni).
 
+## Risposte (verificate sul PC d'ufficio, novembre 2026)
+
+1. **Streaming nel browser: sì.** `https://ice1.somafm.com/groovesalad-128-mp3` si ascolta senza problemi
+   in Edge/Chrome: il proxy lascia passare gli stream audio.
+2. **Proxy senza credenziali:** il browser entra da solo (autenticazione integrata di Windows o proxy
+   trasparente). L'app deve usare il proxy di sistema con le credenziali predefinite (`UseDefaultCredentials`).
+3. **Programmi scaricati: sì.** A volte compare SmartScreen ma si può proseguire (account amministratore);
+   va bene un `.exe` non firmato, con l'avviso "Esegui comunque" la prima volta.
+4. **Windows 10 Enterprise 22H2**, build 19045.6456 (64 bit): .NET Framework 4.8 è già presente.
+
+Si può partire dalla fase 1.
+
 ## Limiti noti
 
 - Il codice Windows non si può provare qui né sul Mac: la prova vera è sul PC d'ufficio, come per
