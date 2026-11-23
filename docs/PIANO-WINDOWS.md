@@ -128,6 +128,17 @@ letto dallo script PAC, senza credenziali da inserire:
 Il proxy aggiunge `Via: … Cluster` anche alle https: le apre e le ricontrolla con il certificato
 dell'ufficio, che Windows (e quindi l'app) accetta. Restano da provare l'audio e il menu.
 
+### Prova d'ascolto sul PC d'ufficio (23 novembre 2026, build 113)
+
+- **Si sentono** (MP3 e AAC): Radio 105, RTL 102.5, Virgin, R101, Radio Monte Carlo, Kiss Kiss, Radio 24,
+  Radiofreccia, Subasio; Rai Radio 1, 2, 3, Isoradio; Radio Swiss Jazz, SomaFM Groove Salad, Secret Agent,
+  Sonic Universe; Radio Swiss Classic; Radio Paradise. Menu, titolo e artista, formato, volume: a posto.
+- **Non si sentono** (come previsto, sono HLS `.m3u8`, fase 2): RDS, Deejay, Capital, m2o.
+- **Problema**: "Modifica stazioni…" dava "Accesso negato": la politica della postazione non lascia avviare il
+  Blocco note da un altro programma. Dalla 0.1.1 stazioni e registro si aprono in una finestra interna
+  (editor con controllo prima di salvare, copia in `bookmarks.json.bak`; registro con "Copia tutto").
+  "Apri la cartella", se bloccato, copia il percorso negli appunti.
+
 ### Da provare sul PC d'ufficio
 1. Scaricare `RadioTray-Windows.zip` dalla release **anteprima**, estrarlo in Documenti, avviare `RadioTray.exe`
    (SmartScreen: "Ulteriori informazioni" → "Esegui comunque").

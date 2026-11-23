@@ -17,8 +17,10 @@ Uso
 - Titolo e artista in cima al menu: un clic li copia negli appunti.
 - Una notifica di Windows mostra il brano quando cambia (si tolgono da Preferenze > Notifiche dei brani).
 - Stazione precedente / successiva, Apri indirizzo… (una radio o una playlist .pls/.m3u qualsiasi).
-- Preferenze > Modifica stazioni…: apre bookmarks.json nel Blocco note. Al salvataggio l'elenco si
-  aggiorna da solo. È lo stesso file della versione per Mac: si può copiare da un computer all'altro.
+- Preferenze > Modifica stazioni…: apre bookmarks.json in una finestra di RadioTray. "Salva" (Ctrl+S)
+  controlla il testo e, se c'è un errore, porta il cursore alla riga sbagliata; la versione precedente
+  resta in bookmarks.json.bak. È lo stesso file della versione per Mac: si può copiare da un computer all'altro.
+  (Se lo modifichi con un altro programma, RadioTray se ne accorge e ricarica l'elenco.)
 - Preferenze > Accendi l'ultima stazione all'avvio.
 
 Il proxy dell'ufficio
@@ -27,7 +29,7 @@ Il proxy dell'ufficio
 - Se il proxy blocca una radio, compare "Accesso bloccato dal proxy dell'ufficio".
 - Preferenze > Diagnostica di rete…: prova alcune radio attraverso il proxy e mostra il risultato
   (copiato anche negli appunti, da incollare in una mail a chi ti aiuta).
-- Preferenze > Apri il registro: il diario di quello che fa l'app, utile se qualcosa non va.
+- Preferenze > Apri il registro: il diario di quello che fa l'app, con "Copia tutto" per mandarlo a chi ti aiuta.
 
 Dove sono i file
 - %APPDATA%\RadioTray (Preferenze > Apri la cartella di RadioTray):

@@ -402,9 +402,9 @@ namespace RadioTray
         private ToolStripMenuItem PreferencesMenu()
         {
             var prefs = new ToolStripMenuItem("Preferenze");
-            prefs.DropDownItems.Add(Item("Modifica stazioni…", () => Open("notepad.exe", AppPaths.Bookmarks)));
+            prefs.DropDownItems.Add(Item("Modifica stazioni…", EditBookmarks));
             prefs.DropDownItems.Add(Item("Ricarica stazioni", () => LoadBookmarks(true)));
-            prefs.DropDownItems.Add(Item("Apri la cartella di RadioTray", () => Open("explorer.exe", AppPaths.Folder)));
+            prefs.DropDownItems.Add(Item("Apri la cartella di RadioTray", () => OpenFolder(AppPaths.Folder)));
             prefs.DropDownItems.Add(new ToolStripSeparator());
             var notifications = Item("Notifiche dei brani", () => { _settings.Notifications = !_settings.Notifications; _settings.Save(); });
             notifications.Checked = _settings.Notifications;
@@ -414,7 +414,7 @@ namespace RadioTray
             prefs.DropDownItems.Add(playOnStart);
             prefs.DropDownItems.Add(new ToolStripSeparator());
             prefs.DropDownItems.Add(Item(_diagnosing ? "Diagnostica di rete (in corso…)" : "Diagnostica di rete…", Diagnose, !_diagnosing));
-            prefs.DropDownItems.Add(Item("Apri il registro", () => Open("notepad.exe", AppPaths.LogFile)));
+            prefs.DropDownItems.Add(Item("Apri il registro", ShowLog));
             return prefs;
         }
 
@@ -431,16 +431,84 @@ namespace RadioTray
             }
         }
 
-        private static void Open(string program, string path)
+        private TextWindow _editor, _logWindow;
+
+        private static void Bring(Form f)
         {
+            if (f.WindowState == FormWindowState.Minimized) f.WindowState = FormWindowState.Normal;
+            f.Show();
+            f.Activate();
+        }
+
+        /// <summary>Editor interno di bookmarks.json: niente programmi esterni (la politica dell'ufficio può bloccarli).</summary>
+        private void EditBookmarks()
+        {
+            if (_editor != null && !_editor.IsDisposed) { Bring(_editor); return; }
+            string text;
             try
             {
-                if (path == AppPaths.LogFile && !File.Exists(path)) Log.Write("Registro creato");
-                Process.Start(program, "\"" + path + "\"");
+                EnsureBookmarksFile();
+                text = File.ReadAllText(AppPaths.Bookmarks, Encoding.UTF8);
             }
             catch (Exception e)
             {
-                MessageBox.Show("Impossibile aprire " + path + ":\n" + e.Message, "RadioTray", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Impossibile leggere il file delle stazioni:\n" + e.Message, "RadioTray", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            _editor = new TextWindow("Stazioni - RadioTray", text, SaveBookmarks,
+                                     "Formato: [ { \"group\": \"Nome\", \"stations\": [ { \"name\": \"…\", \"url\": \"…\" } ] } ]   Ctrl+S salva");
+            Bring(_editor);
+        }
+
+        /// <summary>Salva solo se il testo è un elenco di stazioni valido; tiene una copia della versione precedente.</summary>
+        private string SaveBookmarks(string text)
+        {
+            if (Bookmarks.Parse(text, out string error) == null) return error;
+            try
+            {
+                if (File.Exists(AppPaths.Bookmarks)) File.Copy(AppPaths.Bookmarks, AppPaths.Bookmarks + ".bak", true);
+                File.WriteAllText(AppPaths.Bookmarks, text, new UTF8Encoding(false));
+            }
+            catch (Exception e)
+            {
+                return "Impossibile salvare: " + e.Message;
+            }
+            Log.Write("Stazioni modificate dall'editor interno");
+            LoadBookmarks(false);
+            return null;
+        }
+
+        private void ShowLog()
+        {
+            string text;
+            try
+            {
+                using (var f = new FileStream(AppPaths.LogFile, FileMode.OpenOrCreate, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+                using (var r = new StreamReader(f, Encoding.UTF8))
+                    text = r.ReadToEnd();
+            }
+            catch (Exception e)
+            {
+                text = "Impossibile leggere il registro: " + e.Message;
+            }
+            if (_logWindow != null && !_logWindow.IsDisposed) _logWindow.SetText(text);
+            else _logWindow = new TextWindow("Registro - RadioTray", text, null, AppPaths.LogFile);
+            Bring(_logWindow);
+        }
+
+        private static void OpenFolder(string path)
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo { FileName = path, UseShellExecute = true });
+            }
+            catch (Exception e)
+            {
+                Log.Write("Impossibile aprire la cartella: " + e.Message);
+                try { Clipboard.SetText(path); } catch (Exception) { }
+                MessageBox.Show("Windows non permette di aprire la cartella da qui (" + e.Message + ").\n\n" +
+                                "Il percorso è stato copiato negli appunti: incollalo nella barra degli indirizzi di Esplora file.\n\n" + path,
+                                "RadioTray", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
         }
 
