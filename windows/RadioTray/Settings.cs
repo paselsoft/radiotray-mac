@@ -19,6 +19,15 @@ namespace RadioTray
         public List<string> SwappedStations = new List<string>();
         /// <summary>Stazioni di cui non si mostrano i titoli (sbagliati o vecchi).</summary>
         public List<string> IgnoredTitleStations = new List<string>();
+        public bool HotKeys = true;
+        public bool NowPlayingVisible;
+        public bool NowPlayingOnTop;
+        public bool AlarmEnabled;
+        public int AlarmMinutes = 7 * 60 + 30;
+        public int AlarmDays = Alarm.Weekdays;
+        public string AlarmGroup, AlarmStation;
+        public bool AlarmFadeIn = true;
+        public string AlarmLastFired;   // yyyy-MM-dd
 
         public static Settings Load()
         {
@@ -39,6 +48,17 @@ namespace RadioTray
                     ? l.OfType<string>().ToList() : new List<string>();
                 s.SwappedStations = Strings("swappedStations");
                 s.IgnoredTitleStations = Strings("ignoredTitleStations");
+                int Int(string k, int f) => d.TryGetValue(k, out var v) && v is double n ? (int)n : f;
+                s.HotKeys = Bool("hotKeys", true);
+                s.NowPlayingVisible = Bool("nowPlayingVisible", false);
+                s.NowPlayingOnTop = Bool("nowPlayingOnTop", false);
+                s.AlarmEnabled = Bool("alarmEnabled", false);
+                s.AlarmMinutes = Math.Max(0, Math.Min(24 * 60 - 1, Int("alarmMinutes", s.AlarmMinutes)));
+                s.AlarmDays = Int("alarmDays", s.AlarmDays) & Alarm.EveryDay;
+                s.AlarmGroup = Str("alarmGroup");
+                s.AlarmStation = Str("alarmStation");
+                s.AlarmFadeIn = Bool("alarmFadeIn", true);
+                s.AlarmLastFired = Str("alarmLastFired");
             }
             catch (Exception e)
             {
@@ -59,6 +79,16 @@ namespace RadioTray
                 ["playOnStart"] = PlayOnStart,
                 ["swappedStations"] = SwappedStations,
                 ["ignoredTitleStations"] = IgnoredTitleStations,
+                ["hotKeys"] = HotKeys,
+                ["nowPlayingVisible"] = NowPlayingVisible,
+                ["nowPlayingOnTop"] = NowPlayingOnTop,
+                ["alarmEnabled"] = AlarmEnabled,
+                ["alarmMinutes"] = AlarmMinutes,
+                ["alarmDays"] = AlarmDays,
+                ["alarmGroup"] = AlarmGroup,
+                ["alarmStation"] = AlarmStation,
+                ["alarmFadeIn"] = AlarmFadeIn,
+                ["alarmLastFired"] = AlarmLastFired,
             };
             try
             {

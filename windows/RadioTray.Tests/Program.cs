@@ -688,6 +688,66 @@ static class Program
         Check(doc.GroupNamed("Rock") == null);
     }
 
+
+    static void TestArtwork()
+    {
+        Eq(Artwork.CoreTitle("Hello (Remastered 2011)"), "Hello");
+        Eq(Artwork.CoreTitle("Song [Live] - Edit"), "Song");
+        Eq(Artwork.CoreTitle("Blinding Lights feat. X"), "Blinding Lights");
+        Eq(Artwork.CoreTitle("(Intro)"), "(Intro)");
+        Eq(Artwork.Normalized("Città-Più 2!"), "cittapiu2");
+        Eq(Artwork.CacheKey("Hello (Live)", "Adèle"), "adele|hello");
+        Eq(Artwork.SearchUrl("Sere Nere (Live)", "Tiziano Ferro"),
+           "https://itunes.apple.com/search?term=Tiziano%20Ferro%20Sere%20Nere&media=music&entity=song&limit=10");
+
+        string json = "{\"results\":[" +
+                      "{\"artistName\":\"Altro\",\"trackName\":\"Hello\",\"artworkUrl100\":\"https://x/wrong/100x100bb.jpg\"}," +
+                      "{\"artistName\":\"Adele\",\"trackName\":\"Someone Like You\",\"artworkUrl100\":\"https://x/other/100x100bb.jpg\"}," +
+                      "{\"artistName\":\"Adele\",\"trackName\":\"Hello (Live)\",\"artworkUrl100\":\"https://x/right/100x100bb.jpg\"}]}";
+        Eq(Artwork.ArtworkUrlFromJson(json, "Hello", "Adele"), "https://x/right/600x600bb.jpg");
+        Eq(Artwork.ArtworkUrlFromJson(json, "Rolling", "Adele"), "https://x/other/600x600bb.jpg");   // artista giusto, titolo diverso
+        Eq(Artwork.ArtworkUrlFromJson(json, "Hello", "Lionel Richie"), null);                         // artista sbagliato: niente
+        Eq(Artwork.ArtworkUrlFromJson("{\"results\":[{\"artistName\":\"Mina\",\"trackName\":\"Acqua e sale\",\"artworkUrl100\":\"https://x/m/100x100.jpg\"}]}",
+                                      "Acqua e sale", "Mina & Celentano"), "https://x/m/600x600.jpg");
+        Eq(Artwork.ArtworkUrlFromJson("<html>", "a", "b"), null);
+
+        EqList(Artwork.FaviconsFromJson("[{\"favicon\":\"https://a/logo.png\"},{\"favicon\":\"https://a/logo.svg\"},{\"favicon\":\"https://www.facebook.com/x\"}," +
+                                        "{\"favicon\":\"\"},{\"favicon\":\"https://a/logo.png\"},{\"favicon\":\" http://b/l.jpg \"}]"),
+               new[] { "https://a/logo.png", "http://b/l.jpg" });
+        Check(Artwork.LogoByUrlQuery("de1", "http://x/a b").EndsWith("byurl?url=http%3A%2F%2Fx%2Fa%20b"));
+
+        // copertine ufficiali
+        var tag = Id3Tag(("JSI3", new byte[] { 0, 0, 3 }.Concat(Encoding.UTF8.GetBytes("{\"type\":\"song\",\"traccia\":\"T\",\"artista\":\"A\",\"cover\":\"https://web.rds.it/c.jpg\"}")).ToArray()));
+        Eq(Id3.StreamTitleAndCover(tag, 0, tag.Length, out string cover), "A - T");
+        Eq(cover, "https://web.rds.it/c.jpg");
+        var g = OnAir.SongFromGediJson("{\"title\":\"Sere Nere TIZIANO FERRO\",\"image\":\"https://www.deejay.it/c.jpg\"}", out string gc);
+        Eq(g.Value.artist, "TIZIANO FERRO");
+        Eq(gc, "https://www.deejay.it/c.jpg");
+    }
+
+    static void TestAlarm()
+    {
+        var monday = new DateTime(2026, 11, 23, 7, 30, 0);   // lunedì
+        Eq(Alarm.DayBit(monday), 1);
+        Eq(Alarm.DayBit(monday.AddDays(6)), 64);              // domenica
+        Check(Alarm.ShouldFire(monday, 450, Alarm.Weekdays, null));
+        Check(Alarm.ShouldFire(monday.AddMinutes(10), 450, Alarm.Weekdays, null));
+        Check(!Alarm.ShouldFire(monday.AddMinutes(11), 450, Alarm.Weekdays, null));
+        Check(!Alarm.ShouldFire(monday.AddMinutes(-1), 450, Alarm.Weekdays, null));
+        Check(!Alarm.ShouldFire(monday, 450, Alarm.Weekdays, monday.AddMinutes(-1)));   // già suonata oggi
+        Check(Alarm.ShouldFire(monday, 450, Alarm.Weekdays, monday.AddDays(-3)));
+        Check(!Alarm.ShouldFire(monday.AddDays(5), 450, Alarm.Weekdays, null));          // sabato
+        Eq(Alarm.NextFire(monday, 450, Alarm.Weekdays), monday.AddDays(1));               // già passata: domani
+        Eq(Alarm.NextFire(monday.AddMinutes(-5), 450, Alarm.Weekdays), monday);
+        Eq(Alarm.NextFire(monday.AddDays(4).AddHours(1), 450, Alarm.Weekdays), monday.AddDays(7));   // venerdì dopo l'ora → lunedì
+        Eq(Alarm.NextFire(monday, 450, 0), null);
+        Eq(Alarm.DescribeDays(Alarm.Weekdays), "Lu–Ve");
+        Eq(Alarm.DescribeDays(Alarm.EveryDay), "Tutti i giorni");
+        Eq(Alarm.DescribeDays(0x60), "Sa, Do");
+        Eq(Alarm.DescribeDays(1 | 4 | 16), "Lu, Me, Ve");
+        Eq(Alarm.DescribeMinutes(450), "07:30");
+    }
+
     static int Main(string[] args)
     {
         TestJson();
@@ -709,6 +769,8 @@ static class Program
         TestRadioBrowser();
         TestBackup();
         TestBookmarksDocument();
+        TestArtwork();
+        TestAlarm();
         foreach (var path in args) TestBundled(path);
         Console.WriteLine($"{checks} controlli, {failures} falliti");
         return failures == 0 ? 0 : 1;

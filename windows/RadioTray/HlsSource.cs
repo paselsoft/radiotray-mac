@@ -22,6 +22,8 @@ namespace RadioTray
         string LastError { get; }
         TimeSpan SinceLastData { get; }
         event Action<string> TitleReceived;
+        /// <summary>Copertina ufficiale del brano che sta per arrivare (RDS), prima del titolo.</summary>
+        event Action<string> CoverReceived;
         void Pump(AudioPipe pipe);
     }
 
@@ -51,6 +53,7 @@ namespace RadioTray
         public string LastError { get; private set; }
         public TimeSpan SinceLastData => TimeSpan.FromTicks(DateTime.UtcNow.Ticks - Interlocked.Read(ref _lastDataTicks));
         public event Action<string> TitleReceived;
+        public event Action<string> CoverReceived;
 
         private HlsSource(string url, string mediaUrl, HlsPlaylist media, int bandwidth, bool viaProxy)
         {
@@ -234,7 +237,8 @@ namespace RadioTray
             {
                 int len = Id3.TagLength(d, pos, d.Length - pos);
                 if (len == 0) break;
-                string t = Id3.StreamTitle(d, pos, Math.Min(len, d.Length - pos));
+                string t = Id3.StreamTitleAndCover(d, pos, Math.Min(len, d.Length - pos), out string cover);
+                if (t != null && t != _lastTitle && cover != null) CoverReceived?.Invoke(cover);
                 if (t != null) OnTitle(t);
                 pos = Math.Min(d.Length, pos + len);
             }

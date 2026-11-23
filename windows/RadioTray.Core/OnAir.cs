@@ -33,15 +33,20 @@ namespace RadioTray
         /// Dal JSON di GEDI: (titolo, artista). Il campo "title" è "Titolo del brano ARTISTA IN MAIUSCOLO";
         /// se non si sa dividere è il nome del programma (artista vuoto). Null se il JSON non va.
         /// </summary>
-        public static (string title, string artist)? SongFromGediJson(string json)
+        public static (string title, string artist)? SongFromGediJson(string json) => SongFromGediJson(json, out _);
+
+        /// <summary>Come sopra, con la copertina indicata dal servizio (campo "image").</summary>
+        public static (string title, string artist)? SongFromGediJson(string json, out string cover)
         {
+            cover = null;
             Dictionary<string, object> d;
             try { d = Json.Parse(json) as Dictionary<string, object>; }
             catch (Json.JsonException) { return null; }
             if (d == null) return null;
             string full = (d.TryGetValue("title", out var t) ? t as string : null)?.Trim() ?? "";
             if (full.Length == 0) return null;
-            string cover = d.TryGetValue("image", out var im) ? im as string ?? "" : "";
+            string image = d.TryGetValue("image", out var im) ? im as string ?? "" : "";
+            if (image.StartsWith("http", StringComparison.OrdinalIgnoreCase)) cover = image;
 
             var words = full.Split(' ');
             int cut = words.Length;
@@ -51,7 +56,7 @@ namespace RadioTray
 
             // tutto maiuscolo: si prova il nome del file della copertina, "ARTISTA_-_Titolo__AI_….jpg"
             string file = "";
-            if (Uri.TryCreate(cover, UriKind.Absolute, out var cu))
+            if (Uri.TryCreate(image, UriKind.Absolute, out var cu))
             {
                 string path = cu.AbsolutePath;
                 file = Uri.UnescapeDataString(path.Substring(path.LastIndexOf('/') + 1));

@@ -24,6 +24,7 @@ namespace RadioTray
         public string Bitrate { get; }
         public bool ViaProxy { get; }
         public event Action<string> TitleReceived;
+        public event Action<string> CoverReceived { add { } remove { } }   // Shoutcast/Icecast non manda copertine
 
         public TimeSpan SinceLastData => TimeSpan.FromTicks(DateTime.UtcNow.Ticks - Interlocked.Read(ref _lastDataTicks));
 

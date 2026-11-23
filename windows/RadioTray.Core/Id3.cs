@@ -93,13 +93,21 @@ namespace RadioTray
         /// Il titolo nel formato "Artista - Titolo" da un tag ID3: prima il JSON della radio (RDS, in JSI3/TXXX/PRIV),
         /// poi TIT2 e TPE1. Null se il tag non dice niente sul brano.
         /// </summary>
-        public static string StreamTitle(byte[] d, int offset, int count)
+        public static string StreamTitle(byte[] d, int offset, int count) => StreamTitleAndCover(d, offset, count, out _);
+
+        /// <summary>Come StreamTitle, con la copertina ufficiale quando la radio la manda (RDS).</summary>
+        public static string StreamTitleAndCover(byte[] d, int offset, int count, out string cover)
         {
+            cover = null;
             string title = null, artist = null;
             foreach (var f in Frames(d, offset, count))
             {
                 var song = TrackInfo.StationSongFromData(f.Data);
-                if (song != null) return song.Value.artist.Length > 0 ? song.Value.artist + " - " + song.Value.title : song.Value.title;
+                if (song != null)
+                {
+                    cover = song.Value.cover;
+                    return song.Value.artist.Length > 0 ? song.Value.artist + " - " + song.Value.title : song.Value.title;
+                }
                 if (f.Id == "TIT2") title = Text(f.Data);
                 else if (f.Id == "TPE1") artist = Text(f.Data);
             }

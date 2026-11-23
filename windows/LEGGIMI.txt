@@ -1,4 +1,4 @@
-RadioTray per Windows 10 (versione di prova, fase 3)
+RadioTray per Windows 10 (versione di prova, fase 4)
 =====================================================
 
 Installazione (senza permessi di amministratore)
@@ -28,6 +28,15 @@ Uso
   che li scrivono invertiti; "Ignora i titoli" per quelle che mandano titoli sbagliati o vecchi.
 - Una notifica di Windows mostra il brano quando cambia (si tolgono da Preferenze > Notifiche dei brani).
 - Stazione precedente / successiva, Apri indirizzo… (una radio o una playlist .pls/.m3u qualsiasi).
+- Finestra In riproduzione: copertina dell'album (dal catalogo pubblico di Apple, o quella ufficiale di
+  RDS, Deejay, Capital e m2o), oppure il logo della stazione; titolo, artista, ★, accendi/spegni,
+  stazione precedente/successiva, volume, "Sempre in primo piano". Se la lasci aperta, si riapre all'avvio.
+- Scorciatoie da tastiera, in qualsiasi programma: Ctrl+Alt+P accendi/spegni, Ctrl+Alt+F aggiungi ai
+  preferiti, Ctrl+Alt+→ / ← stazione successiva/precedente, Ctrl+Alt+↑ / ↓ volume; anche i tasti
+  multimediali della tastiera (⏯ ⏭ ⏮ ⏹). Si disattivano da Preferenze.
+- Timer di spegnimento: 15 minuti… 2 ore; nell'ultimo mezzo minuto il volume cala piano.
+- Radiosveglia…: ora, giorni, stazione e volume crescente. Il PC deve essere acceso con RadioTray avviato.
+- Preferenze > Avvia RadioTray con Windows (solo per il tuo utente, senza permessi di amministratore).
 - Preferenze > Modifica stazioni…: gruppi e stazioni in un elenco; a destra nome, indirizzo e notifiche.
   Nuovo gruppo, Nuova stazione, Elimina, Su/Giù, Sposta nel gruppo, Prova. "Salva" (Ctrl+S) controlla
   tutto; la versione precedente resta in bookmarks.json.bak. "Modifica come testo…" apre il file JSON.
@@ -49,11 +58,11 @@ Dove sono i file
 - %APPDATA%\RadioTray (Preferenze > Apri la cartella di RadioTray):
   bookmarks.json (stazioni), brani-preferiti.json, ascoltati-di-recente.json,
   settings.json (impostazioni), radiotray.log (registro).
-- Per togliere RadioTray: Esci dal menu, poi cancella la cartella del programma e, se vuoi,
-  anche %APPDATA%\RadioTray.
+- Copertine e loghi: %LOCALAPPDATA%\RadioTray\immagini (si possono cancellare).
+- Per togliere RadioTray: togli la spunta a "Avvia RadioTray con Windows", Esci dal menu, poi cancella
+  la cartella del programma e, se vuoi, anche %APPDATA%\RadioTray e %LOCALAPPDATA%\RadioTray.
 
 Limiti di questa versione
 - Formati: MP3 e AAC, anche in streaming HLS (.m3u8: RDS, Deejay, Capital, m2o, Radio Italia…).
   Per Deejay, Capital e m2o i titoli arrivano dal servizio "in onda" dei loro siti.
   Ogg/Opus/FLAC e HLS con segmenti fMP4 non ancora.
-- Non ci sono ancora copertine, scorciatoie, timer, sveglia e avvio automatico con Windows (fase 4).

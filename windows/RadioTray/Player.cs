@@ -34,6 +34,8 @@ namespace RadioTray
 
         public event Action<PlayerState> StateChanged;
         public event Action<string> TitleReceived;
+        /// <summary>Copertina ufficiale del prossimo titolo (RDS).</summary>
+        public event Action<string> CoverReceived;
         public event Action<string> StationNameReceived;
         /// <summary>Errore definitivo: il lettore si è fermato.</summary>
         public event Action<string> Failed;
@@ -231,6 +233,7 @@ namespace RadioTray
                     return outcome;
                 }
                 if (conn.StationName != null) { string name = conn.StationName; Post(generation, () => StationNameReceived?.Invoke(name)); }
+                conn.CoverReceived += cover => Post(generation, () => CoverReceived?.Invoke(cover));
                 conn.TitleReceived += title => Post(generation, () => TitleReceived?.Invoke(title));
 
                 pipe = new AudioPipe();

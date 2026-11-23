@@ -1,6 +1,6 @@
 # Piano: RadioTray per Windows 10 (PC d'ufficio dietro proxy)
 
-Stato: **fasi 1 e 2 fatte e provate sul PC d'ufficio** (0.2.0); **fase 3 scritta** (0.3.0), da provare.
+Stato: **fasi 1 e 2 fatte e provate sul PC d'ufficio** (0.2.0); **fasi 3 e 4 scritte** (0.4.0), da provare.
 
 ## Si può fare?
 
@@ -200,6 +200,29 @@ backup `RadioTray-backup.json` (`"format": "radiotray-mac-backup"`, impostazioni
 
 Provato qui: 307 controlli sulla logica; ricerche vere su Radio Browser (Radio Italia, Radio Monte Carlo,
 genere jazz, più ascoltate in Italia) lette correttamente. Le finestre vanno provate sul PC d'ufficio.
+
+## Fase 4: rifiniture (novembre 2026)
+
+- **Copertine**: prima quella ufficiale della radio (RDS nel JSON ID3, GEDI nel campo `image`), poi il catalogo
+  pubblico di Apple (iTunes Search, accettata solo se l'artista corrisponde, come sul Mac). Se manca: **logo** della
+  stazione (campo `image` di bookmarks.json, file o indirizzo; poi Radio Browser per indirizzo e per nome, niente SVG).
+  Cache in `%LOCALAPPDATA%\RadioTray\immagini`; si scarica solo con la finestra In riproduzione aperta.
+  Le notifiche a fumetto di Windows non mostrano immagini.
+- **Finestra In riproduzione** (`NowPlayingWindow`): copertina/logo, titolo, artista, stazione, ★, ⏮ ⏻ ⏭, volume,
+  "Sempre in primo piano"; si riapre all'avvio se era aperta.
+- **Scorciatoie** (`HotKeys`, RegisterHotKey): Ctrl+Alt+P/F/←/→/↑/↓ come ⌃⌥ sul Mac, più i tasti multimediali.
+  Se un tasto è già usato da un altro programma si salta (scritto nel registro). Ctrl+Alt è AltGr sulla tastiera
+  italiana: P, F e le frecce non producono caratteri con AltGr, quindi non danno fastidio.
+- **Timer di spegnimento** (15 min – 2 ore, volume che cala negli ultimi 30 s) e **radiosveglia** (`Alarm` nella
+  logica comune, stessa regola del Mac: giorni a bit, 10 minuti di tolleranza, una volta al giorno; volume crescente
+  in 2 minuti).
+- **Avvio con Windows**: valore `RadioTray` in `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` (solo utente,
+  senza amministratore); il percorso si aggiorna se la cartella viene spostata.
+- Il backup esporta anche sveglia e scorciatoie con i nomi del Mac (`alarm-minutes`, `alarm-days`, `hot-keys`…).
+
+Provato qui: 343 controlli sulla logica (copertine, loghi, sveglia); richieste vere al catalogo di Apple (copertine
+di Stevie Wonder, Gazzelle, Miles Davis) e a Radio Browser (loghi di Radio 105, RTL 102.5, Deejay).
+Finestre, scorciatoie, sveglia e avvio vanno provati sul PC d'ufficio.
 
 ## Limiti noti
 

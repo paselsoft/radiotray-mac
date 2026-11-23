@@ -15,8 +15,8 @@ namespace RadioTray
         private readonly SynchronizationContext _ui;
         private CancellationTokenSource _cts;
 
-        /// <summary>(titolo, artista); artista vuoto = nome del programma.</summary>
-        public event Action<string, string> Song;
+        /// <summary>Artista vuoto = nome del programma.</summary>
+        public event Action<string, string, string> Song;   // titolo, artista, copertina
 
         public OnAirPoller(SynchronizationContext ui) { _ui = ui; }
 
@@ -48,13 +48,13 @@ namespace RadioTray
                         if (r.IsSuccessStatusCode)
                         {
                             string json = await r.Content.ReadAsStringAsync().ConfigureAwait(false);
-                            var song = OnAir.SongFromGediJson(json);
+                            var song = OnAir.SongFromGediJson(json, out string cover);
                             string key = song == null ? null : song.Value.title + "\n" + song.Value.artist;
                             if (song != null && key != last && !ct.IsCancellationRequested)
                             {
                                 last = key;
                                 var s = song.Value;
-                                _ui.Post(_ => { if (!ct.IsCancellationRequested) Song?.Invoke(s.title, s.artist); }, null);
+                                _ui.Post(_ => { if (!ct.IsCancellationRequested) Song?.Invoke(s.title, s.artist, cover); }, null);
                             }
                             errors = 0;
                         }

@@ -41,6 +41,17 @@ namespace RadioTray
         private StationEditor _stationEditor;
         private TrackInfo _balloonTrack;      // brano dell'ultima notifica: un clic lo aggiunge ai preferiti
         private const int HistoryLimit = 50;
+        private string _image;                // campo "image" della stazione (logo scelto nel file)
+        private string _officialCover;        // copertina mandata dalla radio per il prossimo titolo (RDS, GEDI)
+        private string _trackCover;           // copertina ufficiale del brano in onda
+        private CancellationTokenSource _imageCts;
+        private NowPlayingWindow _nowPlaying;
+        private HotKeys _hotKeys;
+        private readonly System.Windows.Forms.Timer _clock = new System.Windows.Forms.Timer { Interval = 1000 };
+        private DateTime? _sleepAt;           // timer di spegnimento
+        private bool _sleepFading;
+        private int _fadeTarget = -1;         // volume crescente della sveglia: volume da raggiungere
+        private DateTime _lastAlarmCheck;
 
         public TrayApp()
         {
@@ -58,6 +69,7 @@ namespace RadioTray
             _player.Notice += message => Notify(_station ?? "RadioTray", message, ToolTipIcon.Info);
             _onAir = new OnAirPoller(_ui);
             _onAir.Song += OnAirSong;
+            _player.CoverReceived += cover => _officialCover = cover;
 
             _menu = new ContextMenuStrip { ShowImageMargin = false, ShowCheckMargin = true };
             _menu.Opening += (s, e) => { BuildMenu(); e.Cancel = false; };
@@ -75,6 +87,11 @@ namespace RadioTray
             UpdateTooltip();
 
             if (_settings.PlayOnStart && _url != null) Play();
+            Startup.Refresh();
+            if (_settings.HotKeys) RegisterHotKeys(false);
+            if (_settings.NowPlayingVisible) ShowNowPlaying();
+            _clock.Tick += (s, e) => Tick();
+            _clock.Start();
             Task.Run(() => Log.Write($"Proxy per Internet: {Net.ProxyFor(new Uri("https://ice1.somafm.com/")) ?? "nessuno (connessione diretta)"}"));
         }
 
@@ -160,6 +177,7 @@ namespace RadioTray
             _direct = st.Direct;
             _notifications = st.Notifications;
             _mirrors = st.Mirrors.ToList();
+            _image = st.Image;
             _openedUrl = false;
         }
 
@@ -180,6 +198,8 @@ namespace RadioTray
         {
             if (_url == null) return;
             _track = TrackInfo.Create(null, null);
+            _officialCover = null;
+            _trackCover = null;
             Log.Write($"Accendo «{_station}» ({_url})");
             _player.Play(_url, _direct, _mirrors);
             string service = OnAir.ServiceUrl(_url);
@@ -243,8 +263,11 @@ namespace RadioTray
             {
                 _track = TrackInfo.Create(null, null);
                 _onAir.Stop();
+                if (_sleepAt != null) CancelSleep(false);
+                _fadeTarget = -1;
             }
             UpdateTooltip();
+            RefreshImage();
         }
 
         private void OnStationName(string name)
@@ -260,7 +283,7 @@ namespace RadioTray
             if (StationIn(_settings.IgnoredTitleStations) || info.IsFillerForStation(_station))
             {
                 // jingle o pubblicità: la radio manda solo il proprio nome
-                if (!_track.IsEmpty) { _track = TrackInfo.Create(null, null); UpdateTooltip(); }
+                if (!_track.IsEmpty) { _track = TrackInfo.Create(null, null); UpdateTooltip(); RefreshImage(); }
                 return;
             }
             if (info.IsEmpty || info.SameAs(_track)) return;
@@ -271,8 +294,9 @@ namespace RadioTray
         }
 
         /// <summary>Brano dal servizio "in onda" (Deejay, Capital, m2o); senza artista è il nome del programma.</summary>
-        private void OnAirSong(string title, string artist)
+        private void OnAirSong(string title, string artist, string cover)
         {
+            if (artist.Length > 0) _officialCover = cover;
             if (_player.State == PlayerState.Stopped || StationIn(_settings.IgnoredTitleStations)) return;
             var info = TrackInfo.Create(title, artist);
             if (StationIn(_settings.SwappedStations)) info = info.Swapped();
@@ -324,6 +348,7 @@ namespace RadioTray
             }
             // NotifyIcon accetta al massimo 63 caratteri
             _icon.Text = TrackInfo.Truncate(text ?? "RadioTray", 63);
+            UpdateNowPlaying();
         }
 
         private void OnIconClick(object sender, MouseEventArgs e)
@@ -432,6 +457,14 @@ namespace RadioTray
             _menu.Items.Add(Item("Stazione successiva", () => Step(+1), _bookmarks.StationCount > 0));
             _menu.Items.Add(HistoryMenu());
             _menu.Items.Add(Item("Brani preferiti…", ShowFavorites));
+            var np = Item("Finestra In riproduzione", ToggleNowPlaying);
+            np.Checked = _nowPlaying != null && !_nowPlaying.IsDisposed && _nowPlaying.Visible;
+            _menu.Items.Add(np);
+            _menu.Items.Add(SleepMenu());
+            string alarm = _settings.AlarmEnabled ? $"Radiosveglia: {Alarm.DescribeMinutes(_settings.AlarmMinutes)} {Alarm.DescribeDays(_settings.AlarmDays)}…" : "Radiosveglia…";
+            var alarmItem = Item(alarm, ConfigureAlarm);
+            alarmItem.Checked = _settings.AlarmEnabled;
+            _menu.Items.Add(alarmItem);
             _menu.Items.Add(new ToolStripSeparator());
             _menu.Items.Add(Item("Cerca stazioni…", ShowSearch));
             _menu.Items.Add(Item("Apri indirizzo…", OpenUrl));
@@ -470,8 +503,7 @@ namespace RadioTray
             };
             bar.ValueChanged += (s, e) =>
             {
-                _player.Volume = bar.Value;
-                _settings.Volume = bar.Value;
+                SetVolume(bar.Value, false);
                 label.Text = $"Volume {bar.Value}%";
             };
             _menu.Items.Add(label);
@@ -495,6 +527,25 @@ namespace RadioTray
             var playOnStart = Item("Accendi l'ultima stazione all'avvio", () => { _settings.PlayOnStart = !_settings.PlayOnStart; _settings.Save(); });
             playOnStart.Checked = _settings.PlayOnStart;
             prefs.DropDownItems.Add(playOnStart);
+            var startup = Item("Avvia RadioTray con Windows", () =>
+            {
+                string err = Startup.Set(!Startup.IsEnabled);
+                if (err != null) MessageBox.Show("Impossibile cambiare l'avvio con Windows:\n" + err, "RadioTray", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            });
+            startup.Checked = Startup.IsEnabled;
+            prefs.DropDownItems.Add(startup);
+            var keys = Item("Scorciatoie da tastiera (Ctrl+Alt e tasti multimediali)", () =>
+            {
+                _settings.HotKeys = !_settings.HotKeys;
+                _settings.Save();
+                if (_settings.HotKeys) RegisterHotKeys(true);
+                else _hotKeys?.Unregister();
+            });
+            keys.Checked = _settings.HotKeys;
+            prefs.DropDownItems.Add(keys);
+            var keyList = new ToolStripMenuItem("Elenco delle scorciatoie");
+            foreach (var k in HotKeys.All) keyList.DropDownItems.Add(Item(k.text, null, false));
+            prefs.DropDownItems.Add(keyList);
             prefs.DropDownItems.Add(new ToolStripSeparator());
             prefs.DropDownItems.Add(Item(_diagnosing ? "Diagnostica di rete (in corso…)" : "Diagnostica di rete…", Diagnose, !_diagnosing));
             prefs.DropDownItems.Add(Item("Apri il registro", ShowLog));
@@ -528,6 +579,9 @@ namespace RadioTray
         private void NewTrack(TrackInfo info)
         {
             if (_history.Record(info.Title, info.Artist, _station ?? "", DateTime.UtcNow, HistoryLimit)) SaveHistory();
+            _trackCover = _officialCover;
+            _officialCover = null;
+            RefreshImage();
             if (!_notifications || !_settings.Notifications) return;
             bool favorite = _favorites.Find(info.Title, info.Artist) != null;
             Notify((favorite ? "★ " : "") + (_station ?? "RadioTray"), info.Text + (favorite ? "" : "\n(clic qui: ★ aggiungi ai preferiti)"), ToolTipIcon.None);
@@ -596,6 +650,7 @@ namespace RadioTray
             _direct = false;
             _notifications = true;
             _mirrors = new List<string>();
+            _image = null;
             _openedUrl = true;
             Play();
         }
@@ -683,6 +738,272 @@ namespace RadioTray
 
         #endregion
 
+        #region In riproduzione, scorciatoie, timer, sveglia
+
+        private void ToggleNowPlaying()
+        {
+            if (_nowPlaying != null && !_nowPlaying.IsDisposed && _nowPlaying.Visible)
+            {
+                _nowPlaying.Close();
+                return;
+            }
+            ShowNowPlaying();
+        }
+
+        private void ShowNowPlaying()
+        {
+            if (_nowPlaying == null || _nowPlaying.IsDisposed)
+            {
+                _nowPlaying = new NowPlayingWindow(_settings.NowPlayingOnTop);
+                _nowPlaying.Favorite += () => { if (!_track.IsEmpty) AddFavorite(_track.Title, _track.Artist, _station); UpdateNowPlaying(); };
+                _nowPlaying.Toggle += TogglePlay;
+                _nowPlaying.Previous += () => Step(-1);
+                _nowPlaying.Next += () => Step(+1);
+                _nowPlaying.VolumeChanged += v => SetVolume(v, false);
+                _nowPlaying.OnTopChanged += on => { _settings.NowPlayingOnTop = on; _settings.Save(); };
+                _nowPlaying.FormClosed += (s, e) =>
+                {
+                    if (!_quitting) { _settings.NowPlayingVisible = false; _settings.Save(); }
+                    _nowPlaying = null;
+                };
+            }
+            _settings.NowPlayingVisible = true;
+            _settings.Save();
+            UpdateNowPlaying();
+            Ui.Bring(_nowPlaying);
+            RefreshImage();
+        }
+
+        private void UpdateNowPlaying()
+        {
+            if (_nowPlaying == null || _nowPlaying.IsDisposed) return;
+            var state = _player.State;
+            string stateText = state == PlayerState.Connecting ? "Connessione…" : state == PlayerState.Playing ? "In riproduzione" : "Spenta";
+            bool favorite = !_track.IsEmpty && _favorites.Find(_track.Title, _track.Artist) != null;
+            _nowPlaying.Show(state == PlayerState.Playing ? _track.Title : "", state == PlayerState.Playing ? _track.Artist : "",
+                             _station, stateText, state == PlayerState.Playing, favorite, _player.Volume);
+        }
+
+        /// <summary>Copertina del brano (o logo della stazione) per la finestra In riproduzione.</summary>
+        private void RefreshImage()
+        {
+            if (_nowPlaying == null || _nowPlaying.IsDisposed) return;
+            _imageCts?.Cancel();
+            var cts = new CancellationTokenSource();
+            _imageCts = cts;
+            var track = _track;
+            string official = _trackCover, station = _station, url = _url, image = _image;
+            bool playing = _player.State != PlayerState.Stopped;
+            Task.Run(async () =>
+            {
+                byte[] data = null;
+                if (playing && !track.IsEmpty) data = await ImageCache.CoverAsync(track.Title, track.Artist, official, cts.Token).ConfigureAwait(false);
+                if (data == null && url != null) data = await ImageCache.LogoAsync(station, url, image, cts.Token).ConfigureAwait(false);
+                return data;
+            }, cts.Token).ContinueWith(t =>
+            {
+                if (cts.IsCancellationRequested || _nowPlaying == null || _nowPlaying.IsDisposed) return;
+                _nowPlaying.SetImage(t.Status == TaskStatus.RanToCompletion ? ImageCache.ToImage(t.Result) : null);
+            }, TaskScheduler.FromCurrentSynchronizationContext());
+        }
+
+        /// <summary>Volume scelto dall'utente (menu, finestra, tastiera): ferma i volumi automatici.</summary>
+        private void SetVolume(int volume, bool announce)
+        {
+            volume = Math.Max(0, Math.Min(100, volume));
+            _fadeTarget = -1;
+            _player.Volume = volume;
+            _settings.Volume = volume;
+            UpdateNowPlaying();
+            if (announce) Notify($"Volume {volume}%", _station ?? " ", ToolTipIcon.None, force: true);
+        }
+
+        private void RegisterHotKeys(bool announce)
+        {
+            if (_hotKeys == null)
+            {
+                _hotKeys = new HotKeys();
+                _hotKeys.Pressed += OnHotKey;
+            }
+            var failed = _hotKeys.Register();
+            if (failed.Count > 0)
+            {
+                Log.Write("Scorciatoie già usate da altri programmi: " + string.Join("; ", failed));
+                if (announce) Notify("Alcune scorciatoie sono già usate", string.Join("\n", failed.Take(4)), ToolTipIcon.Info, force: true);
+            }
+        }
+
+        private void OnHotKey(HotKey key)
+        {
+            switch (key)
+            {
+                case HotKey.TogglePlay:
+                case HotKey.MediaPlayPause:
+                    TogglePlay();
+                    break;
+                case HotKey.MediaStop:
+                    if (_player.State != PlayerState.Stopped) Stop();
+                    break;
+                case HotKey.Favorite:
+                    if (_player.State == PlayerState.Playing && !_track.IsEmpty) AddFavorite(_track.Title, _track.Artist, _station);
+                    else Notify("Nessun brano da aggiungere", "Il titolo del brano non è disponibile", ToolTipIcon.Info, force: true);
+                    break;
+                case HotKey.NextStation:
+                case HotKey.MediaNext:
+                    Step(+1);
+                    break;
+                case HotKey.PreviousStation:
+                case HotKey.MediaPrevious:
+                    Step(-1);
+                    break;
+                case HotKey.VolumeUp:
+                    SetVolume(_settings.Volume + 5, true);
+                    break;
+                case HotKey.VolumeDown:
+                    SetVolume(_settings.Volume - 5, true);
+                    break;
+            }
+        }
+
+        private ToolStripMenuItem SleepMenu()
+        {
+            string title = "Timer di spegnimento";
+            if (_sleepAt != null)
+            {
+                int left = Math.Max(1, (int)Math.Ceiling((_sleepAt.Value - DateTime.Now).TotalMinutes));
+                title = $"Timer di spegnimento: {left} min";
+            }
+            var menu = new ToolStripMenuItem(title) { Checked = _sleepAt != null };
+            if (_sleepAt != null)
+            {
+                menu.DropDownItems.Add(Item($"Annulla (spegne alle {_sleepAt.Value:HH:mm})", () => CancelSleep(true)));
+                menu.DropDownItems.Add(new ToolStripSeparator());
+            }
+            foreach (int m in new[] { 15, 30, 45, 60, 90, 120 })
+            {
+                int minutes = m;
+                menu.DropDownItems.Add(Item(minutes < 60 ? $"{minutes} minuti" : minutes == 60 ? "1 ora" : $"{minutes / 60.0:0.#} ore".Replace('.', ','),
+                                            () => StartSleep(minutes), _player.State != PlayerState.Stopped || _url != null));
+            }
+            return menu;
+        }
+
+        private void StartSleep(int minutes)
+        {
+            if (_player.State == PlayerState.Stopped) Play();
+            if (_sleepFading) _player.Volume = _settings.Volume;
+            _sleepFading = false;
+            _sleepAt = DateTime.Now.AddMinutes(minutes);
+            Log.Write($"Timer di spegnimento: {minutes} minuti");
+            Notify("Timer di spegnimento", $"La radio si spegne alle {_sleepAt.Value:HH:mm}", ToolTipIcon.Info, force: true);
+        }
+
+        private void CancelSleep(bool announce)
+        {
+            _sleepAt = null;
+            if (_sleepFading) _player.Volume = _settings.Volume;
+            _sleepFading = false;
+            if (announce) Notify("Timer di spegnimento annullato", _station ?? " ", ToolTipIcon.Info, force: true);
+        }
+
+        /// <summary>Ogni secondo: timer di spegnimento (con volume che cala nell'ultimo mezzo minuto), sveglia, volume crescente.</summary>
+        private void Tick()
+        {
+            var now = DateTime.Now;
+            if (_sleepAt != null)
+            {
+                double left = (_sleepAt.Value - now).TotalSeconds;
+                if (left <= 0)
+                {
+                    Log.Write("Timer di spegnimento: radio spenta");
+                    _sleepAt = null;
+                    Stop();
+                    _player.Volume = _settings.Volume;
+                    _sleepFading = false;
+                    Notify("Timer di spegnimento", "Radio spenta. Buonanotte!", ToolTipIcon.Info, force: true);
+                }
+                else if (left <= 30)
+                {
+                    _sleepFading = true;
+                    _player.Volume = (int)Math.Round(_settings.Volume * left / 30.0);
+                }
+            }
+            if (_fadeTarget >= 0 && now.Second % 3 == 0)
+            {
+                // volume crescente della sveglia: +1/40 del volume ogni 3 secondi, 2 minuti in tutto
+                int step = Math.Max(1, _fadeTarget / 40);
+                int v = Math.Min(_fadeTarget, _player.Volume + step);
+                _player.Volume = v;
+                if (v >= _fadeTarget) _fadeTarget = -1;
+                UpdateNowPlaying();
+            }
+            if ((now - _lastAlarmCheck).TotalSeconds >= 15)
+            {
+                _lastAlarmCheck = now;
+                CheckAlarm(now);
+            }
+        }
+
+        private void CheckAlarm(DateTime now)
+        {
+            if (!_settings.AlarmEnabled) return;
+            DateTime? last = DateTime.TryParseExact(_settings.AlarmLastFired, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture,
+                                                     System.Globalization.DateTimeStyles.None, out var d) ? d : (DateTime?)null;
+            if (!Alarm.ShouldFire(now, _settings.AlarmMinutes, _settings.AlarmDays, last)) return;
+            _settings.AlarmLastFired = now.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+            _settings.Save();
+            var st = _settings.AlarmGroup != null && _settings.AlarmStation != null ? _bookmarks.StationNamed(_settings.AlarmStation, _settings.AlarmGroup) : null;
+            if (st == null)
+            {
+                Notify("⏰ Radiosveglia", $"La stazione «{_settings.AlarmStation}» non è più nell'elenco", ToolTipIcon.Warning, force: true);
+                return;
+            }
+            Log.Write($"Radiosveglia: accendo «{st.Name}»");
+            if (_settings.AlarmFadeIn)
+            {
+                _player.Volume = Math.Max(1, _settings.Volume / 10);
+                _fadeTarget = _settings.Volume;
+            }
+            PlayStation(_settings.AlarmGroup, st);
+            Notify("⏰ Radiosveglia", $"Buongiorno! {st.Name}", ToolTipIcon.Info, force: true);
+        }
+
+        private void ConfigureAlarm()
+        {
+            var stations = AllStations().Select(x => (x.group.Name, x.station.Name)).ToList();
+            if (stations.Count == 0) { MessageBox.Show("Non ci sono stazioni da scegliere.", "Radiosveglia"); return; }
+            var current = new AlarmDialog.Result
+            {
+                Enabled = _settings.AlarmEnabled || _settings.AlarmStation == null,
+                Minutes = _settings.AlarmMinutes,
+                Days = _settings.AlarmDays,
+                Group = _settings.AlarmGroup ?? _group,
+                Station = _settings.AlarmStation ?? _station,
+                FadeIn = _settings.AlarmFadeIn,
+            };
+            var r = AlarmDialog.Ask(current, stations);
+            if (r == null) return;
+            _settings.AlarmEnabled = r.Enabled;
+            _settings.AlarmMinutes = r.Minutes;
+            _settings.AlarmDays = r.Days;
+            _settings.AlarmGroup = r.Group;
+            _settings.AlarmStation = r.Station;
+            _settings.AlarmFadeIn = r.FadeIn;
+            // se l'ora scelta è appena passata, oggi non suona più
+            if (r.Enabled && Alarm.ShouldFire(DateTime.Now, r.Minutes, r.Days, null))
+                _settings.AlarmLastFired = DateTime.Now.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+            _settings.Save();
+            if (r.Enabled)
+            {
+                var next = Alarm.NextFire(DateTime.Now, r.Minutes, r.Days);
+                Notify("⏰ Radiosveglia attiva", $"{r.Station}, {Alarm.DescribeMinutes(r.Minutes)} {Alarm.DescribeDays(r.Days)}" +
+                       (next.HasValue ? $"\nProssima: {next.Value:dddd d MMMM, HH:mm}" : ""), ToolTipIcon.Info, force: true);
+            }
+            else Notify("Radiosveglia disattivata", " ", ToolTipIcon.Info, force: true);
+        }
+
+        #endregion
+
         #region Backup
 
         private Backup CurrentBackup()
@@ -707,6 +1028,13 @@ namespace RadioTray
             if (_settings.LastOpenedUrl != null) b.Settings[Backup.KeyLastUrl] = _settings.LastOpenedUrl;
             b.Settings[Backup.KeySwapped] = _settings.SwappedStations.Cast<object>().ToList();
             b.Settings[Backup.KeyIgnored] = _settings.IgnoredTitleStations.Cast<object>().ToList();
+            b.Settings["hot-keys"] = _settings.HotKeys;
+            b.Settings["alarm-enabled"] = _settings.AlarmEnabled;
+            b.Settings["alarm-minutes"] = _settings.AlarmMinutes;
+            b.Settings["alarm-days"] = _settings.AlarmDays;
+            if (_settings.AlarmGroup != null) b.Settings["alarm-group"] = _settings.AlarmGroup;
+            if (_settings.AlarmStation != null) b.Settings["alarm-station"] = _settings.AlarmStation;
+            b.Settings["alarm-fade-in"] = _settings.AlarmFadeIn;
             return b;
         }
 
@@ -982,8 +1310,11 @@ namespace RadioTray
 
         #endregion
 
+        private bool _quitting;
+
         private void Quit()
         {
+            _quitting = true;
             _settings.Save();
             _player.Stop();
             _icon.Visible = false;
@@ -997,6 +1328,9 @@ namespace RadioTray
                 _watcher?.Dispose();
                 _reloadTimer.Dispose();
                 _onAir.Dispose();
+                _clock.Dispose();
+                _hotKeys?.Dispose();
+                _imageCts?.Cancel();
                 _player.Dispose();
                 _icon.Dispose();
                 _menu.Dispose();
