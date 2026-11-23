@@ -1,6 +1,6 @@
 # Piano: RadioTray per Windows 10 (PC d'ufficio dietro proxy)
 
-Stato: **fasi 1 e 2 fatte e provate sul PC d'ufficio** (0.2.0); **fasi 3 e 4 scritte** (0.4.0), da provare.
+Stato: **tutte e quattro le fasi fatte**, pubblicate nella versione stabile 1.17.0 (Windows 0.4.1). Fasi 1 e 2 provate sul PC d'ufficio; della fase 4 provate le copertine (RDS e Radio 105).
 
 ## Si può fare?
 
@@ -223,6 +223,12 @@ genere jazz, più ascoltate in Italia) lette correttamente. Le finestre vanno pr
 Provato qui: 343 controlli sulla logica (copertine, loghi, sveglia); richieste vere al catalogo di Apple (copertine
 di Stevie Wonder, Gazzelle, Miles Davis) e a Radio Browser (loghi di Radio 105, RTL 102.5, Deejay).
 Finestre, scorciatoie, sveglia e avvio vanno provati sul PC d'ufficio.
+
+### 0.4.1 (versione stabile 1.17.0)
+Dalla prova della finestra In riproduzione: le copertine funzionano (ufficiale per RDS, dal catalogo di Apple
+per Radio 105), ma il simbolo ⏻ non esiste nel font di Windows 10 e compariva come un quadratino. Ora i pulsanti
+usano le icone di Windows 10 (Segoe MDL2 Assets): riproduci/ferma, stella vuota/piena. In più la finestra mostra
+la qualità dello stream (per esempio "AAC (HLS) 129 kbps") e la percentuale del volume, anche mentre si trascina.
 
 ## Limiti noti
 

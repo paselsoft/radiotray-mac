@@ -781,7 +781,7 @@ namespace RadioTray
             string stateText = state == PlayerState.Connecting ? "Connessione…" : state == PlayerState.Playing ? "In riproduzione" : "Spenta";
             bool favorite = !_track.IsEmpty && _favorites.Find(_track.Title, _track.Artist) != null;
             _nowPlaying.Show(state == PlayerState.Playing ? _track.Title : "", state == PlayerState.Playing ? _track.Artist : "",
-                             _station, stateText, state == PlayerState.Playing, favorite, _player.Volume);
+                             _station, _player.Format, stateText, state == PlayerState.Playing, state != PlayerState.Stopped, favorite, _player.Volume);
         }
 
         /// <summary>Copertina del brano (o logo della stazione) per la finestra In riproduzione.</summary>

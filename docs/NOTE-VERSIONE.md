@@ -1,8 +1,25 @@
 Lettore di radio via Internet nella barra dei menu per **macOS 10.13 High Sierra** e successivi
 (Intel 64 bit; provato su iMac 27" Late 2009), ispirato a Radiotray-NG per Linux.
+Da questa versione anche **per Windows 10**, nell'area di notifica.
 
-**Installazione:** apri `RadioTray-….dmg`, trascina RadioTray in Applicazioni, poi la prima volta
+**Installazione su Mac:** apri `RadioTray-….dmg`, trascina RadioTray in Applicazioni, poi la prima volta
 clic destro sull'app → Apri → Apri. Istruzioni complete nel file LEGGIMI.txt dentro il .dmg.
+
+**Installazione su Windows 10:** estrai `RadioTray-Windows-….zip` (per esempio in Documenti) e avvia
+`RadioTray.exe`; non serve installare niente né essere amministratori. La prima volta SmartScreen può dire
+"PC protetto da Windows": "Ulteriori informazioni" → "Esegui comunque". Istruzioni nel file LEGGIMI.txt dentro lo .zip.
+
+### Novità della 1.17: RadioTray per Windows 10 (0.4.1)
+- **Prima versione per Windows 10**, pensata anche per i PC d'ufficio dietro un proxy: usa le impostazioni proxy di
+  Windows (anche con script automatico) e l'utente di dominio, come Edge e Chrome, senza aggirarlo; se il proxy blocca
+  una radio lo dice chiaramente. Preferenze → Diagnostica di rete prova la connessione e prepara un rapporto
+- Le stesse stazioni della versione per Mac (bookmarks.json), MP3, AAC e HLS (RDS, Deejay, Capital, m2o, Radio Italia),
+  titoli e artista anche per le radio Mediaset, RDS e GEDI, notifiche, riconnessione automatica
+- Brani preferiti (clic sulla notifica per aggiungerli), ascoltati di recente, Cerca stazioni (Radio Browser),
+  editor delle stazioni, backup compatibile con la versione per Mac in entrambe le direzioni
+- Finestra In riproduzione con copertina o logo, qualità dello stream e percentuale del volume;
+  scorciatoie Ctrl+Alt e tasti multimediali, timer di spegnimento, radiosveglia, avvio con Windows
+- La versione per Mac è la stessa della 1.16 (nessuna novità)
 
 ### Novità della 1.16
 - **Ogg Vorbis, Opus e FLAC**: le radio in questi formati (per esempio Radio Paradise FLAC) ora si ascoltano,

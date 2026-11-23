@@ -37,11 +37,15 @@ con **macOS High Sierra 10.13** (funziona anche sulle versioni successive).
 | 1.14.1 | titoli di Radio Monte Carlo (https senza titoli) | fatta (provata sull'iMac) |
 | 1.15.0 | link al palinsesto della radio, palinsesto personale con foto | fatta (provata sull'iMac) |
 | 1.16.0 | Ogg Vorbis, Opus e FLAC con ffmpeg, titoli di Radio Paradise | fatta (provata sull'iMac) |
+| 1.17.0 | **RadioTray per Windows 10** (0.4.1, cartella `windows/`): proxy dell'ufficio, MP3/AAC/HLS, preferiti, ricerca, editor, backup comune col Mac, In riproduzione, scorciatoie, timer, sveglia | fasi 1–2 provate sul PC d'ufficio |
 
 ## Scaricare
 
-La versione stabile è nella pagina [**Release**](../../releases/latest): scarica `RadioTray-x.y.z.dmg`.
-Le istruzioni sono nel file `LEGGIMI.txt` dentro il `.dmg`. Al primo avvio: clic destro sull'app → Apri.
+La versione stabile è nella pagina [**Release**](../../releases/latest):
+- **Mac**: `RadioTray-x.y.z.dmg`. Le istruzioni sono nel file `LEGGIMI.txt` dentro il `.dmg`.
+  Al primo avvio: clic destro sull'app → Apri.
+- **Windows 10**: `RadioTray-Windows-x.y.z.zip`, da estrarre e avviare (`RadioTray.exe`), senza installazione.
+  Le istruzioni sono nel file `LEGGIMI.txt` dentro lo `.zip`.
 
 ## Come si pubblica una versione
 
