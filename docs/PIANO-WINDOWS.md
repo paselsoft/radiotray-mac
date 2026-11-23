@@ -114,6 +114,20 @@ Provato qui (Linux, .NET 8) con radio vere: rete + titoli ICY + tubo + ripetitor
 playlist PLS) e Radio 105 (titoli Mediaset); riconoscimento di HLS e delle pagine web al posto dell'audio.
 **Non provato**: la parte Windows (audio NAudio/Media Foundation, menu, notifiche, proxy dell'ufficio).
 
+### Diagnostica di rete sul PC d'ufficio (23 novembre 2026, build 113)
+
+Windows 10 22H2 (19045), .NET Framework 4.8. Tutte e tre le radio passano dal proxy `10.139.232.11:8080`
+letto dallo script PAC, senza credenziali da inserire:
+
+| Radio | Risposta | Titoli ICY | Velocità |
+|---|---|---|---|
+| RTL 102.5 (https, Shoutcast) | 200 `audio/mpeg` in 2,6 s | sì | 534 kbit/s |
+| SomaFM Groove Salad (https) | 200 `audio/mpeg` in 1,1 s | sì | 2118 kbit/s |
+| Radio 105 (http) | 200 `audio/mpeg` in 0,5 s | sì | 1217 kbit/s |
+
+Il proxy aggiunge `Via: … Cluster` anche alle https: le apre e le ricontrolla con il certificato
+dell'ufficio, che Windows (e quindi l'app) accetta. Restano da provare l'audio e il menu.
+
 ### Da provare sul PC d'ufficio
 1. Scaricare `RadioTray-Windows.zip` dalla release **anteprima**, estrarlo in Documenti, avviare `RadioTray.exe`
    (SmartScreen: "Ulteriori informazioni" → "Esegui comunque").
