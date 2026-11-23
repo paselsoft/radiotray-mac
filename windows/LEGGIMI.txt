@@ -1,4 +1,4 @@
-RadioTray per Windows 10 (versione di prova, fase 1)
+RadioTray per Windows 10 (versione di prova, fase 2)
 =====================================================
 
 Installazione (senza permessi di amministratore)
@@ -15,6 +15,8 @@ Uso
 - "Accendi" / "Spegni": riprende o ferma l'ultima stazione. Clic con la rotellina sull'icona: lo stesso.
 - Volume: il cursore nel menu.
 - Titolo e artista in cima al menu: un clic li copia negli appunti.
+- Titoli di questa stazione (nel menu, mentre suona): "Titolo e artista al contrario" per le radio
+  che li scrivono invertiti; "Ignora i titoli" per quelle che mandano titoli sbagliati o vecchi.
 - Una notifica di Windows mostra il brano quando cambia (si tolgono da Preferenze > Notifiche dei brani).
 - Stazione precedente / successiva, Apri indirizzo… (una radio o una playlist .pls/.m3u qualsiasi).
 - Preferenze > Modifica stazioni…: apre bookmarks.json in una finestra di RadioTray. "Salva" (Ctrl+S)
@@ -38,7 +40,8 @@ Dove sono i file
   anche %APPDATA%\RadioTray.
 
 Limiti di questa versione
-- Formati: MP3 e AAC. Le radio HLS (.m3u8: Deejay, Capital, m2o, RDS, Radio Italia…) arrivano
-  nella fase 2; Ogg/Opus/FLAC non ancora.
+- Formati: MP3 e AAC, anche in streaming HLS (.m3u8: RDS, Deejay, Capital, m2o, Radio Italia…).
+  Per Deejay, Capital e m2o i titoli arrivano dal servizio "in onda" dei loro siti.
+  Ogg/Opus/FLAC e HLS con segmenti fMP4 non ancora.
 - Non ci sono ancora brani preferiti, cronologia, ricerca delle stazioni, copertine, scorciatoie,
   sveglia e avvio automatico con Windows (fasi 3 e 4).

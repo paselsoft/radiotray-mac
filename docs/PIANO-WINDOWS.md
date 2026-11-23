@@ -1,6 +1,6 @@
 # Piano: RadioTray per Windows 10 (PC d'ufficio dietro proxy)
 
-Stato: **fase 1 fatta e provata sul PC d'ufficio** (cartella `windows/`, versione 0.1.1). Prossima: fase 2 (HLS).
+Stato: **fase 1 fatta e provata sul PC d'ufficio** (0.1.1); **fase 2 scritta** (0.2.0, HLS), da provare.
 
 ## Si può fare?
 
@@ -148,6 +148,30 @@ dell'ufficio, che Windows (e quindi l'app) accetta. Restano da provare l'audio e
 3. Ascoltare una radio MP3 (Radio 105, SomaFM Groove Salad) e una AAC (SomaFM da playlist `.pls`):
    audio, titolo nella notifica, volume, Spegni/Accendi, cambio di stazione.
 4. Se qualcosa non va: Preferenze → Apri il registro, e copiare qui le ultime righe.
+
+## Fase 2: HLS e radio italiane (novembre 2026)
+
+Com'è fatto lo streaming delle quattro radio che non suonavano:
+
+| Radio | Playlist | Segmenti | Titoli |
+|---|---|---|---|
+| RDS | master → `chunklist.m3u8`, segmenti da 4 s | `.aac` (ADTS, AAC-LC 128k) con tag ID3 in testa | JSON nel frame ID3 `JSI3` (`traccia`, `artista`, `cover`) |
+| Deejay, Capital, m2o | master → `play1.m3u8`, segmenti da 10 s | `.ts` (MPEG-TS, solo audio HE-AAC 122k, PID 513) | nessuno nello stream: servizio GEDI `…/api/pub/v2/all/gdwc-audio-player/onair?format=json` |
+
+- **Logica comune**: `HlsPlaylist` (master/media, scelta della variante solo audio fino a 320 kbit/s, fMP4 e
+  cifratura riconosciuti), `TsDemuxer` (PAT/PMT, PES audio AAC/MP3, metadati ID3), `Id3` (frame v2.3/2.4,
+  JSON di RDS, TIT2/TPE1), `OnAir` (titoli GEDI: "Titolo ARTISTA MAIUSCOLO", o dal nome della copertina).
+  "LINK * 1002264" di RDS (codice al posto dell'artista) non è un brano.
+- **App**: `HlsSource` scarica playlist e segmenti attraverso il proxy (si parte 3 segmenti indietro, la
+  playlist si rilegge a metà della durata di un segmento) e mette l'AAC nel tubo: da lì Media Foundation dal
+  ripetitore interno, come per le altre radio AAC. Una playlist HLS senza estensione `.m3u8` viene riconosciuta
+  dal contenuto. `OnAirPoller` legge il servizio GEDI ogni 20 s.
+- **Menu**: "Titoli di questa stazione" → "Titolo e artista al contrario" e "Ignora i titoli".
+
+Provato qui (Linux, .NET 8) con le radio vere: RDS, Deejay, Capital e m2o danno audio AAC continuo
+(controllato con ffmpeg: AAC-LC per RDS, HE-AAC per le GEDI, nessun errore) e i titoli (RDS dal JSON ID3,
+le altre dal servizio GEDI). **Da provare sul PC d'ufficio**: che Media Foundation suoni l'HE-AAC con la
+qualità piena (48 kHz) e non solo la parte base a 24 kHz.
 
 ## Limiti noti
 

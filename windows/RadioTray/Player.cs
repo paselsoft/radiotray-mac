@@ -140,7 +140,7 @@ namespace RadioTray
                     foreach (var url in candidates.Distinct().ToList())
                     {
                         if (ct.IsCancellationRequested) return;
-                        var outcome = await PlayOneAsync(generation, url, ct).ConfigureAwait(false);
+                        var outcome = await PlayOneAsync(generation, url, StreamResolver.IsHls(url), ct).ConfigureAwait(false);
                         if (ct.IsCancellationRequested) return;
                         if (outcome.Error != null) lastError = outcome.Error;
                         if (outcome.Played)
@@ -191,11 +191,21 @@ namespace RadioTray
             });
         }
 
+        /// <summary>Suona un indirizzo; se si scopre che è una playlist HLS si riparte in HLS.</summary>
+        private async Task<Outcome> PlayOneAsync(int generation, string url, bool hls, CancellationToken ct)
+        {
+            bool switchToHls = false;
+            var outcome = await PlayOnceAsync(generation, url, hls, ct, () => switchToHls = true).ConfigureAwait(false);
+            if (!switchToHls || ct.IsCancellationRequested) return outcome;
+            Log.Write("  è una playlist HLS: riparto in HLS");
+            return await PlayOnceAsync(generation, url, true, ct, () => { }).ConfigureAwait(false);
+        }
+
         /// <summary>Suona un indirizzo finché lo stream non finisce, cade o si cambia stazione.</summary>
-        private async Task<Outcome> PlayOneAsync(int generation, string url, CancellationToken ct)
+        private async Task<Outcome> PlayOnceAsync(int generation, string url, bool hls, CancellationToken ct, Action needsHls)
         {
             var outcome = new Outcome();
-            StreamConnection conn = null;
+            IStreamSource conn = null;
             AudioPipe pipe = null;
             IStreamDecoder decoder = null;
             WaveOutEvent output = null;
@@ -206,12 +216,18 @@ namespace RadioTray
                 SetState(generation, PlayerState.Connecting);
                 try
                 {
-                    conn = await StreamConnection.OpenAsync(url, ct).ConfigureAwait(false);
+                    if (hls) conn = await HlsSource.OpenAsync(url, ct).ConfigureAwait(false);
+                    else conn = await StreamConnection.OpenAsync(url, ct).ConfigureAwait(false);
                 }
                 catch (NetException e)
                 {
                     Log.Write($"  {url}: {e.Message}");
                     outcome.Error = e.Message;
+                    return outcome;
+                }
+                if (!hls && AudioFormat.FromContentType(conn.ContentType) == AudioKind.Hls)
+                {
+                    needsHls();   // playlist HLS senza estensione .m3u8
                     return outcome;
                 }
                 if (conn.StationName != null) { string name = conn.StationName; Post(generation, () => StationNameReceived?.Invoke(name)); }
@@ -240,7 +256,8 @@ namespace RadioTray
                         outcome.Error = NetMessages.ForHtmlInsteadOfAudio(conn.ViaProxy);
                         return outcome;
                     case AudioKind.Hls:
-                        outcome.Error = "Questa radio usa lo streaming HLS (.m3u8): su Windows arriverà nella prossima versione";
+                        if (!hls) { needsHls(); return outcome; }
+                        outcome.Error = "Playlist HLS non riconosciuta";
                         return outcome;
                     case AudioKind.Ogg:
                     case AudioKind.Flac:
@@ -296,7 +313,7 @@ namespace RadioTray
                     Log.Write("  " + outcome.Error);
                     return outcome;
                 }
-                Format = $"{(kind == AudioKind.Mp3 ? "MP3" : "AAC")}{(conn.Bitrate != null ? " " + conn.Bitrate + " kbps" : "")}";
+                Format = $"{(kind == AudioKind.Mp3 ? "MP3" : "AAC")}{(hls ? " (HLS)" : "")}{(conn.Bitrate != null ? " " + conn.Bitrate + " kbps" : "")}";
                 Log.Write($"  decodifica con {decoder.Name}: {decoder.WaveFormat}");
 
                 // decodifica → buffer di qualche secondo → uscita audio

@@ -202,6 +202,7 @@ static class Program
         t = TrackInfo.FromStreamTitle("Azzurro * Adriano Celentano * 11712");
         Eq(t.Title, "Azzurro");
         Eq(t.Artist, "Adriano Celentano");
+        Check(TrackInfo.FromStreamTitle("LINK * 1002264").IsEmpty);
         // maiuscole ammorbidite solo se tutto maiuscolo
         Eq(TrackInfo.Create("PINGUINI TATTICI NUCLEARI", null).Title, "Pinguini Tattici Nucleari");
         Eq(TrackInfo.Create("ABC", null).Title, "ABC");
@@ -355,6 +356,171 @@ static class Program
         Check(NetMessages.ForHtmlInsteadOfAudio(true).StartsWith(NetMessages.ProxyBlocked));
     }
 
+
+    static void TestHlsPlaylist()
+    {
+        var master = HlsPlaylist.Parse("#EXTM3U\n#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=122225,CODECS=\"mp4a.40.5\"\nplay1.m3u8\n" +
+                                       "#EXT-X-STREAM-INF:BANDWIDTH=64000,CODECS=\"mp4a.40.29\"\nhttps://cdn.example.com/low.m3u8\n" +
+                                       "#EXT-X-STREAM-INF:BANDWIDTH=900000,CODECS=\"avc1.42e01e,mp4a.40.2\",RESOLUTION=640x360\nvideo.m3u8\n",
+                                       new Uri("https://x.example.com/radio/master.m3u8"));
+        Check(master.IsMaster);
+        Eq(master.Variants.Count, 3);
+        Eq(master.Variants[0].Url, "https://x.example.com/radio/play1.m3u8");
+        Eq(master.Variants[0].Codecs, "mp4a.40.5");
+        Check(master.Variants[2].HasVideo);
+        Eq(master.ChooseVariant().Bandwidth, 122225);   // solo audio, la migliore fino a 320 kbit/s
+
+        var media = HlsPlaylist.Parse("#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:5\n#EXT-X-MEDIA-SEQUENCE:173979102\n" +
+                                      "#EXT-X-DISCONTINUITY-SEQUENCE:0\n#MY-USER-HEADER-DATA:SERVER=\"primary\"\n#EXTINF:3.968,\nmedia_173979102.aac\n" +
+                                      "#EXTINF:4.032,\nmedia_173979103.aac\n#EXTINF:3.968,\nmedia_173979104.aac\n",
+                                      new Uri("https://stream.rds.radio/audio/rds.stream_aac/chunklist.m3u8"));
+        Check(!media.IsMaster);
+        Eq(media.TargetDuration, 5.0);
+        Eq(media.Segments.Count, 3);
+        Eq(media.Segments[0].Sequence, 173979102L);
+        Eq(media.Segments[2].Sequence, 173979104L);
+        Eq(media.Segments[1].Url, "https://stream.rds.radio/audio/rds.stream_aac/media_173979103.aac");
+        Eq(media.Segments[1].Duration, 4.032);
+        Check(!media.EndList && !media.HasInitSegment && !media.Encrypted);
+
+        var other = HlsPlaylist.Parse("#EXTM3U\n#EXT-X-MAP:URI=\"init.mp4\"\n#EXT-X-KEY:METHOD=AES-128,URI=\"k\"\n#EXTINF:6,titolo, con virgola\nseg1.m4s\n#EXT-X-ENDLIST\n",
+                                      new Uri("http://a/b/c.m3u8"));
+        Check(other.HasInitSegment && other.Encrypted && other.EndList);
+        Eq(other.Segments[0].Url, "http://a/b/seg1.m4s");
+        Eq(other.Segments[0].Sequence, 0L);
+        var a = HlsPlaylist.Attributes("#EXT-X-STREAM-INF:BANDWIDTH=1,CODECS=\"a,b\",X=y");
+        Eq(a["CODECS"], "a,b");
+        Eq(a["X"], "y");
+    }
+
+    /// Tag ID3v2.4 con i frame dati
+    static byte[] Id3Tag(params (string id, byte[] data)[] frames)
+    {
+        var body = new List<byte>();
+        foreach (var (id, data) in frames)
+        {
+            body.AddRange(Encoding.ASCII.GetBytes(id));
+            int n = data.Length;
+            body.AddRange(new[] { (byte)((n >> 21) & 0x7F), (byte)((n >> 14) & 0x7F), (byte)((n >> 7) & 0x7F), (byte)(n & 0x7F), (byte)0, (byte)0 });
+            body.AddRange(data);
+        }
+        int size = body.Count;
+        var tag = new List<byte> { (byte)'I', (byte)'D', (byte)'3', 4, 0, 0,
+                                   (byte)((size >> 21) & 0x7F), (byte)((size >> 14) & 0x7F), (byte)((size >> 7) & 0x7F), (byte)(size & 0x7F) };
+        tag.AddRange(body);
+        return tag.ToArray();
+    }
+
+    static byte[] TextFrame(string s) => new byte[] { 3 }.Concat(Encoding.UTF8.GetBytes(s)).ToArray();
+
+    static void TestId3()
+    {
+        string rdsJson = "{\"type\":\"song\",\"id\":\"56145\",\"traccia\":\"Buonanotte Anche Stanotte\",\"artista\":\"Tananai\",\"cover\":\"https://web.rds.it/m/l56145?radio_id\\u003d1\"}";
+        var priv = Id3Tag(("PRIV", Encoding.ASCII.GetBytes("com.apple.streaming.transportStreamTimestamp\0\0\0\0\0Â\u0091ÚÎ")));
+        var info = Id3Tag(("EXTR", new byte[] { 0, 0, 3, (byte)'{', (byte)'}' }), ("SERV", Encoding.ASCII.GetBytes("\0\0\u0003primary")),
+                          ("JSI3", new byte[] { 0, 0, 3 }.Concat(Encoding.UTF8.GetBytes(rdsJson)).ToArray()));
+        var adts = AdtsFrames(3);
+        var segment = priv.Concat(info).Concat(adts).ToArray();
+        Eq(Id3.TagLength(segment, 0, segment.Length), priv.Length);
+        Eq(Id3.LeadingTagsLength(segment, segment.Length), priv.Length + info.Length);
+        Eq(Id3.StreamTitle(segment, priv.Length, segment.Length - priv.Length), "Tananai - Buonanotte Anche Stanotte");
+        Eq(Id3.StreamTitle(segment, 0, segment.Length), null);   // solo il timestamp
+        var song = TrackInfo.StationSongFromData(Encoding.UTF8.GetBytes("owner\0" + rdsJson));
+        Check(song != null);
+        Eq(song.Value.cover, "https://web.rds.it/m/l56145?radio_id=1");
+        Check(TrackInfo.StationSongFromData(Encoding.UTF8.GetBytes("{\"type\":\"spot\",\"traccia\":\"x\"}")) == null);
+
+        var tags = Id3Tag(("TIT2", TextFrame("So What")), ("TPE1", TextFrame("Miles Davis")));
+        Eq(Id3.StreamTitle(tags, 0, tags.Length), "Miles Davis - So What");
+        var utf16 = Id3Tag(("TIT2", new byte[] { 1 }.Concat(Encoding.Unicode.GetPreamble()).Concat(Encoding.Unicode.GetBytes("Città")).ToArray()));
+        Eq(Id3.StreamTitle(utf16, 0, utf16.Length), "Città");
+        Eq(Id3.TagLength(new byte[] { 0xFF, 0xF1, 0, 0, 0, 0, 0, 0, 0, 0 }, 0, 10), 0);
+    }
+
+    /// Pacchetti TS: PAT → PMT (audio AAC su 0x101, ID3 su 0x102) → PES audio e ID3
+    static byte[] TsStream(byte[] audio, byte[] id3, int audioType = 0x0F)
+    {
+        var packets = new List<byte>();
+        void Packet(int pid, bool start, byte[] payload, int offset, int count)
+        {
+            var p = new byte[188];
+            p[0] = 0x47; p[1] = (byte)((start ? 0x40 : 0) | (pid >> 8)); p[2] = (byte)pid;
+            int room = 184;
+            if (count < room)
+            {
+                // adaptation field di riempimento
+                int stuffing = room - count;
+                p[3] = 0x30;
+                p[4] = (byte)(stuffing - 1);
+                if (stuffing > 1) { p[5] = 0; for (int k = 6; k < 4 + stuffing; k++) p[k] = 0xFF; }
+                Buffer.BlockCopy(payload, offset, p, 4 + stuffing, count);
+            }
+            else
+            {
+                p[3] = 0x10;
+                Buffer.BlockCopy(payload, offset, p, 4, 184);
+            }
+            packets.AddRange(p);
+        }
+        void Section(int pid, byte[] section) => Packet(pid, true, new byte[] { 0 }.Concat(section).ToArray(), 0, section.Length + 1);
+        Section(0, new byte[] { 0x00, 0xB0, 0x0D, 0x00, 0x01, 0xC1, 0x00, 0x00, 0x00, 0x01, 0xE1, 0x00, 0, 0, 0, 0 });
+        Section(0x100, new byte[] { 0x02, 0xB0, 0x17, 0x00, 0x01, 0xC1, 0x00, 0x00, 0xE1, 0x01, 0xF0, 0x00,
+                                    (byte)audioType, 0xE1, 0x01, 0xF0, 0x00, 0x15, 0xE1, 0x02, 0xF0, 0x00, 0, 0, 0, 0 });
+        void Pes(int pid, byte streamId, byte[] data)
+        {
+            var pes = new byte[] { 0, 0, 1, streamId, 0, 0, 0x80, 0x80, 5, 0x21, 0, 1, 0, 1 }.Concat(data).ToArray();
+            for (int k = 0; k < pes.Length; k += 184) Packet(pid, k == 0, pes, k, Math.Min(184, pes.Length - k));
+        }
+        Pes(0x102, 0xBD, id3);
+        Pes(0x101, 0xC0, audio);
+        return packets.ToArray();
+    }
+
+    static void TestTs()
+    {
+        var audio = AdtsFrames(10);
+        var id3 = Id3Tag(("TIT2", TextFrame("Azzurro")), ("TPE1", TextFrame("Adriano Celentano")));
+        var ts = TsStream(audio, id3);
+        foreach (int step in new[] { ts.Length, 100, 7 })
+        {
+            var demux = new TsDemuxer();
+            var got = new List<byte>();
+            var titles = new List<string>();
+            demux.AudioData += (b, o, n) => { for (int k = 0; k < n; k++) got.Add(b[o + k]); };
+            demux.Title += t => titles.Add(t);
+            for (int i = 0; i < ts.Length; i += step) demux.Feed(ts, i, Math.Min(step, ts.Length - i));
+            demux.Flush();
+            Eq(demux.Audio, AudioKind.Aac);
+            Check(got.SequenceEqual(audio), $"audio estratto a blocchi di {step}");
+            EqList(titles, new[] { "Adriano Celentano - Azzurro" });
+        }
+        var mp3 = new TsDemuxer();
+        mp3.Feed(TsStream(Mp3Frames(2), new byte[0], 0x03), 0, TsStream(Mp3Frames(2), new byte[0], 0x03).Length);
+        Eq(mp3.Audio, AudioKind.Mp3);
+    }
+
+    static void TestOnAir()
+    {
+        Check(OnAir.ServiceUrl("https://4c4b867c89244861ac216426883d1ad0.msvdn.net/radiodeejay/radiodeejay/play1.m3u8").Contains("deejay.it"));
+        Check(OnAir.ServiceUrl("https://4c4b867c89244861ac216426883d1ad0.msvdn.net/radiocapital/radiocapital/master_ma.m3u8").Contains("capital.it"));
+        Check(OnAir.ServiceUrl("https://x.msvdn.net/radiom2o/radiom2o/master_ma.m3u8").Contains("m2o.it"));
+        Eq(OnAir.ServiceUrl("http://icecast.unitedradio.it/Radio105.mp3"), null);
+
+        var s = OnAir.SongFromGediJson("{\"title\":\"Stop the Wedding! ASHE\",\"author\":\"Deejay Chiama Italia\",\"image\":\"https:\\/\\/www.deejay.it\\/c\\/ASHE_-_Stop_The_Wedding!__AI_1b.jpg\"}");
+        Eq(s.Value.title, "Stop the Wedding!");
+        Eq(s.Value.artist, "ASHE");
+        s = OnAir.SongFromGediJson("{\"title\":\"Sere Nere TIZIANO FERRO\"}");
+        Eq(s.Value.artist, "TIZIANO FERRO");
+        s = OnAir.SongFromGediJson("{\"title\":\"VIVA LA VIDA\",\"image\":\"https://x/COLDPLAY_-_Viva_La_Vida__AI_x.jpg\"}");
+        Eq(s.Value.title, "VIVA LA VIDA");
+        Eq(s.Value.artist, "COLDPLAY");
+        s = OnAir.SongFromGediJson("{\"title\":\"Deejay Chiama Italia\"}");
+        Eq(s.Value.title, "Deejay Chiama Italia");
+        Eq(s.Value.artist, "");
+        Check(OnAir.SongFromGediJson("{\"title\":\"\"}") == null);
+        Check(OnAir.SongFromGediJson("<html>") == null);
+    }
+
     static int Main(string[] args)
     {
         TestJson();
@@ -368,6 +534,10 @@ static class Program
         TestStationName();
         TestAudioFormat();
         TestNetMessages();
+        TestHlsPlaylist();
+        TestId3();
+        TestTs();
+        TestOnAir();
         foreach (var path in args) TestBundled(path);
         Console.WriteLine($"{checks} controlli, {failures} falliti");
         return failures == 0 ? 0 : 1;

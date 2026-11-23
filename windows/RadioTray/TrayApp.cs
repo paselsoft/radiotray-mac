@@ -33,6 +33,7 @@ namespace RadioTray
         private List<string> _mirrors = new List<string>();
         private bool _openedUrl;   // aperta con "Apri indirizzo…", non è nell'elenco
         private TrackInfo _track = TrackInfo.Create(null, null);
+        private readonly OnAirPoller _onAir;
 
         public TrayApp()
         {
@@ -48,6 +49,8 @@ namespace RadioTray
             _player.StationNameReceived += OnStationName;
             _player.Failed += message => Notify("Errore", (_station != null ? _station + ": " : "") + message, ToolTipIcon.Warning, force: true);
             _player.Notice += message => Notify(_station ?? "RadioTray", message, ToolTipIcon.Info);
+            _onAir = new OnAirPoller(_ui);
+            _onAir.Song += OnAirSong;
 
             _menu = new ContextMenuStrip { ShowImageMargin = false, ShowCheckMargin = true };
             _menu.Opening += (s, e) => { BuildMenu(); e.Cancel = false; };
@@ -171,6 +174,9 @@ namespace RadioTray
             _track = TrackInfo.Create(null, null);
             Log.Write($"Accendo «{_station}» ({_url})");
             _player.Play(_url, _direct, _mirrors);
+            string service = OnAir.ServiceUrl(_url);
+            if (service != null) _onAir.Start(service);
+            else _onAir.Stop();
             UpdateTooltip();
         }
 
@@ -225,7 +231,11 @@ namespace RadioTray
         private void OnStateChanged(PlayerState state)
         {
             _icon.Icon = state == PlayerState.Stopped ? Icons.Off : Icons.On;
-            if (state == PlayerState.Stopped) _track = TrackInfo.Create(null, null);
+            if (state == PlayerState.Stopped)
+            {
+                _track = TrackInfo.Create(null, null);
+                _onAir.Stop();
+            }
             UpdateTooltip();
         }
 
@@ -238,7 +248,8 @@ namespace RadioTray
         private void OnTitle(string raw)
         {
             var info = TrackInfo.FromStreamTitle(raw);
-            if (info.IsFillerForStation(_station))
+            if (StationIn(_settings.SwappedStations)) info = info.Swapped();   // stazione che scrive "Titolo - Artista"
+            if (StationIn(_settings.IgnoredTitleStations) || info.IsFillerForStation(_station))
             {
                 // jingle o pubblicità: la radio manda solo il proprio nome
                 if (!_track.IsEmpty) { _track = TrackInfo.Create(null, null); UpdateTooltip(); }
@@ -249,6 +260,32 @@ namespace RadioTray
             Log.Write($"Brano: {raw}");
             UpdateTooltip();
             if (_notifications) Notify(_station ?? "RadioTray", info.Text, ToolTipIcon.None);
+        }
+
+        /// <summary>Brano dal servizio "in onda" (Deejay, Capital, m2o); senza artista è il nome del programma.</summary>
+        private void OnAirSong(string title, string artist)
+        {
+            if (_player.State == PlayerState.Stopped || StationIn(_settings.IgnoredTitleStations)) return;
+            var info = TrackInfo.Create(title, artist);
+            if (StationIn(_settings.SwappedStations)) info = info.Swapped();
+            if (info.IsEmpty || info.SameAs(_track)) return;
+            _track = info;
+            Log.Write($"Brano (servizio): {artist} - {title}");
+            UpdateTooltip();
+            if (_notifications && artist.Length > 0) Notify(_station ?? "RadioTray", info.Text, ToolTipIcon.None);
+        }
+
+        /// <summary>Chiave della stazione attuale per le impostazioni per stazione.</summary>
+        private string StationKey => _station == null ? null : _openedUrl ? _url : _group + "\n" + _station;
+
+        private bool StationIn(List<string> list) => StationKey != null && list.Contains(StationKey);
+
+        private void ToggleStation(List<string> list)
+        {
+            string key = StationKey;
+            if (key == null) return;
+            if (!list.Remove(key)) list.Add(key);
+            _settings.Save();
         }
 
         #endregion
@@ -336,6 +373,28 @@ namespace RadioTray
                 _menu.Items.Add(Item("    Connessione…", null, false));
             else if (state == PlayerState.Playing && _player.Format != null)
                 _menu.Items.Add(Item("    " + _player.Format, null, false));
+            if (state == PlayerState.Playing)
+            {
+                var swapped = Item("Titolo e artista al contrario per questa stazione", () =>
+                {
+                    ToggleStation(_settings.SwappedStations);
+                    _track = _track.Swapped();
+                    UpdateTooltip();
+                });
+                swapped.Checked = StationIn(_settings.SwappedStations);
+                swapped.ToolTipText = "Per le radio che scrivono \"Titolo - Artista\" invece di \"Artista - Titolo\"";
+                var ignore = Item("Ignora i titoli di questa stazione", () =>
+                {
+                    ToggleStation(_settings.IgnoredTitleStations);
+                    if (StationIn(_settings.IgnoredTitleStations)) { _track = TrackInfo.Create(null, null); UpdateTooltip(); }
+                });
+                ignore.Checked = StationIn(_settings.IgnoredTitleStations);
+                ignore.ToolTipText = "Per le radio che mandano titoli sbagliati o vecchi";
+                var perStation = new ToolStripMenuItem("Titoli di questa stazione");
+                perStation.DropDownItems.Add(swapped);
+                perStation.DropDownItems.Add(ignore);
+                _menu.Items.Add(perStation);
+            }
 
             AddVolume();
             _menu.Items.Add(new ToolStripSeparator());
@@ -615,6 +674,7 @@ namespace RadioTray
             {
                 _watcher?.Dispose();
                 _reloadTimer.Dispose();
+                _onAir.Dispose();
                 _player.Dispose();
                 _icon.Dispose();
                 _menu.Dispose();

@@ -11,6 +11,12 @@ namespace RadioTray
     {
         private const int MaxPlaylistBytes = 4096;
 
+        /// <summary>Indirizzi riconosciuti come HLS dal contenuto (senza l'estensione .m3u8).</summary>
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, bool> HlsUrls =
+            new System.Collections.Concurrent.ConcurrentDictionary<string, bool>();
+
+        public static bool IsHls(string url) => HlsSource.LooksLikeHls(url) || HlsUrls.ContainsKey(url);
+
         public static async Task<List<string>> ResolveAsync(string url, bool direct, CancellationToken ct)
         {
             if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)) throw new NetException("Indirizzo della stazione non valido");
@@ -58,7 +64,11 @@ namespace RadioTray
                 ct.ThrowIfCancellationRequested();
 
                 if (PlaylistParser.IsHls(contentType, buffer, length))
-                    throw new NetException("Questa radio usa lo streaming HLS (.m3u8): su Windows arriverà nella prossima versione");
+                {
+                    Log.Write($"  {url}: stream HLS");
+                    HlsUrls[effective] = true;
+                    return new List<string> { effective };
+                }
                 var urls = PlaylistParser.UrlsFromData(buffer, contentType, new Uri(effective), out string format, length);
                 if (urls == null)
                 {

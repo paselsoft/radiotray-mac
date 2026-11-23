@@ -21,6 +21,32 @@ namespace RadioTray
             return info.SubstringByTextElements(0, max - 1).Trim() + "…";
         }
 
+        /// <summary>
+        /// Il brano dal JSON che alcune radio (RDS) mettono nei metadati ID3: {"type":"song","traccia":…,"artista":…}.
+        /// Il JSON può essere preceduto dal nome del proprietario del campo PRIV: si cerca tra la prima { e l'ultima }.
+        /// </summary>
+        public static (string title, string artist, string cover)? StationSongFromData(byte[] data)
+        {
+            if (data == null || data.Length < 2) return null;
+            int first = Array.IndexOf(data, (byte)'{'), last = Array.LastIndexOf(data, (byte)'}');
+            if (first < 0 || last <= first) return null;
+            System.Collections.Generic.Dictionary<string, object> json;
+            try
+            {
+                json = Json.Parse(Encoding.UTF8.GetString(data, first, last - first + 1)) as System.Collections.Generic.Dictionary<string, object>;
+            }
+            catch (Json.JsonException) { return null; }
+            if (json == null) return null;
+            string Str(string key) => json.TryGetValue(key, out var v) && v is string s ? s.Trim() : "";
+            string type = Str("type").ToLowerInvariant();
+            if (type.Length > 0 && type != "song") return null;
+            string title = Str("titolo").Length > 0 ? Str("titolo") : Str("traccia");
+            string artist = Str("artista").Length > 0 ? Str("artista") : Str("sottotitolo");
+            if (title.Length == 0) return null;
+            string cover = Str("cover");
+            return (title, artist, cover.StartsWith("http", StringComparison.OrdinalIgnoreCase) ? cover : null);
+        }
+
         /// <summary>"PINGUINI TATTICI NUCLEARI" → "Pinguini Tattici Nucleari" (solo se tutto maiuscolo).</summary>
         private static string SoftenCaps(string s)
         {
@@ -70,6 +96,8 @@ namespace RadioTray
             if (starred.Length >= 2)
             {
                 string t = starred[0].Trim(), a = starred[1].Trim();
+                // "LINK * 1002264": al posto dell'artista un codice interno, non è un brano (passaggi, pubblicità)
+                if (a.Length > 0 && a.All(char.IsDigit)) return Create(null, null);
                 if (t.Length > 0 && a.Length > 0)
                     return split ? Create(t, a) : Create($"{a} - {t}", null);
             }

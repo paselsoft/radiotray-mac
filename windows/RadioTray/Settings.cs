@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 
 namespace RadioTray
@@ -14,6 +15,10 @@ namespace RadioTray
         public int Volume = 80;
         public bool Notifications = true;
         public bool PlayOnStart;
+        /// <summary>Stazioni che scrivono "Titolo - Artista" invece di "Artista - Titolo".</summary>
+        public List<string> SwappedStations = new List<string>();
+        /// <summary>Stazioni di cui non si mostrano i titoli (sbagliati o vecchi).</summary>
+        public List<string> IgnoredTitleStations = new List<string>();
 
         public static Settings Load()
         {
@@ -30,6 +35,10 @@ namespace RadioTray
                 if (d.TryGetValue("volume", out var vol) && vol is double dv) s.Volume = Math.Max(0, Math.Min(100, (int)dv));
                 s.Notifications = Bool("notifications", true);
                 s.PlayOnStart = Bool("playOnStart", false);
+                List<string> Strings(string k) => d.TryGetValue(k, out var v) && v is List<object> l
+                    ? l.OfType<string>().ToList() : new List<string>();
+                s.SwappedStations = Strings("swappedStations");
+                s.IgnoredTitleStations = Strings("ignoredTitleStations");
             }
             catch (Exception e)
             {
@@ -48,6 +57,8 @@ namespace RadioTray
                 ["volume"] = Volume,
                 ["notifications"] = Notifications,
                 ["playOnStart"] = PlayOnStart,
+                ["swappedStations"] = SwappedStations,
+                ["ignoredTitleStations"] = IgnoredTitleStations,
             };
             try
             {

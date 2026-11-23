@@ -10,7 +10,7 @@ namespace RadioTray
     /// La connessione allo stream, attraverso il proxy: l'audio va nel tubo (e da lì al decodificatore),
     /// i titoli ICY vengono letti dalla stessa connessione.
     /// </summary>
-    internal sealed class StreamConnection : IDisposable
+    internal sealed class StreamConnection : IStreamSource
     {
         private HttpResponseMessage _response;
         private Stream _stream;

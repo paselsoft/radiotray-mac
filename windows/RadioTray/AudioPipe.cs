@@ -15,7 +15,7 @@ namespace RadioTray
         private bool _writerDone, _aborted;
         private readonly object _lock = new object();
 
-        public AudioPipe(int capacity = 512 * 1024) { _buffer = new byte[capacity]; }
+        public AudioPipe(int capacity = 1024 * 1024) { _buffer = new byte[capacity]; }
 
         public long TotalWritten { get; private set; }
 
