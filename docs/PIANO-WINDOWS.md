@@ -1,6 +1,6 @@
 # Piano: RadioTray per Windows 10 (PC d'ufficio dietro proxy)
 
-Stato: **solo piano**, nessun codice ancora.
+Stato: **fase 1 scritta** (cartella `windows/`), da provare sul PC d'ufficio.
 
 ## Si può fare?
 
@@ -82,6 +82,45 @@ l'autenticazione NTLM dei proxy.
 4. **Windows 10 Enterprise 22H2**, build 19045.6456 (64 bit): .NET Framework 4.8 è già presente.
 
 Si può partire dalla fase 1.
+
+## Fase 1: com'è fatta (novembre 2026)
+
+```
+windows/RadioTray.Core/   logica senza interfaccia (netstandard2.0): bookmarks.json, playlist PLS/M3U/ASX/XSPF,
+                          titoli (ICY, Mediaset "~", RDS " * ", jingle), separazione audio/titoli ICY,
+                          riconoscimento del formato dai primi byte, messaggi del proxy
+windows/RadioTray.Tests/  test della logica (dotnet run, anche su Linux): gli stessi casi dei test per Mac
+windows/RadioTray/        app WinForms .NET Framework 4.8 + NAudio
+```
+
+- **Rete** (`Net.cs`): un solo `HttpClient` con il proxy di sistema (PAC compreso) e
+  `CredentialCache.DefaultNetworkCredentials` per il proxy; le credenziali non vengono mai mandate alle radio.
+  Errori tradotti: 407 → "chiede utente e password", 403/451 o pagina web attraverso il proxy →
+  "Accesso bloccato dal proxy dell'ufficio", certificato rifiutato → "forse il proxy controlla le https".
+- **Una connessione per stazione** (`StreamConnection.cs`): con `Icy-MetaData: 1` l'audio va nel tubo
+  (`AudioPipe.cs`, con contropressione) e i titoli si leggono dagli stessi byte.
+- **Decodifica**: MP3 con il codec MP3 di Windows (ACM, frame per frame, dal tubo); AAC con Media Foundation,
+  che legge dal **ripetitore interno** (`LocalRelay.cs`: `TcpListener` solo su 127.0.0.1, porta casuale,
+  nessun permesso di amministratore, aperto solo quando serve). Se l'ACM non c'è, anche l'MP3 passa da lì.
+  Poi buffer di qualche secondo, volume, `WaveOutEvent`.
+- **Riconnessione** come sul Mac (2, 5, 10, 15, 20, 30… s) e server successivi della playlist / `mirrors`.
+- **Menu**: brano (clic = copia), Accendi/Spegni, formato, volume, gruppi, stazioni, precedente/successiva,
+  Apri indirizzo…, Preferenze (Modifica stazioni nel Blocco note con ricarica automatica, notifiche,
+  accendi all'avvio, **Diagnostica di rete…**, registro), Informazioni, Esci.
+- **CI**: job `windows` (runner Windows): test, compilazione, prova di avvio, `RadioTray-Windows.zip`;
+  il job `release` pubblica `.dmg` e `.zip` insieme nell'anteprima (e nelle versioni stabili).
+
+Provato qui (Linux, .NET 8) con radio vere: rete + titoli ICY + tubo + ripetitore su SomaFM (MP3 e AAC da
+playlist PLS) e Radio 105 (titoli Mediaset); riconoscimento di HLS e delle pagine web al posto dell'audio.
+**Non provato**: la parte Windows (audio NAudio/Media Foundation, menu, notifiche, proxy dell'ufficio).
+
+### Da provare sul PC d'ufficio
+1. Scaricare `RadioTray-Windows.zip` dalla release **anteprima**, estrarlo in Documenti, avviare `RadioTray.exe`
+   (SmartScreen: "Ulteriori informazioni" → "Esegui comunque").
+2. Preferenze → **Diagnostica di rete…**: incollare qui il rapporto (è negli appunti).
+3. Ascoltare una radio MP3 (Radio 105, SomaFM Groove Salad) e una AAC (SomaFM da playlist `.pls`):
+   audio, titolo nella notifica, volume, Spegni/Accendi, cambio di stazione.
+4. Se qualcosa non va: Preferenze → Apri il registro, e copiare qui le ultime righe.
 
 ## Limiti noti
 

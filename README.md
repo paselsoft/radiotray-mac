@@ -8,6 +8,7 @@ con **macOS High Sierra 10.13** (funziona anche sulle versioni successive).
 
 - [Analisi di Radiotray-NG](docs/ANALISI.md)
 - [Piano di sviluppo](docs/PIANO.md)
+- [Piano per Windows 10](docs/PIANO-WINDOWS.md): fase 1 nella cartella `windows/` (prova: `RadioTray-Windows.zip` nell'anteprima)
 
 ## Stato
 

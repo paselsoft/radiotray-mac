@@ -1,0 +1,42 @@
+RadioTray per Windows 10 (versione di prova, fase 1)
+=====================================================
+
+Installazione (senza permessi di amministratore)
+1. Estrai lo .zip, per esempio in Documenti: si crea la cartella "RadioTray".
+2. Apri la cartella e fai doppio clic su RadioTray.exe.
+3. La prima volta Windows SmartScreen può dire "PC protetto da Windows": clic su
+   "Ulteriori informazioni" > "Esegui comunque" (l'app non è firmata).
+4. Compare l'icona di una radio nell'area di notifica, in basso a destra vicino all'orologio
+   (se non si vede, è sotto la freccia ^: trascinala fuori per tenerla sempre visibile).
+Non serve installare altro: .NET Framework 4.8 è già in Windows 10.
+
+Uso
+- Clic (sinistro o destro) sull'icona: si apre il menu. Scegli una stazione da un gruppo.
+- "Accendi" / "Spegni": riprende o ferma l'ultima stazione. Clic con la rotellina sull'icona: lo stesso.
+- Volume: il cursore nel menu.
+- Titolo e artista in cima al menu: un clic li copia negli appunti.
+- Una notifica di Windows mostra il brano quando cambia (si tolgono da Preferenze > Notifiche dei brani).
+- Stazione precedente / successiva, Apri indirizzo… (una radio o una playlist .pls/.m3u qualsiasi).
+- Preferenze > Modifica stazioni…: apre bookmarks.json nel Blocco note. Al salvataggio l'elenco si
+  aggiorna da solo. È lo stesso file della versione per Mac: si può copiare da un computer all'altro.
+- Preferenze > Accendi l'ultima stazione all'avvio.
+
+Il proxy dell'ufficio
+- RadioTray usa le impostazioni proxy di Windows (anche con script automatico) e l'utente di dominio,
+  come Edge e Chrome: non serve configurare nulla e il proxy non viene mai aggirato.
+- Se il proxy blocca una radio, compare "Accesso bloccato dal proxy dell'ufficio".
+- Preferenze > Diagnostica di rete…: prova alcune radio attraverso il proxy e mostra il risultato
+  (copiato anche negli appunti, da incollare in una mail a chi ti aiuta).
+- Preferenze > Apri il registro: il diario di quello che fa l'app, utile se qualcosa non va.
+
+Dove sono i file
+- %APPDATA%\RadioTray (Preferenze > Apri la cartella di RadioTray):
+  bookmarks.json (stazioni), settings.json (impostazioni), radiotray.log (registro).
+- Per togliere RadioTray: Esci dal menu, poi cancella la cartella del programma e, se vuoi,
+  anche %APPDATA%\RadioTray.
+
+Limiti di questa versione
+- Formati: MP3 e AAC. Le radio HLS (.m3u8: Deejay, Capital, m2o, RDS, Radio Italia…) arrivano
+  nella fase 2; Ogg/Opus/FLAC non ancora.
+- Non ci sono ancora brani preferiti, cronologia, ricerca delle stazioni, copertine, scorciatoie,
+  sveglia e avvio automatico con Windows (fasi 3 e 4).

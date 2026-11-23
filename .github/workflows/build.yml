@@ -1,7 +1,7 @@
 name: build
 
-# - push su un ramo di sviluppo: compila, prova e aggiorna la release di prova "anteprima"
-# - push su main: compila e prova (il .dmg resta tra gli artifact)
+# - push su un ramo di sviluppo: compila, prova e aggiorna la release di prova "anteprima" (.dmg per Mac e .zip per Windows)
+# - push su main: compila e prova (il .dmg e lo .zip restano tra gli artifact)
 # - etichetta vX.Y.Z, oppure avvio manuale con "versione" = X.Y.Z (crea l'etichetta su questo commit):
 #   pubblica la versione stabile "RadioTray X.Y.Z" e toglie l'anteprima
 on:
@@ -18,7 +18,7 @@ on:
         default: ""
 
 permissions:
-  contents: write   # release con il .dmg
+  contents: write   # release con il .dmg e lo .zip
 
 jobs:
   macos:
@@ -94,19 +94,102 @@ jobs:
           path: build/RadioTray.dmg
           compression-level: 0
           retention-days: 14
+
+  windows:
+    # RadioTray per Windows 10: WinForms su .NET Framework 4.8, cartella portatile in uno .zip
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Test della logica comune (stazioni, playlist, titoli, ICY, proxy)
+        run: dotnet run --project windows/RadioTray.Tests -c Release -- resources/bookmarks.json resources/stazioni-italiane.json
+      - name: Compilazione (.NET Framework 4.8)
+        run: dotnet build windows/RadioTray/RadioTray.csproj -c Release
+      - name: Prova di avvio (facoltativa)
+        continue-on-error: true
+        timeout-minutes: 2
+        run: |
+          $p = Start-Process windows/RadioTray/bin/Release/net48/RadioTray.exe -PassThru
+          Start-Sleep -Seconds 8
+          if ($p.HasExited) { Write-Host "L'app è terminata subito (codice $($p.ExitCode))"; exit 1 }
+          Write-Host "L'app è partita ed è ancora attiva dopo 8 s"
+          Stop-Process -Id $p.Id
+          $log = Join-Path $env:APPDATA "RadioTray/radiotray.log"
+          if (Test-Path $log) { Get-Content $log }
+      - name: Zip (cartella portatile)
+        run: |
+          New-Item -ItemType Directory -Force build/RadioTray | Out-Null
+          Copy-Item windows/RadioTray/bin/Release/net48/* build/RadioTray -Exclude *.pdb
+          Copy-Item windows/LEGGIMI.txt build/RadioTray
+          Get-ChildItem build/RadioTray
+          Compress-Archive -Path build/RadioTray -DestinationPath build/RadioTray-Windows.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RadioTray-Windows
+          path: build/RadioTray-Windows.zip
+          retention-days: 14
+
+  release:
+    # pubblica insieme il .dmg e lo .zip; se una delle due compilazioni fallisce, l'anteprima esce con l'altra
+    needs: [macos, windows]
+    if: always() && !cancelled() && github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          path: dist
+      - name: Versione
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            v="${GITHUB_REF_NAME#v}"; echo "RELEASE_TAG=$GITHUB_REF_NAME" >> "$GITHUB_ENV"
+          elif [ -n "${{ inputs.versione }}" ]; then
+            v="${{ inputs.versione }}"; v="${v#v}"; echo "RELEASE_TAG=v$v" >> "$GITHUB_ENV"
+          else
+            v=$(sed -n 's/^VERSION *?= *//p' Makefile)
+          fi
+          w=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' windows/RadioTray/RadioTray.csproj)
+          echo "VERSION=$v" >> "$GITHUB_ENV"
+          echo "WIN_VERSION=$w" >> "$GITHUB_ENV"
+          echo "Versione $v (Windows $w)"
+          ls -R dist || true
       - name: Release di prova "anteprima" (rami di sviluppo)
         if: github.ref_type == 'branch' && github.ref_name != 'main' && inputs.versione == ''
         run: |
+          files=(); notes=""
+          if [ -f dist/RadioTray-macOS-10.13-x86_64/RadioTray.dmg ]; then
+            files+=(dist/RadioTray-macOS-10.13-x86_64/RadioTray.dmg)
+            notes="$notes- RadioTray.dmg: macOS 10.13 (x86_64), istruzioni nel file LEGGIMI.txt dentro il .dmg"$'\n'
+          fi
+          if [ -f dist/RadioTray-Windows/RadioTray-Windows.zip ]; then
+            files+=(dist/RadioTray-Windows/RadioTray-Windows.zip)
+            notes="$notes- RadioTray-Windows.zip: Windows 10 ($WIN_VERSION, prova), istruzioni nel file LEGGIMI.txt dentro lo .zip"$'\n'
+          fi
+          if [ ${#files[@]} -eq 0 ]; then echo "Nessun file da pubblicare"; exit 1; fi
           gh release delete anteprima --cleanup-tag -y 2>/dev/null || true
-          gh release create anteprima build/RadioTray.dmg --prerelease --target "${{ github.sha }}" \
+          gh release create anteprima "${files[@]}" --prerelease --target "${{ github.sha }}" \
             --title "Anteprima (build ${{ github.run_number }}, ${{ github.ref_name }})" \
-            --notes "Build automatica per macOS 10.13 (x86_64). Commit ${{ github.sha }}. Istruzioni nel file LEGGIMI.txt dentro il .dmg."
+            --notes "Build automatica, commit ${{ github.sha }}."$'\n\n'"$notes"
       - name: Versione stabile (etichetta vX.Y.Z o avvio manuale con versione)
         if: env.RELEASE_TAG != ''
         run: |
-          cp build/RadioTray.dmg "build/RadioTray-$VERSION.dmg"
+          if [ "${{ needs.macos.result }}" != "success" ]; then echo "La compilazione per Mac non è riuscita: niente versione stabile"; exit 1; fi
+          files=("dist/RadioTray-macOS-10.13-x86_64/RadioTray.dmg")
+          cp "${files[0]}" "RadioTray-$VERSION.dmg"; files=("RadioTray-$VERSION.dmg")
+          if [ "${{ needs.windows.result }}" = "success" ] && [ -f dist/RadioTray-Windows/RadioTray-Windows.zip ]; then
+            cp dist/RadioTray-Windows/RadioTray-Windows.zip "RadioTray-Windows-$WIN_VERSION.zip"
+            files+=("RadioTray-Windows-$WIN_VERSION.zip")
+          fi
           gh release delete "$RELEASE_TAG" -y 2>/dev/null || true
-          gh release create "$RELEASE_TAG" "build/RadioTray-$VERSION.dmg" --latest --target "${{ github.sha }}" \
+          gh release create "$RELEASE_TAG" "${files[@]}" --latest --target "${{ github.sha }}" \
             --title "RadioTray $VERSION" --notes-file docs/NOTE-VERSIONE.md
           # la versione stabile prende il posto dell'anteprima
           gh release delete anteprima --cleanup-tag -y 2>/dev/null || true

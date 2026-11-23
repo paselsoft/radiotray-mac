@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- RadioTray per Windows 10: WinForms su .NET Framework 4.8 (già presente in Windows), audio con NAudio. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <RootNamespace>RadioTray</RootNamespace>
+    <AssemblyName>RadioTray</AssemblyName>
+    <ApplicationIcon>RadioTray.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+    <Version>0.1.0</Version>
+    <Product>RadioTray</Product>
+    <Company>RadioTray</Company>
+    <Description>Radio via Internet nell'area di notifica</Description>
+    <Copyright>GPL-3.0</Copyright>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+    <PackageReference Include="NAudio.Core" Version="2.2.1" />
+    <PackageReference Include="NAudio.WinMM" Version="2.2.1" />
+    <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Net.Http" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\RadioTray.Core\RadioTray.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\resources\bookmarks.json" LogicalName="bookmarks.json" />
+    <EmbeddedResource Include="RadioTray.ico" LogicalName="RadioTray.ico" />
+  </ItemGroup>
+</Project>
