@@ -44,6 +44,7 @@ Legenda: `[x]` fatto (versione) · `[ ]` da fare · 🚧 in preparazione nell'an
 - [x] **Palinsesto della radio** dal menu (Radio 24, Rai, Deejay, RMC…) (1.15)
 - [x] **Palinsesto personale** con orari e foto del conduttore (1.15)
 - [x] **Ogg Vorbis, Opus e FLAC** con il motore ffmpeg; titoli e copertine di Radio Paradise (1.16)
+- [x] **RadioTray per Windows 10** (0.4.1), dietro il proxy dell'ufficio: dettagli in `docs/PIANO-WINDOWS.md` (1.17)
 
 ## Da fare
 
@@ -56,4 +57,3 @@ Legenda: `[x]` fatto (versione) · `[ ]` da fare · 🚧 in preparazione nell'an
 
 ### Altre idee
 - [ ] Proporre all'archivio Radio Browser le stazioni che mancano
-- [ ] Versione per Windows 10 (piano in `docs/PIANO-WINDOWS.md`, in attesa)
