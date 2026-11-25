@@ -45,6 +45,7 @@ Legenda: `[x]` fatto (versione) · `[ ]` da fare · 🚧 in preparazione nell'an
 - [x] **Palinsesto personale** con orari e foto del conduttore (1.15)
 - [x] **Ogg Vorbis, Opus e FLAC** con il motore ffmpeg; titoli e copertine di Radio Paradise (1.16)
 - [x] **RadioTray per Windows 10** (0.4.1), dietro il proxy dell'ufficio: dettagli in `docs/PIANO-WINDOWS.md` (1.17)
+- [x] **12. Telecomando dal telefono**: pagina web sulla rete di casa, con codice QR e codice di sicurezza (1.18)
 
 ## Da fare
 
@@ -52,7 +53,6 @@ Legenda: `[x]` fatto (versione) · `[ ]` da fare · 🚧 in preparazione nell'an
 - [ ] **7. Pausa e riprendi ("pausa live")** fino a 30 minuti, e registrazione per uso personale
 
 ### Idee nuove
-- [ ] 🚧 **12. Telecomando dal telefono** (pagina web sulla rete di casa) — in preparazione per la 1.18
 - [ ] **17. Comandi AppleScript**
 
 ### Altre idee
