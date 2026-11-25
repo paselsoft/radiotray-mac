@@ -824,7 +824,7 @@ static void testRemote(void)
     CHECK([resp containsString:@"Location: /t/x/\r\n"]);
 
     // il codice del telecomando non va nei backup
-    CHECK([RTBackup exportableSettings:@{ @"remote-token": @"abc", @"remote-control": @YES }][@"remote-token"] == nil);
+    CHECK(([RTBackup exportableSettings:@{ @"remote-token": @"abc", @"remote-control": @YES }][@"remote-token"] == nil));
     CHECK_EQ([RTBackup exportableSettings:@{ @"remote-control": @YES }][@"remote-control"], @YES);
 }
 
