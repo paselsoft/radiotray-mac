@@ -99,7 +99,8 @@ static NSData *RTPrettyJSON(id object)
         if (![key isKindOfClass:[NSString class]]) continue;
         // dati di sistema o legati a questo Mac
         if ([key hasPrefix:@"NS"] || [key hasPrefix:@"Apple"] || [key hasPrefix:@"com.apple"] ||
-            [key isEqualToString:@"last-update-check"] || [key isEqualToString:@"alarm-last-fired"]) continue;
+            [key isEqualToString:@"last-update-check"] || [key isEqualToString:@"alarm-last-fired"] ||
+            [key isEqualToString:@"remote-token"]) continue;   // il codice del telecomando resta su questo Mac
         id value = defaults[key];
         if ([self isJSONValue:value]) out[key] = value;
     }

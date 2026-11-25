@@ -23,6 +23,7 @@
 #import "../src/RTShows.h"
 #import "../src/RTFFmpegOutput.h"
 #import "../src/RTArtistWatcher.h"
+#import "../src/RTRemote.h"
 
 static int failures = 0;
 static int checks = 0;
@@ -702,6 +703,131 @@ static void testBackup(void)
     [[NSFileManager defaultManager] removeItemAtPath:dir error:NULL];
 }
 
+
+static RTRemoteRequest *Req(NSString *text)
+{
+    BOOL invalid = NO;
+    return [RTRemoteRequest requestFromData:D(text) invalid:&invalid];
+}
+
+static void testRemote(void)
+{
+    // codice di sicurezza
+    NSString *t1 = [RTRemote generateToken], *t2 = [RTRemote generateToken];
+    CHECK(t1.length == 12);
+    CHECK(![t1 isEqualToString:t2]);
+    CHECK([t1 rangeOfCharacterFromSet:[[NSCharacterSet characterSetWithCharactersInString:@"abcdefghijkmnpqrstuvwxyz23456789"] invertedSet]].location == NSNotFound);
+    CHECK([RTRemote token:@"abc123def456" matches:@"abc123def456"]);
+    CHECK(![RTRemote token:@"abc123def457" matches:@"abc123def456"]);
+    CHECK(![RTRemote token:@"abc" matches:@"abc123def456"]);
+    CHECK(![RTRemote token:@"" matches:@""]);
+    CHECK(![RTRemote token:nil matches:@"abc"]);
+
+    // solo la rete di casa
+    for (NSString *a in @[@"192.168.1.20", @"10.0.0.5", @"172.16.3.4", @"172.31.255.1", @"169.254.10.1", @"127.0.0.1",
+                          @"::1", @"fe80::1c2b:3aff:fe4d:5e6f", @"fe80::1%en0", @"fd12:3456::1", @"::ffff:192.168.0.10"]) {
+        CHECK([RTRemote isLocalAddressString:a]);
+    }
+    for (NSString *a in @[@"8.8.8.8", @"172.32.0.1", @"172.15.0.1", @"192.169.0.1", @"2a00:1450:4002::200e", @"::ffff:8.8.8.8",
+                          @"", @"pippo", @"300.1.1.1"]) {
+        CHECK(![RTRemote isLocalAddressString:a]);
+    }
+
+    // lettura delle richieste
+    BOOL invalid = NO;
+    CHECK([RTRemoteRequest requestFromData:D(@"GET /t/x/ HTTP/1.1\r\nHost: imac") invalid:&invalid] == nil && !invalid);   // incompleta
+    CHECK([RTRemoteRequest requestFromData:D(@"CIAO\r\n\r\n") invalid:&invalid] == nil && invalid);
+    CHECK([RTRemoteRequest requestFromData:D(@"GET pippo HTTP/1.1\r\n\r\n") invalid:&invalid] == nil && invalid);
+    CHECK([RTRemoteRequest requestFromData:D(@"POST /t/x/api/cmd HTTP/1.1\r\nContent-Length: 99999\r\n\r\n") invalid:&invalid] == nil && invalid);
+    CHECK([RTRemoteRequest requestFromData:D(@"POST /t/x/api/cmd HTTP/1.1\r\nContent-Length: 5\r\n\r\nab") invalid:&invalid] == nil && !invalid);   // corpo a metà
+    NSMutableData *big = [D(@"GET /") mutableCopy];
+    big.length = 20000;
+    CHECK([RTRemoteRequest requestFromData:big invalid:&invalid] == nil && invalid);
+    RTRemoteRequest *r = Req(@"POST /t/abc123def456/api/cmd?do=play&group=Radio%20italiane&station=RTL%20102.5 HTTP/1.1\r\nContent-Length: 0\r\n\r\n");
+    CHECK(r != nil);
+    CHECK_EQ(r.method, @"POST");
+    CHECK_EQ(r.path, @"/t/abc123def456/api/cmd");
+    CHECK_EQ(r.query[@"group"], @"Radio italiane");
+    CHECK_EQ(r.query[@"station"], @"RTL 102.5");
+
+    // scelta della risposta
+    NSString *tok = @"abc123def456";
+    CHECK([RTRemote routeForRequest:r token:tok] == RTRemoteRouteCommand);
+    CHECK([RTRemote routeForRequest:r token:@"altrocodice1"] == RTRemoteRouteForbidden);
+    CHECK([RTRemote routeForRequest:Req(@"GET /t/abc123def456/ HTTP/1.1\r\n\r\n") token:tok] == RTRemoteRoutePage);
+    CHECK([RTRemote routeForRequest:Req(@"GET /t/abc123def456 HTTP/1.1\r\n\r\n") token:tok] == RTRemoteRouteRedirect);
+    CHECK([RTRemote routeForRequest:Req(@"GET /t/abc123def456/api/state HTTP/1.1\r\n\r\n") token:tok] == RTRemoteRouteState);
+    CHECK([RTRemote routeForRequest:Req(@"GET /t/abc123def456/api/stations HTTP/1.1\r\n\r\n") token:tok] == RTRemoteRouteStations);
+    CHECK([RTRemote routeForRequest:Req(@"GET /t/abc123def456/api/recent HTTP/1.1\r\n\r\n") token:tok] == RTRemoteRouteRecent);
+    CHECK([RTRemote routeForRequest:Req(@"GET /t/abc123def456/img/cover?v=1 HTTP/1.1\r\n\r\n") token:tok] == RTRemoteRouteCover);
+    CHECK([RTRemote routeForRequest:Req(@"GET /t/abc123def456/img/logo?group=a&station=b HTTP/1.1\r\n\r\n") token:tok] == RTRemoteRouteLogo);
+    CHECK([RTRemote routeForRequest:Req(@"GET /t/abc123def456/icon.png HTTP/1.1\r\n\r\n") token:tok] == RTRemoteRouteIcon);
+    CHECK([RTRemote routeForRequest:Req(@"GET /t/abc123def456/api/cmd?do=toggle HTTP/1.1\r\n\r\n") token:tok] == RTRemoteRouteNotFound);   // i comandi solo con POST
+    CHECK([RTRemote routeForRequest:Req(@"GET / HTTP/1.1\r\n\r\n") token:tok] == RTRemoteRouteNotFound);
+    CHECK([RTRemote routeForRequest:Req(@"GET /t/abc123def456/../../etc HTTP/1.1\r\n\r\n") token:tok] == RTRemoteRouteNotFound);
+    CHECK([RTRemote routeForRequest:Req(@"GET /t//api/state HTTP/1.1\r\n\r\n") token:tok] == RTRemoteRouteForbidden);
+    CHECK_EQ([RTRemote addressForHost:@"iMac-di-Paolo.local" token:tok], @"http://iMac-di-Paolo.local:8765/t/abc123def456/");
+    CHECK_EQ([RTRemote addressForHost:@"fe80::1" token:tok], @"http://[fe80::1]:8765/t/abc123def456/");
+
+    // comandi
+    NSDictionary *c = [RTRemote commandFromRequest:r];
+    CHECK_EQ(c[@"action"], @"play");
+    CHECK_EQ(c[@"station"], @"RTL 102.5");
+    CHECK_EQ([RTRemote commandFromRequest:Req(@"POST /t/x/api/cmd?do=toggle HTTP/1.1\r\n\r\n")][@"action"], @"toggle");
+    CHECK_EQ([RTRemote commandFromRequest:Req(@"POST /t/x/api/cmd?do=volume&value=150 HTTP/1.1\r\n\r\n")][@"value"], @"100");
+    CHECK_EQ([RTRemote commandFromRequest:Req(@"POST /t/x/api/cmd?do=volume&value=-3 HTTP/1.1\r\n\r\n")][@"value"], @"0");
+    CHECK([RTRemote commandFromRequest:Req(@"POST /t/x/api/cmd?do=volume&value=alto HTTP/1.1\r\n\r\n")] == nil);
+    CHECK([RTRemote commandFromRequest:Req(@"POST /t/x/api/cmd?do=play&group=a HTTP/1.1\r\n\r\n")] == nil);
+    CHECK([RTRemote commandFromRequest:Req(@"POST /t/x/api/cmd?do=rm HTTP/1.1\r\n\r\n")] == nil);
+    CHECK([RTRemote commandFromRequest:Req(@"POST /t/x/api/cmd HTTP/1.1\r\n\r\n")] == nil);
+    CHECK_EQ([RTRemote commandFromRequest:Req(@"POST /t/x/api/cmd?do=favorite-recent&title=Azzurro&artist=Celentano HTTP/1.1\r\n\r\n")][@"artist"], @"Celentano");
+    CHECK([RTRemote commandFromRequest:Req(@"POST /t/x/api/cmd?do=favorite-recent HTTP/1.1\r\n\r\n")] == nil);
+
+    // JSON delle stazioni e dei recenti
+    RTBookmarks *b = [RTBookmarks bookmarksWithData:D(@"[{\"group\":\"Jazz\",\"stations\":[{\"name\":\"A\",\"url\":\"http://a\"},{\"name\":\"B\",\"url\":\"http://b\"}]},"
+                                                       "{\"group\":\"root\",\"stations\":[{\"name\":\"R\",\"url\":\"http://r\"}]},{\"group\":\"Vuoto\"}]") error:NULL];
+    NSDictionary *st = [RTRemote stationsJSONForBookmarks:b mostPlayed:@[@[@"Jazz", @"B"], @[@"Jazz", @"Sparita"]] currentGroup:@"Jazz" currentStation:@"B"];
+    NSArray *groups = st[@"groups"];
+    CHECK(groups.count == 3);   // Più ascoltate, Jazz, Stazioni (il gruppo vuoto no)
+    CHECK_EQ(groups[0][@"name"], @"Più ascoltate");
+    CHECK([groups[0][@"stations"] count] == 1);   // la stazione sparita dall'elenco non c'è
+    CHECK_EQ(groups[1][@"name"], @"Jazz");
+    CHECK_EQ(groups[1][@"stations"][1][@"current"], @YES);
+    CHECK_EQ(groups[1][@"stations"][0][@"current"], @NO);
+    CHECK_EQ(groups[2][@"name"], @"Stazioni");
+    CHECK_EQ(groups[2][@"stations"][0][@"group"], @"root");
+    CHECK([NSJSONSerialization isValidJSONObject:st]);
+    CHECK([[RTRemote stationsJSONForBookmarks:b mostPlayed:@[] currentGroup:nil currentStation:nil][@"groups"] count] == 2);
+
+    RTFavoriteTracks *h = [RTFavoriteTracks new], *fav = [RTFavoriteTracks new];
+    for (int i = 0; i < 25; i++) {
+        [h recordTitle:[NSString stringWithFormat:@"Brano %d", i] artist:@"Artista" station:@"A" date:[NSDate dateWithTimeIntervalSince1970:1800000000 + i * 60] limit:50];
+    }
+    [fav addTitle:@"Brano 24" artist:@"Artista" station:@"A" date:[NSDate date] alreadyPresent:NULL];
+    NSArray *recent = [RTRemote recentJSONForHistory:h favorites:fav limit:20][@"tracks"];
+    CHECK(recent.count == 20);
+    CHECK_EQ(recent[0][@"title"], @"Brano 24");   // il più nuovo per primo
+    CHECK_EQ(recent[0][@"favorite"], @YES);
+    CHECK_EQ(recent[1][@"favorite"], @NO);
+    CHECK([recent[0][@"time"] length] == 5);
+
+    // risposte HTTP
+    NSString *resp = [[NSString alloc] initWithData:[RTRemote JSONResponse:@{ @"a": @1 }] encoding:NSUTF8StringEncoding];
+    CHECK([resp hasPrefix:@"HTTP/1.1 200 OK\r\n"]);
+    CHECK([resp containsString:@"Content-Type: application/json; charset=utf-8\r\n"]);
+    CHECK([resp containsString:@"Content-Length: 7\r\n"]);
+    CHECK([resp containsString:@"Cache-Control: no-store\r\n"]);
+    CHECK([resp containsString:@"Referrer-Policy: no-referrer\r\n"]);
+    CHECK([resp hasSuffix:@"\r\n\r\n{\"a\":1}"]);
+    resp = [[NSString alloc] initWithData:[RTRemote redirectTo:@"/t/x/"] encoding:NSUTF8StringEncoding];
+    CHECK([resp hasPrefix:@"HTTP/1.1 301 "]);
+    CHECK([resp containsString:@"Location: /t/x/\r\n"]);
+
+    // il codice del telecomando non va nei backup
+    CHECK([RTBackup exportableSettings:@{ @"remote-token": @"abc", @"remote-control": @YES }][@"remote-token"] == nil);
+    CHECK_EQ([RTBackup exportableSettings:@{ @"remote-control": @YES }][@"remote-control"], @YES);
+}
+
 int main(int argc, const char *argv[])
 {
     @autoreleasepool {
@@ -724,6 +850,7 @@ int main(int argc, const char *argv[])
         testHistoryAndUpdates();
         testAlarmAndArtwork();
         testBackup();
+        testRemote();
         // 1.4.1: formato "Titolo * Artista * codice" e scambio
         {
             RTTrackInfo *t = [RTTrackInfo infoWithStreamTitle:@"Tusa * Karol G, Nicki Minaj * 11712" split:YES];

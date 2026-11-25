@@ -59,6 +59,11 @@ NS_ASSUME_NONNULL_BEGIN
 /// Stazioni di cui ignorare i titoli (sbagliati o vecchi): si mostra il logo.
 @property (nonatomic, copy) NSArray<NSString *> *ignoredTitleStations;
 
+// telecomando dal telefono
+@property (nonatomic) BOOL remoteControl;                     // predefinito NO
+/// Codice di sicurezza nell'indirizzo del telecomando (creato la prima volta che serve).
+@property (nonatomic, copy) NSString *remoteToken;
+
 /// Secondi di ascolto per stazione (chiave "gruppo\nstazione").
 @property (nonatomic, copy) NSDictionary<NSString *, NSNumber *> *listeningSeconds;
 

@@ -34,6 +34,8 @@
 	<string>NSApplication</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>Ispirato a Radiotray-NG di Edward G. Bruck.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Il telecomando dal telefono risponde all'iPhone sulla rete di casa.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsArbitraryLoads</key>

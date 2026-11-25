@@ -36,11 +36,13 @@
 #import "RTTableCell.h"
 #import "RTStreamResolver.h"
 #import "RTTrackInfo.h"
+#import "RTRemote.h"
+#import "RTRemoteController.h"
 
 static const NSUInteger RTMenuLineLength = 48;
 static const NSInteger RTMaxSleepMinutes = 24 * 60;
 
-@interface RTAppDelegate () <NSMenuDelegate, RTPlayerDelegate, RTMediaKeysDelegate, RTSearchWindowDelegate, RTStationEditorDelegate, RTStationCheckDelegate, RTFavoritesWindowDelegate, RTNowPlayingDelegate, RTAudioWatcherDelegate, RTNetworkWatcherDelegate, RTOnAirDelegate, RTProgramsDelegate, RTArtistWatcherDelegate, RTShowsDelegate>
+@interface RTAppDelegate () <NSMenuDelegate, RTPlayerDelegate, RTMediaKeysDelegate, RTSearchWindowDelegate, RTStationEditorDelegate, RTStationCheckDelegate, RTFavoritesWindowDelegate, RTNowPlayingDelegate, RTAudioWatcherDelegate, RTNetworkWatcherDelegate, RTOnAirDelegate, RTProgramsDelegate, RTArtistWatcherDelegate, RTShowsDelegate, RTRemoteDataSource>
 @property (nonatomic, strong) NSStatusItem *statusItem;
 @property (nonatomic, strong) NSMenu *menu;
 @property (nonatomic, strong) NSMenuItem *trackItem;
@@ -87,6 +89,9 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
 @property (nonatomic, strong) NSMenuItem *outputItem;
 @property (nonatomic, strong) NSMenuItem *scheduleItem;
 @property (nonatomic, strong) NSMenuItem *nowPlayingItem;
+@property (nonatomic, strong) RTRemoteController *remote;          // telecomando dal telefono
+@property (nonatomic, strong, nullable) NSMenuItem *remoteItem;
+@property (nonatomic, copy, nullable) NSString *remoteMenuAddress;  // indirizzo per cui è fatto il sottomenu
 @property (nonatomic, strong, nullable) RTNowPlayingWindowController *nowPlayingWindow;
 @property (nonatomic, strong) RTAudioWatcher *audioWatcher;
 @property (nonatomic, strong) RTNetworkWatcher *networkWatcher;
@@ -222,6 +227,13 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     self.networkWatcher.delegate = self;
     [self.networkWatcher start];
     if (self.settings.nowPlayingVisible || self.settings.nowPlayingAtLaunch) [self showNowPlaying:NO];
+    self.remote = [RTRemoteController new];
+    self.remote.dataSource = self;
+    self.remote.token = self.settings.remoteToken;
+    if (self.settings.remoteControl) {
+        NSString *problem = [self.remote start];
+        if (problem) NSLog(@"RadioTray: telecomando non avviato: %@", problem);
+    }
 
     // se l'app è stata spostata, l'avvio al login deve puntare al nuovo percorso
     [RTLoginItem refreshAppPath:[NSBundle mainBundle].bundlePath];
@@ -498,6 +510,10 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     self.watchItem = [self addItem:@"Avvisami quando passa…" action:@selector(configureWatch:) to:self.menu];
     self.watchItem.toolTip = @"Scrivi i tuoi artisti preferiti: quando uno passa su un'altra delle tue stazioni arriva un avviso";
     self.nowPlayingItem = [self addItem:@"Finestra In riproduzione" action:@selector(toggleNowPlaying:) to:self.menu];
+    self.remoteItem = [[NSMenuItem alloc] initWithTitle:@"Telecomando dal telefono" action:NULL keyEquivalent:@""];
+    self.remoteItem.hidden = YES;
+    self.remoteMenuAddress = nil;
+    [self.menu addItem:self.remoteItem];
     self.historyItem = [[NSMenuItem alloc] initWithTitle:@"Ascoltati di recente" action:NULL keyEquivalent:@""];
     [self.menu addItem:self.historyItem];
     [self addItem:@"Apri URL…" action:@selector(openURL:) to:self.menu];
@@ -562,6 +578,9 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     report.tag = 20;
     report.toolTip = @"Come chiede l'archivio: aiuta a ordinare le stazioni per popolarità. Si manda solo l'indirizzo della stazione, una volta al giorno.";
     [self addItem:@"Azzera le stazioni più ascoltate" action:@selector(resetListening:) to:prefsMenu];
+    NSMenuItem *remote = [self addItem:@"Telecomando dal telefono" action:@selector(toggleRemote:) to:prefsMenu];
+    remote.tag = 25;
+    remote.toolTip = @"Una pagina web da aprire sull'iPhone (Safari) nella rete di casa: brano, comandi, volume e stazioni";
 
     [prefsMenu addItem:[NSMenuItem separatorItem]];
     NSMenuItem *pauseItem = [[NSMenuItem alloc] initWithTitle:@"Pausa automatica" action:NULL keyEquivalent:@""];
@@ -866,6 +885,8 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     [prefs itemWithTag:22].state = self.settings.stationVolumes ? NSControlStateValueOn : NSControlStateValueOff;
     [prefs itemWithTag:20].state = self.settings.reportListening ? NSControlStateValueOn : NSControlStateValueOff;
     [prefs itemWithTag:19].state = self.settings.nowPlayingAtLaunch ? NSControlStateValueOn : NSControlStateValueOff;
+    [prefs itemWithTag:25].state = self.remote.running ? NSControlStateValueOn : NSControlStateValueOff;
+    [self updateRemoteMenu];
 
     // radiosveglia
     if (self.settings.alarmEnabled && self.settings.alarmStation) {
@@ -1899,6 +1920,176 @@ static const NSInteger RTMaxSleepMinutes = 24 * 60;
     self.settings.listeningSeconds = @{};
     [self buildMenu];
     [self refresh];
+}
+
+#pragma mark - Telecomando dal telefono
+
+- (void)toggleRemote:(id)sender
+{
+    if (self.remote.running) {
+        [self.remote stop];
+        self.settings.remoteControl = NO;
+    } else {
+        self.remote.token = self.settings.remoteToken;
+        NSString *problem = [self.remote start];
+        if (problem) {
+            [self showAlert:@"Telecomando non avviato" text:problem];
+            return;
+        }
+        self.settings.remoteControl = YES;
+        [[RTNotifier shared] notifyTitle:@"Telecomando dal telefono attivo"
+                                 message:@"Nel menu di RadioTray trovi l'indirizzo e il codice QR da inquadrare con l'iPhone"];
+    }
+    [self refresh];
+}
+
+/// Voce del menu con indirizzo, codice QR e comandi (visibile solo con il telecomando attivo).
+- (void)updateRemoteMenu
+{
+    if (!self.remoteItem) return;
+    self.remoteItem.hidden = !self.remote.running;
+    if (!self.remote.running) return;
+    NSString *address = [self.remote address];
+    if ([address isEqualToString:self.remoteMenuAddress ?: @""]) return;   // già pronto
+    self.remoteMenuAddress = address;
+    NSString *ip = [self.remote ipAddress];
+
+    NSMenu *menu = [[NSMenu alloc] initWithTitle:@"Telecomando"];
+    menu.autoenablesItems = NO;
+    NSMenuItem *intro = [menu addItemWithTitle:@"Inquadra il codice con la fotocamera dell'iPhone," action:NULL keyEquivalent:@""];
+    intro.enabled = NO;
+    NSMenuItem *intro2 = [menu addItemWithTitle:@"poi in Safari: Condividi ▸ Aggiungi alla schermata Home" action:NULL keyEquivalent:@""];
+    intro2.enabled = NO;
+    NSImage *qr = [self.remote QRCodeForString:address side:200];
+    if (qr) {
+        NSImageView *view = [NSImageView imageViewWithImage:qr];
+        view.frame = NSMakeRect(0, 0, 240, 212);
+        view.imageScaling = NSImageScaleNone;
+        NSMenuItem *qrItem = [[NSMenuItem alloc] initWithTitle:@"" action:NULL keyEquivalent:@""];
+        qrItem.view = view;
+        [menu addItem:qrItem];
+    }
+    NSMenuItem *addressItem = [menu addItemWithTitle:address action:NULL keyEquivalent:@""];
+    addressItem.enabled = NO;
+    NSMenuItem *copy = [self addItem:@"Copia l'indirizzo" action:@selector(copyRemoteAddress:) to:menu];
+    copy.representedObject = address;
+    if (ip) {
+        NSMenuItem *copyIP = [self addItem:@"Copia l'indirizzo con il numero IP" action:@selector(copyRemoteAddress:) to:menu];
+        copyIP.representedObject = ip;
+        copyIP.toolTip = [NSString stringWithFormat:@"%@\nSe il telefono non trova il nome .local del Mac", ip];
+    }
+    [self addItem:@"Apri la pagina su questo Mac" action:@selector(openRemotePage:) to:menu];
+    [menu addItem:[NSMenuItem separatorItem]];
+    NSMenuItem *renew = [self addItem:@"Nuovo codice di sicurezza…" action:@selector(renewRemoteToken:) to:menu];
+    renew.toolTip = @"Cambia l'indirizzo: i telefoni che usavano quello vecchio non comandano più la radio";
+    [self addItem:@"Spegni il telecomando" action:@selector(toggleRemote:) to:menu];
+    self.remoteItem.submenu = menu;
+}
+
+- (void)copyRemoteAddress:(NSMenuItem *)sender
+{
+    NSPasteboard *pb = [NSPasteboard generalPasteboard];
+    [pb clearContents];
+    [pb setString:sender.representedObject ?: [self.remote address] forType:NSPasteboardTypeString];
+}
+
+- (void)openRemotePage:(id)sender
+{
+    NSURL *url = [NSURL URLWithString:[RTRemote addressForHost:@"localhost" token:self.remote.token]];
+    if (url) [[NSWorkspace sharedWorkspace] openURL:url];
+}
+
+- (void)renewRemoteToken:(id)sender
+{
+    [NSApp activateIgnoringOtherApps:YES];
+    NSAlert *alert = [NSAlert new];
+    alert.messageText = @"Nuovo codice di sicurezza?";
+    alert.informativeText = @"L'indirizzo del telecomando cambia: sul telefono va riaperto (o riaggiunto alla schermata Home) "
+                            @"con il nuovo codice QR. Chi aveva quello vecchio non comanda più la radio.";
+    [alert addButtonWithTitle:@"Cambia codice"];
+    [alert addButtonWithTitle:@"Annulla"];
+    if ([alert runModal] != NSAlertFirstButtonReturn) return;
+    self.settings.remoteToken = [RTRemote generateToken];
+    self.remote.token = self.settings.remoteToken;
+    self.remoteMenuAddress = nil;
+    [self refresh];
+}
+
+- (NSDictionary *)remoteState
+{
+    RTPlayerState state = self.player.state;
+    BOOL playing = state == RTPlayerStatePlaying;
+    BOOL showTrack = playing && !self.track.isEmpty;
+    NSString *station = self.currentStation ?: (self.adhocStation.name ?: @"");
+    NSString *title = showTrack ? (self.track.title.length ? self.track.title : self.track.artist) : @"";
+    NSString *artist = showTrack && self.track.title.length ? self.track.artist : @"";
+    BOOL hasCover = [self remoteCoverImage] != nil;
+    // cambia quando cambia l'immagine da mostrare: la pagina allora la ricarica
+    NSString *coverKey = [NSString stringWithFormat:@"%lx", (unsigned long)[NSString stringWithFormat:@"%@|%@|%@|%d|%d|%d", title, artist, station,
+                          self.trackArtworkFull != nil, self.stationLogo != nil, state != RTPlayerStateStopped].hash];
+    return @{ @"playing": @(playing),
+              @"connecting": @(state != RTPlayerStateStopped && !playing),
+              @"station": station,
+              @"stationName": self.currentStation ?: @"",
+              @"group": self.currentGroup ?: @"",
+              @"title": title,
+              @"artist": artist,
+              @"quality": (playing ? [self qualityText] : nil) ?: @"",
+              @"volume": @(self.player.volume),
+              @"favorite": @(showTrack && [self currentTrackIsFavorite]),
+              @"canFavorite": @(showTrack),
+              @"hasCover": @(hasCover),
+              @"cover": coverKey };
+}
+
+- (NSDictionary *)remoteStations
+{
+    return [RTRemote stationsJSONForBookmarks:self.bookmarks mostPlayed:[self mostPlayedStations:5]
+                                 currentGroup:self.currentGroup currentStation:self.currentStation];
+}
+
+- (NSDictionary *)remoteRecent
+{
+    return [RTRemote recentJSONForHistory:self.history favorites:self.favorites limit:20];
+}
+
+- (void)remoteCommand:(NSDictionary<NSString *, NSString *> *)command
+{
+    NSString *action = command[@"action"];
+    if ([action isEqualToString:@"toggle"]) {
+        [self togglePlay:nil];
+    } else if ([action isEqualToString:@"next"]) {
+        [self stepStation:+1];
+    } else if ([action isEqualToString:@"prev"]) {
+        [self stepStation:-1];
+    } else if ([action isEqualToString:@"favorite"]) {
+        [self addCurrentTrackToFavorites:nil];
+    } else if ([action isEqualToString:@"volume"]) {
+        self.player.volume = command[@"value"].integerValue;
+        self.settings.volume = self.player.volume;
+        [self rememberStationVolume];
+        [self refresh];
+    } else if ([action isEqualToString:@"play"]) {
+        if ([self.bookmarks stationNamed:command[@"station"] inGroup:command[@"group"]]) {
+            [self playStationNamed:command[@"station"] inGroup:command[@"group"]];
+        }
+    } else if ([action isEqualToString:@"favorite-recent"]) {
+        [self addFavoriteTitle:command[@"title"] artist:command[@"artist"] station:command[@"station"]];
+    }
+}
+
+- (NSImage *)remoteCoverImage
+{
+    if (self.player.state == RTPlayerStateStopped) return self.stationLogo;
+    return self.trackArtworkFull ?: self.stationLogo;
+}
+
+- (NSImage *)remoteLogoForGroup:(NSString *)group station:(NSString *)station
+{
+    RTStation *s = [self.bookmarks stationNamed:station inGroup:group];
+    if (!s) return nil;
+    NSData *data = [[RTStationLogo shared] cachedLogoForStationURL:s.url image:s.image];
+    return data ? [[NSImage alloc] initWithData:data] : nil;
 }
 
 #pragma mark - Qualità dello stream

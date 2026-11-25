@@ -1,4 +1,5 @@
 #import "RTSettings.h"
+#import "RTRemote.h"
 
 static NSString *const kVolume = @"volume-level";
 static NSString *const kLastGroup = @"last-station-group";
@@ -45,6 +46,8 @@ static NSString *const kPauseOnHeadphones = @"pause-on-headphones";
 static NSString *const kResumeAfterPause = @"resume-after-pause";
 static NSString *const kICloudBackup = @"icloud-backup";
 static NSString *const kLastBackup = @"last-backup";
+static NSString *const kRemoteControl = @"remote-control";
+static NSString *const kRemoteToken = @"remote-token";
 
 @implementation RTSettings
 
@@ -185,6 +188,20 @@ static NSString *const kLastBackup = @"last-backup";
 - (void)setPauseOnHeadphones:(BOOL)v { [self.d setBool:v forKey:kPauseOnHeadphones]; }
 - (BOOL)resumeAfterPause { return [self.d boolForKey:kResumeAfterPause]; }
 - (void)setResumeAfterPause:(BOOL)v { [self.d setBool:v forKey:kResumeAfterPause]; }
+- (BOOL)remoteControl { return [self.d boolForKey:kRemoteControl]; }
+- (void)setRemoteControl:(BOOL)v { [self.d setBool:v forKey:kRemoteControl]; }
+
+- (NSString *)remoteToken
+{
+    NSString *t = [self.d stringForKey:kRemoteToken];
+    if (t.length < 12) {
+        t = [RTRemote generateToken];
+        [self.d setObject:t forKey:kRemoteToken];
+    }
+    return t;
+}
+- (void)setRemoteToken:(NSString *)v { [self.d setObject:v forKey:kRemoteToken]; }
+
 - (BOOL)iCloudBackup { return [self.d boolForKey:kICloudBackup]; }
 - (void)setICloudBackup:(BOOL)v { [self.d setBool:v forKey:kICloudBackup]; }
 - (NSDate *)lastBackup { return [self.d objectForKey:kLastBackup]; }

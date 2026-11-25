@@ -9,6 +9,15 @@ clic destro sull'app → Apri → Apri. Istruzioni complete nel file LEGGIMI.txt
 `RadioTray.exe`; non serve installare niente né essere amministratori. La prima volta SmartScreen può dire
 "PC protetto da Windows": "Ulteriori informazioni" → "Esegui comunque". Istruzioni nel file LEGGIMI.txt dentro lo .zip.
 
+### Novità della 1.18
+- **Telecomando dal telefono**: una pagina web servita da RadioTray sulla rete di casa, da aprire in Safari sull'iPhone
+  (e da aggiungere alla schermata Home). Mostra brano, artista, copertina, stazione e qualità; pulsanti ⏮ ⏯ ⏭ ★,
+  volume; le stazioni più ascoltate e i tuoi gruppi con i loghi (un tocco e la radio parte sul Mac); gli ascoltati di
+  recente con la ★. Tema chiaro e scuro automatico
+- Si accende da Preferenze ▸ Telecomando dal telefono (spento di predefinito); nel menu compaiono l'indirizzo e il
+  codice QR da inquadrare. Risponde solo alla rete di casa e solo con il codice di sicurezza contenuto
+  nell'indirizzo, che si può cambiare ("Nuovo codice di sicurezza…")
+
 ### Novità della 1.17: RadioTray per Windows 10 (0.4.1)
 - **Prima versione per Windows 10**, pensata anche per i PC d'ufficio dietro un proxy: usa le impostazioni proxy di
   Windows (anche con script automatico) e l'utente di dominio, come Edge e Chrome, senza aggirarlo; se il proxy blocca

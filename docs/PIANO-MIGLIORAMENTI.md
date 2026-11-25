@@ -52,7 +52,7 @@ Legenda: `[x]` fatto (versione) · `[ ]` da fare · 🚧 in preparazione nell'an
 - [ ] **7. Pausa e riprendi ("pausa live")** fino a 30 minuti, e registrazione per uso personale
 
 ### Idee nuove
-- [ ] **12. Telecomando dal telefono** (pagina web sulla rete di casa)
+- [ ] 🚧 **12. Telecomando dal telefono** (pagina web sulla rete di casa) — in preparazione per la 1.18
 - [ ] **17. Comandi AppleScript**
 
 ### Altre idee

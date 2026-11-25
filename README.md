@@ -38,6 +38,7 @@ con **macOS High Sierra 10.13** (funziona anche sulle versioni successive).
 | 1.15.0 | link al palinsesto della radio, palinsesto personale con foto | fatta (provata sull'iMac) |
 | 1.16.0 | Ogg Vorbis, Opus e FLAC con ffmpeg, titoli di Radio Paradise | fatta (provata sull'iMac) |
 | 1.17.0 | **RadioTray per Windows 10** (0.4.1, cartella `windows/`): proxy dell'ufficio, MP3/AAC/HLS, preferiti, ricerca, editor, backup comune col Mac, In riproduzione, scorciatoie, timer, sveglia | fasi 1–2 provate sul PC d'ufficio |
+| 1.18.0 | telecomando dal telefono: pagina web sulla rete di casa con brano, comandi, volume, stazioni e recenti | in preparazione |
 
 ## Scaricare
 

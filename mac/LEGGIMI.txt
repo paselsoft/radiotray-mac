@@ -22,6 +22,14 @@ Uso
   Il pulsante si vede sempre se in Preferenze di Sistema > Notifiche > RadioTray scegli
   "Avvisi"; con "Banner" compare solo passando sopra la notifica con il puntatore.
 - Ascoltati di recente: gli ultimi 20 brani (ne ricorda 50); un clic lo aggiunge ai preferiti.
+- Telecomando dal telefono (Preferenze ▸ Telecomando dal telefono): nel menu compare la voce
+  "Telecomando dal telefono" con un codice QR. Inquadralo con la fotocamera dell'iPhone, apri la pagina
+  in Safari e aggiungila alla schermata Home (Condividi ▸ Aggiungi alla schermata Home). Dalla pagina:
+  brano e copertina, ⏮ ⏯ ⏭ ★, volume, stazioni (un tocco e parte sul Mac), ascoltati di recente.
+  Funziona solo sulla stessa rete Wi-Fi di casa e solo con il codice di sicurezza dell'indirizzo;
+  "Nuovo codice di sicurezza…" lo cambia (i telefoni con l'indirizzo vecchio non comandano più).
+  La prima volta macOS può chiedere se consentire le connessioni in entrata a RadioTray: Consenti.
+  Se il telefono non trova il nome del Mac (….local), usa "Copia l'indirizzo con il numero IP".
 - Scorciatoie da tastiera, in qualsiasi app: ⌃⌥P accendi/spegni, ⌃⌥F aggiungi ai preferiti,
   ⌃⌥→ / ⌃⌥← stazione successiva/precedente, ⌃⌥↑ / ⌃⌥↓ volume. Si disattivano da Preferenze.
 - Rotella del mouse (o due dita sul trackpad) sopra l'icona: volume.
