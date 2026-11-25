@@ -1,7 +1,7 @@
 #import "RTRemoteController.h"
 #import "RTRemote.h"
 #import "RTRemoteServer.h"
-#import <QuartzCore/QuartzCore.h>
+#import <CoreImage/CoreImage.h>
 #import <SystemConfiguration/SystemConfiguration.h>
 #include <ifaddrs.h>
 #include <netinet/in.h>
